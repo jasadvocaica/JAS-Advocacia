@@ -52,7 +52,7 @@ interface Props {
 }
 
 export default function WorkflowEtapas({ item, compact = false, onChanged }: Props) {
-  const { user, roles } = useAuth();
+  const { user, roles, hasPermission } = useAuth();
   const { equipe } = useEquipeInterna();
   const [salvando, setSalvando] = useState(false);
 
@@ -70,7 +70,8 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
 
   const isGestor = roles.includes("gestor");
   const isAdvogado = roles.includes("advogado");
-  const isEstagiario = roles.includes("estagiario") && !isGestor && !isAdvogado;
+  const podeExecutar = hasPermission("controladoria", "editar");
+  const podeRevisarOuProtocolar = podeExecutar && (isGestor || isAdvogado);
 
   async function executarTransicao(
     destino: EtapaWorkflow,
@@ -164,6 +165,10 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
   // --- Render dos botões contextuais por etapa ---
 
   function renderAcoesContextuais() {
+    if (!podeExecutar) {
+      return <span className="text-xs text-muted-foreground italic">Sem permissão para alterar esta atividade</span>;
+    }
+
     if (salvando) {
       return (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -197,7 +202,7 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
         );
 
       case "revisao":
-        if (isEstagiario) {
+        if (!podeRevisarOuProtocolar) {
           return (
             <span className="text-xs text-muted-foreground italic">
               Aguardando revisão por advogado ou gestor
@@ -228,7 +233,7 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
         );
 
       case "protocolo":
-        if (isEstagiario) {
+        if (!podeRevisarOuProtocolar) {
           return (
             <span className="text-xs text-muted-foreground italic">
               Aguardando protocolo por advogado ou gestor
