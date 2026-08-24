@@ -536,7 +536,7 @@ export default function PublicacoesPje() {
             "Publicação: " + formatarData(publicacaoEmTratamento.data_publicacao) + ".",
             "",
             publicacaoEmTratamento.texto_publicacao ?? "",
-          ].join("\\n"),
+          ].join("\n"),
           tipo: "prazo_processual",
           prioridade: "alta",
           dataIntimacao: publicacaoEmTratamento.data_publicacao ?? publicacaoEmTratamento.data_disponibilizacao ?? undefined,
