@@ -71,11 +71,14 @@ import {
   Hash,
   UserSquare,
   ScanText,
+  ClipboardCheck,
+  ListTodo,
 } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 import { formatarMensagemSync } from "./publicacoes-pje/sync-message";
 import { UltimaSyncPanel } from "./publicacoes-pje/UltimaSyncPanel";
 import { BiaAcoesButton } from "@/components/assistente/BiaAcoesButton";
+import ItemFormDialog from "@/pages/controladoria/ItemFormDialog";
 
 type MonitoramentoRow = Tables<"pje_monitoramentos">;
 type PubRow = Tables<"pje_publicacoes">;
@@ -120,6 +123,7 @@ export default function PublicacoesPje() {
   const [busca, setBusca] = useState("");
   const [monFiltro, setMonFiltro] = useState<string>("__all__");
   const [selecionada, setSelecionada] = useState<PubRow | null>(null);
+  const [publicacaoEmTratamento, setPublicacaoEmTratamento] = useState<PubRow | null>(null);
 
   // ---- Queries ----
   const { data: monitoramentos = [] } = useQuery({
@@ -222,6 +226,39 @@ export default function PublicacoesPje() {
 
   const novas = pubs.filter((p) => p.status_leitura === "nova").length;
   const ativos = monitoramentos.filter((m) => m.ativo).length;
+
+  async function registrarTarefaCriada(itemId?: string) {
+    if (!itemId || !publicacaoEmTratamento) return;
+    const { error } = await supabase
+      .from("pje_publicacoes")
+      .update({
+        item_controladoria_id: itemId,
+        status_leitura: "vista",
+        vista_em: new Date().toISOString(),
+      })
+      .eq("id", publicacaoEmTratamento.id);
+
+    if (error) {
+      toast({
+        title: "Tarefa criada, mas o vínculo não foi concluído",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Publicação encaminhada à Controladoria",
+      description: "A tarefa foi criada e ficou vinculada à publicação do DJEN.",
+    });
+    setSelecionada((atual) =>
+      atual?.id === publicacaoEmTratamento.id
+        ? ({ ...atual, item_controladoria_id: itemId, status_leitura: "vista" } as PubRow)
+        : atual,
+    );
+    setPublicacaoEmTratamento(null);
+    qc.invalidateQueries({ queryKey: ["pje-pubs"] });
+  }
 
   return (
     <div className="space-y-6">
@@ -476,9 +513,36 @@ export default function PublicacoesPje() {
 
       <Sheet open={!!selecionada} onOpenChange={(o) => !o && setSelecionada(null)}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
-          {selecionada && <DetalhePublicacaoSheet pub={selecionada} />}
+          {selecionada && (
+            <DetalhePublicacaoSheet
+              pub={selecionada}
+              onTratar={() => setPublicacaoEmTratamento(selecionada)}
+            />
+          )}
         </SheetContent>
       </Sheet>
+
+      <ItemFormDialog
+        open={!!publicacaoEmTratamento}
+        onOpenChange={(open) => !open && setPublicacaoEmTratamento(null)}
+        item={null}
+        onSaved={registrarTarefaCriada}
+        prefill={publicacaoEmTratamento ? {
+          processoId: publicacaoEmTratamento.processo_id ?? undefined,
+          titulo: (publicacaoEmTratamento.tipo_comunicacao ?? "Publicação DJEN") + " — " + (publicacaoEmTratamento.numero_processo ?? "processo a conferir"),
+          descricao: [
+            "Origem: Diário de Justiça Eletrônico Nacional (DJEN).",
+            "Disponibilização: " + formatarData(publicacaoEmTratamento.data_disponibilizacao) + ".",
+            "Publicação: " + formatarData(publicacaoEmTratamento.data_publicacao) + ".",
+            "",
+            publicacaoEmTratamento.texto_publicacao ?? "",
+          ].join("\\n"),
+          tipo: "prazo_processual",
+          prioridade: "alta",
+          dataIntimacao: publicacaoEmTratamento.data_publicacao ?? publicacaoEmTratamento.data_disponibilizacao ?? undefined,
+          origem: "djen",
+        } : undefined}
+      />
     </div>
   );
 }
@@ -633,7 +697,7 @@ function copiarTexto(texto: string, label = "Copiado") {
   toast({ title: label, description: texto });
 }
 
-function DetalhePublicacaoSheet({ pub }: { pub: PubRow }) {
+function DetalhePublicacaoSheet({ pub, onTratar }: { pub: PubRow; onTratar: () => void }) {
   const partes = extrairPartes(pub);
   const autores = partes.filter((p) => p.tipo === "Autor");
   const reus = partes.filter((p) => p.tipo === "Réu");
@@ -654,6 +718,33 @@ function DetalhePublicacaoSheet({ pub }: { pub: PubRow }) {
       </SheetHeader>
 
       <div className="mt-6 space-y-6">
+        <section className="rounded-lg border border-gold/30 bg-gold/5 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <ClipboardCheck className="w-5 h-5 text-gold mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold">Tratamento jurídico</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                O sistema pré-preenche os dados, mas o prazo e o vencimento devem ser conferidos antes da criação.
+              </p>
+            </div>
+          </div>
+          {pub.item_controladoria_id ? (
+            <Button asChild className="w-full" variant="outline">
+              <Link to={"/controladoria?item=" + pub.item_controladoria_id}>
+                <ListTodo className="w-4 h-4 mr-2" /> Abrir tarefa vinculada
+              </Link>
+            </Button>
+          ) : pub.processo_id ? (
+            <Button className="w-full" variant="gold" onClick={onTratar}>
+              <ClipboardCheck className="w-4 h-4 mr-2" /> Criar tarefa e conferir prazo
+            </Button>
+          ) : (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
+              Vincule ou cadastre este processo antes de criar uma tarefa de prazo.
+            </div>
+          )}
+        </section>
+
         <section>
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
             Número do processo
