@@ -19,6 +19,10 @@ const corsHeaders = {
 
 const BASE_URL = "https://api-publica.datajud.cnj.jus.br";
 
+// Chave pública vigente publicada pelo CNJ. O secret tem prioridade para rotação.
+const DATAJUD_PUBLIC_API_KEY =
+  "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
+
 const TRIBUNAL_ALIAS: Record<string, string> = {
   TST: "api_publica_tst", TSE: "api_publica_tse", STJ: "api_publica_stj", STM: "api_publica_stm",
   TRF1: "api_publica_trf1", TRF2: "api_publica_trf2", TRF3: "api_publica_trf3",
@@ -50,18 +54,25 @@ async function consultarProcesso(numeroCNJLimpo: string, tribunalSigla: string, 
   const alias = TRIBUNAL_ALIAS[tribunalSigla];
   if (!alias) throw new Error(`Tribunal ${tribunalSigla} não suportado`);
   const url = `${BASE_URL}/${alias}/_search`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `APIKey ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ query: { match: { numeroProcesso: numeroCNJLimpo } } }),
-  });
-  if (!response.ok) {
-    const txt = await response.text();
-    throw new Error(`DataJud ${response.status}: ${txt.substring(0, 200)}`);
-  }
-  const data = await response.json();
-  const hits = data?.hits?.hits ?? [];
-  return hits.length === 0 ? null : hits[0]._source;
+  const consultar = async (numero: string) => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `APIKey ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: { match: { numeroProcesso: numero } } }),
+    });
+    if (!response.ok) {
+      const txt = await response.text();
+      throw new Error(`DataJud ${response.status}: ${txt.substring(0, 200)}`);
+    }
+    const data = await response.json();
+    return data?.hits?.hits?.[0]?._source ?? null;
+  };
+
+  const limpo = numeroCNJLimpo.replace(/\D/g, "");
+  const formatado = limpo.length === 20
+    ? `${limpo.slice(0, 7)}-${limpo.slice(7, 9)}.${limpo.slice(9, 13)}.${limpo.slice(13, 14)}.${limpo.slice(14, 16)}.${limpo.slice(16, 20)}`
+    : numeroCNJLimpo;
+  return (await consultar(formatado)) ?? (formatado !== limpo ? await consultar(limpo) : null);
 }
 
 function extrairAndamentos(dadosDataJud: any) {
@@ -125,12 +136,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("DATAJUD_API_KEY");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "DATAJUD_API_KEY não configurada" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const apiKey = Deno.env.get("DATAJUD_API_KEY") ?? DATAJUD_PUBLIC_API_KEY;
 
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) {
