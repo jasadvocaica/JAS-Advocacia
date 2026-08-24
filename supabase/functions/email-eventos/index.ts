@@ -9,7 +9,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const APP_URL = "https://app.julianaaraujoadvocacia.com";
+const APP_URL = Deno.env.get("APP_URL") ?? "https://faithful-screen-craft.ai.studio";
 
 // Mapa hardcoded da equipe (fallback quando email não está em profiles)
 const EMAILS_EQUIPE: Record<string, string> = {
