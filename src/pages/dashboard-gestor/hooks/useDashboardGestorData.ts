@@ -184,7 +184,7 @@ export function useDashboardGestorData() {
           .gte("data_pagamento", isoDate(inicio6m)),
         supabase
           .from("controladoria_itens")
-          .select("id, status, responsavel_id, criado_em, data_vencimento, concluido_em")
+          .select("id, status, responsavel_id, processo_id, criado_em, data_vencimento, concluido_em")
           .gte("criado_em", inicioMes(hoje).toISOString()),
         supabase
           .from("equipe_membros")
@@ -222,6 +222,25 @@ export function useDashboardGestorData() {
           .eq("ativo", true)
           .order("nome"),
       ]);
+
+      const consultas = [
+        itensAtrasadosRes,
+        processosRes,
+        pagamentosMesRes,
+        parcelasMesRes,
+        pagamentos6mRes,
+        controladoriaItensRes,
+        equipeRes,
+        revisoesRes,
+        protocoloRes,
+        parcelasEmDiaRes,
+        topPendentesRes,
+        parceirosRes,
+      ];
+      const falha = consultas.find((resultado) => resultado.error)?.error;
+      if (falha) {
+        throw new Error(falha.message);
+      }
 
       // ---------- Itens atrasados ----------
       const itensAtrasados: ItemAtrasado[] = (itensAtrasadosRes.data ?? []).map((i: any) => ({
@@ -281,6 +300,7 @@ export function useDashboardGestorData() {
         status: string;
         data_vencimento: string;
         concluido_em: string | null;
+        processo_id: string | null;
       }>;
       const equipeMembros = (equipeRes.data ?? []) as Array<{ user_id: string; nome: string; cargo: string }>;
       const estagiarias = equipeMembros.filter((m) => m.cargo === "estagiario");
@@ -318,12 +338,11 @@ export function useDashboardGestorData() {
 
       // ---------- Saúde ----------
       const totalProcessos = totalProcessosAtivos || 1;
-      const idsAtivos = new Set(processosAtivos.map((p, idx) => idx)); // só p/ tamanho
       // Processos com pelo menos 1 item ativo na controladoria
       const processosComItens = new Set(
         ctrItens
           .filter((i) => i.status !== "concluido")
-          .map((i) => (i as any).processo_id)
+          .map((i) => i.processo_id)
           .filter(Boolean),
       );
       const processosComTarefa = Math.min(processosComItens.size, totalProcessos) / totalProcessos;
@@ -349,7 +368,6 @@ export function useDashboardGestorData() {
           prazosCumpridos: Math.round(prazosCumpridos * 100),
         },
       };
-      void idsAtivos;
 
       // ---------- Honorários pendentes top 5 ----------
       const honorariosPendentes: HonorarioPendente[] = ((topPendentesRes.data ?? []) as any[]).map((p) => ({
