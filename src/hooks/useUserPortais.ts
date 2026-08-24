@@ -52,7 +52,7 @@ export function useUserPortais() {
       const ctx = {
         email: user.email,
         profileAtivo: !!profile?.ativo,
-        rolesCount: roles.length,
+        rolesCount: roles?.length ?? 0,
         parceiroNome: parceiroRes.data?.nome ?? null,
         clienteNome:
           (clienteRes.data as any)?.clientes?.nome ??
