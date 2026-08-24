@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Upload, Download, History } from "lucide-react";
+import { Upload, Download, History, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ImportarTab } from "./ImportarTab";
@@ -22,6 +22,11 @@ export default function ImportacaoExportacaoHub() {
         title="Importação e Exportação"
         description="Carregue dados em massa, gere relatórios para o contador, exporte listas para parceiros e faça backup completo do sistema."
       >
+        <Button variant="gold" size="sm" asChild>
+          <Link to="/importacao-exportacao/migracao-clientes-processos">
+            <Database className="w-4 h-4 mr-2" /> Revisar migração de clientes
+          </Link>
+        </Button>
         <Button variant="outline" size="sm" asChild>
           <Link to="/importacao-exportacao/historico">
             <History className="w-4 h-4 mr-2" /> Histórico de importações
