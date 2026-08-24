@@ -334,17 +334,24 @@ export default function ItemChat({ itemId, processoId, clienteId, itemTitulo, cl
 
   async function excluirComentario(c: Comentario) {
     try {
-      if (c.arquivos?.length > 0) {
-        const paths = c.arquivos.map((a) => a.path).filter(Boolean);
-        if (paths.length > 0) {
-          await supabase.storage.from("chat-anexos").remove(paths).catch(() => {});
-        }
-      }
+      // Exclui primeiro o registro protegido por RLS. Assim, uma negativa de
+      // permissão nunca remove anexos de um comentário que continua existindo.
       const { error } = await supabase.from("controladoria_comentarios").delete().eq("id", c.id);
       if (error) {
         toast.error("Erro ao excluir: " + error.message);
         return;
       }
+
+      if (c.arquivos?.length > 0) {
+        const paths = c.arquivos.map((a) => a.path).filter(Boolean);
+        if (paths.length > 0) {
+          const { error: storageError } = await supabase.storage.from("chat-anexos").remove(paths);
+          if (storageError) {
+            console.warn("Comentário excluído, mas alguns anexos não puderam ser removidos:", storageError.message);
+          }
+        }
+      }
+
       toast.success("Comentário excluído");
       carregarComentarios();
     } catch (err: any) {
