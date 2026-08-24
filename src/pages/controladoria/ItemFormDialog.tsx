@@ -282,7 +282,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       visivel_parceiro: visivelParceiro,
       o_que_levar: isEvento ? (oQueLevar.trim() || null) : null,
       orientacoes: isEvento ? (orientacoes.trim() || null) : null,
-      origem: prefill?.origem ?? (isEdit ? item?.origem : "controladoria"),
+      origem: prefill?.origem ?? (isEdit ? (item as any)?.origem : "controladoria"),
     };
 
     let savedId: string | null = null;
