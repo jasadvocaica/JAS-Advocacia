@@ -1,0 +1,2 @@
+ALTER TABLE public.controladoria_itens ADD COLUMN IF NOT EXISTS responsavel_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_controladoria_itens_responsavel_id ON public.controladoria_itens(responsavel_id);

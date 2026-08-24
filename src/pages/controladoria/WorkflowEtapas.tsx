@@ -1,416 +1,455 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Loader2, Check, ArrowRight, FileText, Wrench, Send, CheckCircle2, ChevronDown, Eye } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { CheckCircle2, ArrowRight, RotateCcw, Send, Play, FileCheck2, Loader2, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ETAPAS_ORDENADAS,
-  ETAPA_LABEL,
-  ETAPA_DESCRICAO,
-  etapaAtualDe,
-  podeTransicionar,
-  transicionarEtapa,
-  type EtapaWorkflow,
-} from "./workflow";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { formatDateTime } from "@/lib/format";
 import { useEquipeInterna } from "./equipe";
-import { ResponsavelAvatar } from "./ResponsavelAvatar";
+import {
+  EtapaWorkflow, ETAPA_LABEL, ETAPA_RESP_KEY, ETAPAS_ORDEM,
+  etapaAtualDe, transicoesPermitidas, labelTransicao, exigeObservacao, transicionarEtapa,
+} from "./workflow";
 
-interface Props {
-  item: {
-    id: string;
-    titulo: string;
-    etapa_workflow?: EtapaWorkflow | string | null;
-    status?: string | null;
-    responsavel_id?: string | null;
-    exige_revisao?: boolean | null;
-    executor_id?: string | null;
-    corretor_id?: string | null;
-    revisor_id?: string | null;
-    protocolador_id?: string | null;
-  };
-  compact?: boolean;
-  onChanged: () => void;
+export type { EtapaWorkflow } from "./workflow";
+
+export const ETAPAS: { id: EtapaWorkflow; label: string; icon: any; respKey: string | null; cor: string }[] = [
+  { id: "criacao",    label: "Criação",   icon: FileText,     respKey: null,              cor: "bg-muted text-muted-foreground border-border" },
+  { id: "execucao",   label: "Execução",  icon: Wrench,       respKey: "executor_id",     cor: "bg-primary/15 text-primary border-primary/30" },
+  { id: "revisao",    label: "Revisão",   icon: Eye,          respKey: "revisor_id",      cor: "bg-[#7c3aed]/15 text-[#7c3aed] dark:text-[#c4b5fd] border-[#7c3aed]/30" },
+  { id: "correcao",   label: "Correção",  icon: Wrench,       respKey: "corretor_id",     cor: "bg-warning/15 text-warning border-warning/30" },
+  { id: "protocolo",  label: "Protocolo", icon: Send,         respKey: "protocolador_id", cor: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+  { id: "finalizado", label: "Finalizado",icon: CheckCircle2, respKey: null,              cor: "bg-success/15 text-success border-success/30" },
+];
+
+interface ItemWorkflow {
+  id: string;
+  etapa_workflow: string | null;
+  exige_revisao?: boolean | null;
+  executor_id: string | null;
+  corretor_id: string | null;
+  revisor_id?: string | null;
+  protocolador_id: string | null;
+  responsavel_id: string | null;
+  etapa_atualizada_em?: string | null;
 }
 
-export default function WorkflowEtapas({ item, compact = false, onChanged }: Props) {
-  const { user, roles, hasPermission } = useAuth();
+interface HistoricoRow {
+  id: string;
+  etapa: string;
+  responsavel_id: string | null;
+  iniciada_em: string;
+  finalizada_em: string | null;
+  observacao: string | null;
+}
+
+interface Props {
+  item: ItemWorkflow;
+  onChanged: () => void;
+  compact?: boolean;
+}
+
+export default function WorkflowEtapas({ item, onChanged, compact = false }: Props) {
+  const { user } = useAuth();
   const { equipe } = useEquipeInterna();
   const [salvando, setSalvando] = useState(false);
+  const [historico, setHistorico] = useState<HistoricoRow[]>([]);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
+  const [alvo, setAlvo] = useState<EtapaWorkflow | null>(null);
+  const [proxResponsavel, setProxResponsavel] = useState<string>("");
+  const [observacao, setObservacao] = useState("");
+  const [transferirOpen, setTransferirOpen] = useState(false);
+  const [novoResponsavel, setNovoResponsavel] = useState<string>("");
+  const [motivoTransfer, setMotivoTransfer] = useState("");
 
-  // Modais de apoio para transições com payload extra
-  const [modalDevolver, setModalDevolver] = useState(false);
-  const [devolverObs, setDevolverObs] = useState("");
-  const [devolverRespId, setDevolverRespId] = useState("");
-
-  const [modalProtocolo, setModalProtocolo] = useState(false);
-  const [numeroProtocolo, setNumeroProtocolo] = useState("");
-  const [comprovanteUrl, setComprovanteUrl] = useState("");
-
-  const etapaAtual = etapaAtualDe(item);
   const exigeRevisao = item.exige_revisao !== false;
+  const etapaAtual = etapaAtualDe(item);
+  const opcoes = transicoesPermitidas(etapaAtual, exigeRevisao);
+  const etapaAtualConfig = ETAPAS.find((e) => e.id === etapaAtual)!;
+  const alvoConfig = alvo ? ETAPAS.find((e) => e.id === alvo)! : null;
+  const respAtualId = etapaAtualConfig.respKey ? ((item as any)[etapaAtualConfig.respKey] as string | null) : null;
+  const podeTransferir = !!etapaAtualConfig.respKey && etapaAtual !== "finalizado";
 
-  const isGestor = roles.includes("gestor");
-  const isAdvogado = roles.includes("advogado");
-  const podeExecutar = hasPermission("controladoria", "editar");
-  const podeRevisarOuProtocolar = podeExecutar && (isGestor || isAdvogado);
+  async function carregarHistorico() {
+    const { data } = await (supabase as any)
+      .from("controladoria_etapas_historico")
+      .select("id, etapa, responsavel_id, iniciada_em, finalizada_em, observacao")
+      .eq("item_id", item.id)
+      .order("iniciada_em", { ascending: false });
+    setHistorico((data ?? []) as HistoricoRow[]);
+  }
 
-  async function executarTransicao(
-    destino: EtapaWorkflow,
-    extra?: {
-      novoResponsavelId?: string | null;
-      observacao?: string | null;
-      numeroProtocolo?: string | null;
-      arquivoProtocoloUrl?: string | null;
-    },
-  ) {
+  useEffect(() => {
+    if (historicoAberto) void carregarHistorico();
+  }, [historicoAberto, item.id]);
+
+  function nomeDe(id: string | null) {
+    if (!id) return "—";
+    return equipe.find((m) => m.id === id)?.nome ?? "—";
+  }
+
+  function abrirTransicao(etapa: EtapaWorkflow) {
+    const respKey = ETAPA_RESP_KEY[etapa];
+    const sugestao = etapa === "correcao"
+      ? (item.executor_id ?? item.responsavel_id ?? "")
+      : respKey
+        ? ((item as any)[respKey] ?? item.responsavel_id ?? "")
+        : "";
+    setProxResponsavel(sugestao ?? "");
+    setObservacao("");
+    setAlvo(etapa);
+  }
+
+  async function confirmarTransicao() {
+    if (!alvo || !alvoConfig) return;
     setSalvando(true);
-    try {
-      const res = await transicionarEtapa({
-        itemId: item.id,
-        novaEtapa: destino,
-        etapaAtual: etapaAtual,
-        exigeRevisao: exigeRevisao,
-        ...extra,
-      });
-
-      if (!res.ok) {
-        toast.error(res.erro || res.error || "Não foi possível avançar a etapa");
-        return false;
-      }
-
-      toast.success(`Etapa avançada para: ${ETAPA_LABEL[destino]}`);
-      onChanged();
-      return true;
-    } catch (err: any) {
-      toast.error(err?.message || "Erro inesperado ao avançar etapa");
-      return false;
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  // --- Handlers de cada ação do workflow ---
-
-  async function handleIniciarExecucao() {
-    await executarTransicao("execucao", {
-      novoResponsavelId: item.responsavel_id || user?.id,
+    const r = await transicionarEtapa({
+      itemId: item.id,
+      etapaAtual,
+      novaEtapa: alvo,
+      exigeRevisao,
+      responsavelId: ETAPA_RESP_KEY[alvo] ? proxResponsavel || null : null,
+      observacao,
     });
+    setSalvando(false);
+    if (!r.ok) return toast.error(r.erro ?? "Não foi possível mover a etapa");
+    setAlvo(null);
+    toast.success(`Etapa: ${ETAPA_LABEL[alvo]}`);
+    onChanged();
+    if (historicoAberto) void carregarHistorico();
   }
 
-  async function handleEnviarRevisao() {
-    // Busca advogado/gestor preferencial se não houver um atribuído
-    const gestorOuAdv = equipe.find(
-      (m) => (m.role === "gestor" || m.role === "advogado") && m.id !== user?.id,
-    );
-    await executarTransicao("revisao", {
-      novoResponsavelId: gestorOuAdv?.id ?? null,
-      observacao: "Minuta finalizada, aguardando revisão.",
+  function abrirTransferir() {
+    setNovoResponsavel(respAtualId ?? "");
+    setMotivoTransfer("");
+    setTransferirOpen(true);
+  }
+
+  async function transferir() {
+    if (!user || !etapaAtualConfig.respKey) return;
+    if (!novoResponsavel) return toast.error("Selecione o novo responsável");
+    if (novoResponsavel === respAtualId) return toast.error("Já é o responsável atual");
+    setSalvando(true);
+
+    const agora = new Date().toISOString();
+    const nomeNovo = equipe.find((m) => m.id === novoResponsavel)?.nome ?? "novo responsável";
+    const nomeAntigo = nomeDe(respAtualId);
+    const obs = `🔄 Transferida de ${nomeAntigo} para ${nomeNovo}${motivoTransfer.trim() ? ` — ${motivoTransfer.trim()}` : ""}`;
+
+    const { data: aberto } = await (supabase as any)
+      .from("controladoria_etapas_historico")
+      .select("id")
+      .eq("item_id", item.id)
+      .eq("etapa", etapaAtual)
+      .is("finalizada_em", null)
+      .order("iniciada_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (aberto?.id) {
+      await (supabase as any)
+        .from("controladoria_etapas_historico")
+        .update({ finalizada_em: agora, observacao: obs })
+        .eq("id", aberto.id);
+    }
+
+    const updates: any = { etapa_atualizada_em: agora, responsavel_id: novoResponsavel };
+    updates[etapaAtualConfig.respKey] = novoResponsavel;
+    const { error } = await supabase
+      .from("controladoria_itens")
+      .update(updates)
+      .eq("id", item.id);
+    if (error) { setSalvando(false); return toast.error("Erro: " + error.message); }
+
+    await (supabase as any).from("controladoria_etapas_historico").insert({
+      item_id: item.id,
+      etapa: etapaAtual,
+      responsavel_id: novoResponsavel,
+      iniciada_em: agora,
+      criado_por: user.id,
     });
-  }
 
-  async function handleAprovarParaProtocolo() {
-    await executarTransicao("protocolo", {
-      observacao: "Minuta aprovada, liberada para protocolo.",
+    await supabase.from("controladoria_comentarios").insert({
+      item_id: item.id,
+      user_id: user.id,
+      texto: `**${etapaAtualConfig.label}** ${obs}`,
     });
+
+    if (novoResponsavel !== user.id) {
+      await supabase.from("notificacoes").insert({
+        user_id: novoResponsavel,
+        titulo: `Tarefa transferida para você (${etapaAtualConfig.label})`,
+        descricao: motivoTransfer.trim() || `${nomeAntigo} transferiu a etapa de ${etapaAtualConfig.label}`,
+        tipo: "controladoria",
+        item_id: item.id,
+        link: `/controladoria?item=${item.id}`,
+      } as any);
+    }
+
+    setSalvando(false);
+    setTransferirOpen(false);
+    toast.success(`Transferida para ${nomeNovo}`);
+    onChanged();
+    if (historicoAberto) void carregarHistorico();
   }
 
-  async function handleConfirmarDevolucao() {
-    if (!devolverObs.trim()) {
-      toast.error("Informe os apontamentos de correção");
-      return;
-    }
-    const ok = await executarTransicao("correcao", {
-      novoResponsavelId: devolverRespId || item.corretor_id || item.executor_id || item.responsavel_id,
-      observacao: devolverObs.trim(),
-    });
-    if (ok) {
-      setModalDevolver(false);
-      setDevolverObs("");
-      setDevolverRespId("");
-    }
-  }
+  const visiveis = ETAPAS.filter((e) => exigeRevisao || (e.id !== "revisao" && e.id !== "correcao"));
+  const idxAtual = ETAPAS_ORDEM.indexOf(etapaAtual);
 
-  async function handleConfirmarProtocolo() {
-    const ok = await executarTransicao("finalizado", {
-      numeroProtocolo: numeroProtocolo.trim() || null,
-      arquivoProtocoloUrl: comprovanteUrl.trim() || null,
-      observacao: numeroProtocolo ? `Protocolo nº ${numeroProtocolo}` : "Protocolado no tribunal",
-    });
-    if (ok) {
-      setModalProtocolo(false);
-      setNumeroProtocolo("");
-      setComprovanteUrl("");
-    }
-  }
+  const acoes = (size: "sm" | "xs") => (
+    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+      {podeTransferir && (
+        <Button
+          size="sm"
+          variant={size === "xs" ? "ghost" : "outline"}
+          onClick={abrirTransferir}
+          disabled={salvando}
+          className={size === "xs" ? "h-7 px-2 text-xs" : undefined}
+        >
+          Transferir
+        </Button>
+      )}
+      {opcoes.map((op) => (
+        <Button
+          key={op}
+          size="sm"
+          variant={op === "correcao" ? "outline" : "default"}
+          onClick={() => abrirTransicao(op)}
+          disabled={salvando}
+          className={size === "xs" ? "h-7 px-2.5 text-xs" : undefined}
+        >
+          {labelTransicao(etapaAtual, op)}
+          <ArrowRight className={cn("ml-1", size === "xs" ? "w-3 h-3" : "w-4 h-4")} />
+        </Button>
+      ))}
+    </div>
+  );
 
-  // --- Render dos botões contextuais por etapa ---
-
-  function renderAcoesContextuais() {
-    if (!podeExecutar) {
-      return <span className="text-xs text-muted-foreground italic">Sem permissão para alterar esta atividade</span>;
-    }
-
-    if (salvando) {
-      return (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Atualizando etapa...
-        </div>
-      );
-    }
-
-    switch (etapaAtual) {
-      case "criacao":
-        return (
-          <Button size="sm" onClick={handleIniciarExecucao} className="gap-1.5 h-8 text-xs">
-            <Play className="w-3.5 h-3.5" /> Iniciar execução
-          </Button>
-        );
-
-      case "execucao":
-      case "correcao":
-        return (
-          <div className="flex items-center gap-2 flex-wrap">
-            {exigeRevisao ? (
-              <Button size="sm" onClick={handleEnviarRevisao} className="gap-1.5 h-8 text-xs">
-                <Send className="w-3.5 h-3.5" /> Enviar para revisão
-              </Button>
-            ) : (
-              <Button size="sm" onClick={handleAprovarParaProtocolo} className="gap-1.5 h-8 text-xs">
-                <FileCheck2 className="w-3.5 h-3.5" /> Liberar p/ protocolo
-              </Button>
-            )}
-          </div>
-        );
-
-      case "revisao":
-        if (!podeRevisarOuProtocolar) {
+  const compactBlock = compact && (
+    <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
+        {visiveis.map((et, i) => {
+          const ativa = et.id === etapaAtual;
+          const feita = ETAPAS_ORDEM.indexOf(et.id) < idxAtual;
+          const Icon = et.icon;
           return (
-            <span className="text-xs text-muted-foreground italic">
-              Aguardando revisão por advogado ou gestor
-            </span>
+            <div key={et.id} className="flex items-center gap-1 shrink-0">
+              <div
+                className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center border transition-colors",
+                  ativa && "border-primary bg-primary text-primary-foreground",
+                  feita && "border-success bg-success/10 text-success",
+                  !ativa && !feita && "border-border bg-muted text-muted-foreground",
+                )}
+                title={et.label}
+              >
+                {feita ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+              </div>
+              <span
+                className={cn(
+                  "text-[11px] font-medium hidden md:inline",
+                  ativa && "text-primary",
+                  feita && "text-muted-foreground line-through",
+                  !ativa && !feita && "text-muted-foreground",
+                )}
+              >
+                {et.label}
+              </span>
+              {i < visiveis.length - 1 && (
+                <div className={cn("h-px w-3 sm:w-4", feita ? "bg-success/50" : "bg-border")} />
+              )}
+            </div>
           );
-        }
-        return (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setDevolverRespId(item.corretor_id || item.executor_id || item.responsavel_id || "");
-                setModalDevolver(true);
-              }}
-              className="gap-1.5 h-8 text-xs text-warning border-warning/40 hover:bg-warning/10"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Devolver p/ correção
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleAprovarParaProtocolo}
-              className="gap-1.5 h-8 text-xs bg-success text-success-foreground hover:bg-success/90"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar minuta
-            </Button>
-          </div>
-        );
-
-      case "protocolo":
-        if (!podeRevisarOuProtocolar) {
-          return (
-            <span className="text-xs text-muted-foreground italic">
-              Aguardando protocolo por advogado ou gestor
-            </span>
-          );
-        }
-        return (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setDevolverRespId(item.corretor_id || item.executor_id || item.responsavel_id || "");
-                setModalDevolver(true);
-              }}
-              className="gap-1.5 h-8 text-xs text-muted-foreground"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Devolver
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setModalProtocolo(true)}
-              className="gap-1.5 h-8 text-xs bg-primary"
-            >
-              <FileCheck2 className="w-3.5 h-3.5" /> Marcar como protocolado
-            </Button>
-          </div>
-        );
-
-      case "finalizado":
-        return (
-          <Badge variant="outline" className="gap-1 bg-success/15 text-success border-success/30">
-            <CheckCircle2 className="w-3 h-3" /> Finalizado / Protocolado
-          </Badge>
-        );
-
-      default:
-        return null;
-    }
-  }
-
-  const idxAtual = ETAPAS_ORDENADAS.indexOf(etapaAtual);
+        })}
+      </div>
+      {acoes("xs")}
+    </div>
+  );
 
   return (
-    <div className="space-y-2">
-      {/* Barra de progresso linear */}
-      <div className="flex items-center justify-between gap-1 overflow-x-auto py-1">
-        {ETAPAS_ORDENADAS.map((etapa, idx) => {
-          const concluida = idx < idxAtual;
-          const ativa = idx === idxAtual;
+    <>
+      {compact ? compactBlock : (
+
+    <div className="rounded-lg border bg-card p-4 space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-sm font-semibold">Fluxo da tarefa</p>
+        {acoes("sm")}
+      </div>
+
+      {/* Stepper visual */}
+      <div className="flex items-start gap-1 overflow-x-auto pb-1">
+        {visiveis.map((et, i) => {
+          const ativa = et.id === etapaAtual;
+          const feita = ETAPAS_ORDEM.indexOf(et.id) < idxAtual;
+          const Icon = et.icon;
+          const resp = et.respKey ? ((item as any)[et.respKey] as string | null) : null;
           return (
-            <div key={etapa} className="flex items-center gap-1 shrink-0">
-              <div
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
-                  ativa
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : concluida
-                    ? "bg-muted text-foreground/80"
-                    : "text-muted-foreground/60"
-                }`}
-                title={ETAPA_DESCRICAO[etapa]}
-              >
-                {concluida ? (
-                  <CheckCircle2 className="w-3 h-3 text-success" />
-                ) : (
-                  <span className="w-3 text-center text-[10px] opacity-70">{idx + 1}</span>
-                )}
-                <span>{ETAPA_LABEL[etapa]}</span>
+            <div key={et.id} className="flex-1 min-w-[88px] flex flex-col items-center text-center">
+              <div className={cn(
+                "w-9 h-9 rounded-full flex items-center justify-center border-2 transition-colors",
+                ativa && "border-primary bg-primary text-primary-foreground shadow-sm",
+                feita && "border-success bg-success/10 text-success",
+                !ativa && !feita && "border-border bg-muted text-muted-foreground",
+              )}>
+                {feita ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
               </div>
-              {idx < ETAPAS_ORDENADAS.length - 1 && (
-                <ArrowRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+              <p className={cn(
+                "text-[11px] mt-1.5 font-medium leading-tight",
+                ativa && "text-primary",
+                feita && "text-success",
+                !ativa && !feita && "text-muted-foreground",
+              )}>{et.label}</p>
+              {resp && (
+                <p className="text-[10px] text-muted-foreground mt-0.5 uppercase truncate max-w-[80px]" title={nomeDe(resp)}>
+                  {nomeDe(resp)}
+                </p>
+              )}
+              {i < visiveis.length - 1 && (
+                <div className={cn(
+                  "hidden sm:block h-0.5 w-full -mt-7 -mb-3 -z-10",
+                  feita ? "bg-success/40" : "bg-border",
+                )} />
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Ações contextuais */}
-      <div className="flex items-center justify-between gap-2 pt-0.5">
-        <span className="text-[11px] text-muted-foreground truncate">
-          {ETAPA_DESCRICAO[etapaAtual]}
-        </span>
-        <div className="shrink-0">{renderAcoesContextuais()}</div>
-      </div>
+      {/* Histórico */}
+      <Collapsible open={historicoAberto} onOpenChange={setHistoricoAberto}>
+        <CollapsibleTrigger asChild>
+          <button type="button" className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors pt-1">
+            <span>Histórico de etapas</span>
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", historicoAberto && "rotate-180")} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-3">
+          {historico.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sem registros ainda.</p>
+          ) : (
+            <ul className="space-y-2">
+              {historico.map((h) => {
+                const conf = ETAPAS.find((e) => e.id === (h.etapa as EtapaWorkflow));
+                const rotulo = conf?.label ?? (h.etapa === "aprovacao" ? "Aprovação" : h.etapa);
+                return (
+                  <li key={h.id} className="text-xs border-l-2 border-border pl-3 py-1">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("inline-flex px-1.5 py-0.5 rounded border text-[10px] font-medium", conf?.cor ?? "bg-success/15 text-success border-success/30")}>
+                        {rotulo}
+                      </span>
+                      <span className="text-muted-foreground">{nomeDe(h.responsavel_id)}</span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5">
+                      {formatDateTime(h.iniciada_em)}
+                      {h.finalizada_em && <> → {formatDateTime(h.finalizada_em)}</>}
+                    </div>
+                    {h.observacao && <p className="text-foreground mt-1 italic">"{h.observacao}"</p>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+      )}
 
-      {/* Modal Devolver para Correção */}
-      <Dialog open={modalDevolver} onOpenChange={setModalDevolver}>
+      {/* Modal de transição */}
+      <Dialog open={!!alvo} onOpenChange={(o) => { if (!o) setAlvo(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Devolver minuta para correção</DialogTitle>
+            <DialogTitle>{alvo ? labelTransicao(etapaAtual, alvo) : ""}</DialogTitle>
             <DialogDescription>
-              Aponte o que precisa ser ajustado. O item retornará para o responsável com as observações.
+              Próxima etapa: <strong>{alvoConfig?.label}</strong>
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+          <div className="space-y-3">
+            {alvo && ETAPA_RESP_KEY[alvo] && (
+              <div className="space-y-1.5">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Responsável pela {alvoConfig?.label.toLowerCase()}
+                </Label>
+                <Select value={proxResponsavel} onValueChange={setProxResponsavel}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {equipe.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.nome}{m.role ? ` · ${m.role}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
-              <Label>Responsável pelos ajustes</Label>
-              <Select value={devolverRespId} onValueChange={setDevolverRespId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione quem fará os ajustes" />
-                </SelectTrigger>
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                {alvo && exigeObservacao(alvo) ? "O que deve ser corrigido (obrigatório)" : "Observação (opcional)"}
+              </Label>
+              <Textarea
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                rows={3}
+                placeholder="Ex: aguardar fundamentação no art. 7º, IV da CF"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAlvo(null)} disabled={salvando}>Cancelar</Button>
+            <Button onClick={confirmarTransicao} disabled={salvando}>
+              {salvando && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              Confirmar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: transferir etapa atual */}
+      <Dialog open={transferirOpen} onOpenChange={setTransferirOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transferir {etapaAtualConfig.label.toLowerCase()}</DialogTitle>
+            <DialogDescription>
+              Atual: <strong>{nomeDe(respAtualId)}</strong>. A etapa continua a mesma — só muda quem vai fazer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Novo responsável</Label>
+              <Select value={novoResponsavel} onValueChange={setNovoResponsavel}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {equipe.map((m) => (
+                  {equipe.filter((m) => m.id !== respAtualId).map((m) => (
                     <SelectItem key={m.id} value={m.id}>
-                      <span className="inline-flex items-center gap-2">
-                        <ResponsavelAvatar nome={m.nome} id={m.id} size="xs" showTooltip={false} />
-                        {m.nome}
-                      </span>
+                      {m.nome}{m.role ? ` · ${m.role}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Apontamentos de correção *</Label>
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Motivo (opcional)</Label>
               <Textarea
-                value={devolverObs}
-                onChange={(e) => setDevolverObs(e.target.value)}
-                placeholder="Ex: Corrigir o pedido de tutela de urgência e revisar valor da causa..."
-                rows={4}
+                value={motivoTransfer}
+                onChange={(e) => setMotivoTransfer(e.target.value)}
+                rows={3}
+                placeholder="Ex: estou de férias na próxima semana"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModalDevolver(false)} disabled={salvando}>
-              Cancelar
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setTransferirOpen(false)} disabled={salvando}>Cancelar</Button>
+            <Button onClick={transferir} disabled={salvando || !novoResponsavel}>
+              {salvando && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              Transferir
             </Button>
-            <Button
-              onClick={handleConfirmarDevolucao}
-              disabled={salvando || !devolverObs.trim()}
-              className="bg-warning text-warning-foreground hover:bg-warning/90"
-            >
-              {salvando && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-              Confirmar devolução
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Marcar como Protocolado */}
-      <Dialog open={modalProtocolo} onOpenChange={setModalProtocolo}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirmar protocolo</DialogTitle>
-            <DialogDescription>
-              Informe os dados do protocolo para arquivar o item como concluído.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>Número do protocolo (opcional)</Label>
-              <Input
-                value={numeroProtocolo}
-                onChange={(e) => setNumeroProtocolo(e.target.value)}
-                placeholder="Ex: 2026.0001234-PJE"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Link do comprovante (opcional)</Label>
-              <Input
-                value={comprovanteUrl}
-                onChange={(e) => setComprovanteUrl(e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModalProtocolo(false)} disabled={salvando}>
-              Cancelar
-            </Button>
-            <Button onClick={handleConfirmarProtocolo} disabled={salvando}>
-              {salvando && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-              Concluir protocolo
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

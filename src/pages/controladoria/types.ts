@@ -183,9 +183,6 @@ export interface ControladoriaItem {
   // joins
   cliente?: { id: string; nome: string } | null;
   processo?: { id: string; numero_cnj: string | null; tipo_acao: string | null } | null;
-  responsavel?: { id: string; nome: string; email: string | null; avatar_url?: string | null } | null;
-  co_responsaveis?: Array<{ id: string; user_id: string; papel: string; profile?: { id: string; nome: string; avatar_url: string | null } | null }>;
-  criador?: { id: string; nome: string } | null;
-  concluidor?: { id: string; nome: string } | null;
+  responsavel?: { id: string; nome: string; email: string | null } | null;
   google_evento?: { google_event_id: string; ultimo_sync: string; ultimo_erro: string | null } | null;
 }

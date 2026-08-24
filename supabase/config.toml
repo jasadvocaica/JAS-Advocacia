@@ -1,0 +1,28 @@
+project_id = "fhbmervgidsixgkjylym"
+
+[functions.google-calendar]
+verify_jwt = false
+
+[functions.controladoria-sync-calendar]
+verify_jwt = false
+
+[functions.ia-alerta-prazos-diario]
+verify_jwt = false
+
+[functions.ia-relatorio-financeiro-mensal]
+verify_jwt = false
+
+[functions.ia-gerar-peticao]
+verify_jwt = false
+
+[functions.ia-analise-novo-cliente]
+verify_jwt = false
+
+[functions.mcp-server]
+verify_jwt = false
+
+[functions.scraper-tribunais]
+verify_jwt = false
+
+[functions.email-eventos]
+verify_jwt = false

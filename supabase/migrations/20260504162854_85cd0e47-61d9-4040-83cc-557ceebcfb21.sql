@@ -1,0 +1,2 @@
+ALTER TABLE public.controladoria_itens DROP CONSTRAINT controladoria_itens_origem_check;
+ALTER TABLE public.controladoria_itens ADD CONSTRAINT controladoria_itens_origem_check CHECK (origem = ANY (ARRAY['controladoria'::text, 'perfil_cliente'::text, 'perfil_processo'::text, 'fluxo_automatico'::text, 'datajud'::text, 'dje_ia'::text, 'pje_publicacao'::text, 'bia'::text]));

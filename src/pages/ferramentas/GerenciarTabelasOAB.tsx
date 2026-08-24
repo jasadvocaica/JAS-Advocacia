@@ -36,6 +36,8 @@ export default function GerenciarTabelasOAB() {
   const [processandoId, setProcessandoId] = useState<string | null>(null);
   const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
 
+  if (!isGestor) return <Navigate to="/ferramentas" replace />;
+
   const carregar = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -47,13 +49,7 @@ export default function GerenciarTabelasOAB() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (isGestor) {
-      carregar();
-    }
-  }, [isGestor]);
-
-  if (!isGestor) return <Navigate to="/ferramentas" replace />;
+  useEffect(() => { carregar(); }, []);
 
   const reset = () => {
     setEstado(""); setAnoVigencia(new Date().getFullYear());

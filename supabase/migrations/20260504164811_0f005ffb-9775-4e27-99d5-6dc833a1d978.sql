@@ -1,0 +1,1 @@
+DELETE FROM public.controladoria_itens WHERE titulo = '[teste]';

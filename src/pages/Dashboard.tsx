@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,21 +10,24 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatBRL, formatDate } from "@/lib/format";
-import { MapaBrasilClientes, ClienteEstadoData } from "@/components/dashboard/MapaBrasilClientes";
+import { cn } from "@/lib/utils";
+import { MapaBrasilClientes } from "@/components/dashboard/MapaBrasilClientes";
+import { UF_NOMES } from "@/components/dashboard/brasil-uf-paths";
 import {
   Users, Briefcase, AlertTriangle, Clock, DollarSign, CheckCircle2,
   TrendingUp, Calendar, ArrowRight, Cake, Activity, HandCoins, ListTodo,
-  AlertOctagon, Sparkles,
+  AlertOctagon, Sparkles, MapPin, Gavel, FileText, CircleDot,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
 } from "recharts";
 
 // --------------------------------------------------------------
 // Tipos
 // --------------------------------------------------------------
 interface DashboardCards {
+  clientes_ativos: number;
   processos_ativos: number;
   prazos_proximos_7d: number;
   prazos_vencidos: number;
@@ -33,6 +35,7 @@ interface DashboardCards {
   a_receber_mes: number;
   em_atraso: number;
   tarefas_abertas: number;
+  tarefas_atrasadas: number;
   repasses_pendentes: number;
 }
 
@@ -53,20 +56,32 @@ interface DesempenhoMembro {
 
 const AREA_COLORS = [
   "hsl(var(--primary))",
-  "hsl(var(--gold))",
-  "hsl(217 70% 55%)",
-  "hsl(142 60% 45%)",
-  "hsl(35 90% 55%)",
-  "hsl(280 60% 55%)",
-  "hsl(0 70% 60%)",
-  "hsl(195 70% 50%)",
+  "hsl(var(--navy))",
+  "hsl(var(--champagne))",
+  "hsl(217 70% 62%)",
+  "hsl(152 45% 45%)",
+  "hsl(280 40% 60%)",
+  "hsl(38 70% 58%)",
+  "hsl(195 55% 52%)",
 ];
+
+const TOOLTIP_STYLE = {
+  background: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: 12,
+  fontSize: 12,
+  boxShadow: "0 4px 16px -8px hsl(215 30% 20% / 0.25)",
+};
 
 // --------------------------------------------------------------
 // Página
 // --------------------------------------------------------------
 export default function Dashboard() {
   const { profile, isGestor, hasPermission, user, roles } = useAuth();
+  // Redireciona estagiárias direto para o painel operacional
+  if (!isGestor && roles.includes("estagiario")) {
+    return <Navigate to="/painel-operacional" replace />;
+  }
   const verFinanceiro = hasPermission("financeiro", "visualizar");
   const verEquipe = hasPermission("equipe", "visualizar");
 
@@ -77,17 +92,29 @@ export default function Dashboard() {
     return "Boa noite";
   }, []);
 
-  // Redireciona estagiárias direto para o painel operacional
-  if (!isGestor && roles.includes("estagiario")) {
-    return <Navigate to="/painel-operacional" replace />;
-  }
+  const primeiroNome = profile?.nome?.split(" ")[0] ?? "";
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={`${greeting}, ${profile?.nome?.split(" ")[0] ?? ""}`}
-        description={`${isGestor ? "Visão completa do escritório" : "Sua agenda e seus processos"} • ${formatDate(new Date())}`}
-      />
+    <div className="space-y-8">
+      {/* Cabeçalho editorial */}
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-champagne">
+            {new Date().toLocaleDateString("pt-BR", {
+              weekday: "long", day: "2-digit", month: "long", year: "numeric",
+            })}
+          </p>
+          <h1 className="font-display text-3xl tracking-tight text-foreground sm:text-4xl">
+            {greeting}, {primeiroNome}!
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {isGestor
+              ? "Aqui está o resumo do seu escritório hoje."
+              : "Sua agenda e seus processos de hoje."}
+          </p>
+        </div>
+        <div className="hidden h-px w-24 bg-gradient-to-r from-champagne to-transparent sm:block" />
+      </header>
 
       {isGestor ? (
         <DashboardGestor verFinanceiro={verFinanceiro} verEquipe={verEquipe} />
@@ -102,15 +129,17 @@ export default function Dashboard() {
 // DASHBOARD GESTOR
 // =================================================================
 function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean; verEquipe: boolean }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [cards, setCards] = useState<DashboardCards>({
-    processos_ativos: 0, prazos_proximos_7d: 0, prazos_vencidos: 0,
+    clientes_ativos: 0, processos_ativos: 0, prazos_proximos_7d: 0, prazos_vencidos: 0,
     receita_mes: 0, a_receber_mes: 0, em_atraso: 0,
-    tarefas_abertas: 0, repasses_pendentes: 0,
+    tarefas_abertas: 0, tarefas_atrasadas: 0, repasses_pendentes: 0,
   });
   const [alertas, setAlertas] = useState<AlertaBloqueante[]>([]);
   const [prazosSemana, setPrazosSemana] = useState<any[]>([]);
   const [tarefasAtrasadas, setTarefasAtrasadas] = useState<any[]>([]);
+  const [agendaHoje, setAgendaHoje] = useState<any[]>([]);
   const [receitaHist, setReceitaHist] = useState<{ mes: string; realizado: number; previsto: number }[]>([]);
   const [areaData, setAreaData] = useState<{ area: string; total: number }[]>([]);
   const [desempenho, setDesempenho] = useState<DesempenhoMembro[]>([]);
@@ -118,8 +147,6 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
   const [aniversariantes, setAniversariantes] = useState<any[]>([]);
   const [repasses, setRepasses] = useState<{ parceiro: string; total: number }[]>([]);
   const [estadoData, setEstadoData] = useState<{ estado: string; total: number }[]>([]);
-  const [dadosMapaEstados, setDadosMapaEstados] = useState<ClienteEstadoData[]>([]);
-  const [totalClientesGeral, setTotalClientesGeral] = useState<number>(0);
 
   useEffect(() => {
     let ativo = true;
@@ -195,11 +222,20 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
           .limit(8),
         // 11: aniversariantes — buscamos clientes ativos (filtramos no cliente)
         supabase.from("clientes").select("id, nome, nascimento, estado").eq("ativo", true),
+        // 12: agenda de hoje (compromissos reais da controladoria)
+        supabase.from("controladoria_itens")
+          .select("id, titulo, tipo, data_vencimento, status, prioridade, processos(numero_cnj), clientes(nome)")
+          .neq("status", "concluido")
+          .gte("data_vencimento", hojeIso)
+          .lt("data_vencimento", amanhaIso)
+          .order("data_vencimento")
+          .limit(10),
       ];
 
       const [
         rProcAtivos, rPrazos7, rPrazosVenc, rTarefasAbertas, rTarefasAtrasadas,
         rPagamentos, rParcelas, rRepasses, rArea, rDesempenho, rDataJud, rClientes,
+        rAgendaHoje,
       ] = await Promise.all(queries);
 
       if (!ativo) return;
@@ -223,6 +259,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
       const repassesTotal = repassesData.reduce((a, r) => a + Number(r.valor_repasse || 0), 0);
 
       setCards({
+        clientes_ativos: (rClientes.data ?? []).length,
         processos_ativos: rProcAtivos.count ?? 0,
         prazos_proximos_7d: rPrazos7.data?.length ?? 0,
         prazos_vencidos: rPrazosVenc.data?.length ?? 0,
@@ -230,6 +267,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
         a_receber_mes: aReceberMes,
         em_atraso: emAtraso,
         tarefas_abertas: rTarefasAbertas.count ?? 0,
+        tarefas_atrasadas: (rTarefasAtrasadas.data ?? []).length,
         repasses_pendentes: repassesTotal,
       });
 
@@ -259,6 +297,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
 
       setPrazosSemana((rPrazos7.data ?? []).slice(0, 8));
       setTarefasAtrasadas(rTarefasAtrasadas.data ?? []);
+      setAgendaHoje(rAgendaHoje?.data ?? []);
 
       // Histórico receita 6 meses + 3 previstos
       const hist: { mes: string; realizado: number; previsto: number }[] = [];
@@ -313,43 +352,16 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
       });
       setAniversariantes(aniv.slice(0, 8));
 
-      // Estados atendidos & dados do mapa
-      const totalCli = (rClientes.data ?? []).length;
-      setTotalClientesGeral(totalCli);
-
+      // Estados atendidos
       const estadoMap = new Map<string, number>();
       (rClientes.data ?? []).forEach((c: any) => {
-        let uf = (c.estado || "").trim().toUpperCase();
-        // Normaliza se veio nome de estado por extenso
-        if (uf.length > 2) {
-          const ufsMap: Record<string, string> = {
-            "SÃO PAULO": "SP", "SAO PAULO": "SP", "RIO DE JANEIRO": "RJ", "MINAS GERAIS": "MG",
-            "BAHIA": "BA", "PARANÁ": "PR", "PARANA": "PR", "RIO GRANDE DO SUL": "RS",
-            "SANTA CATARINA": "SC", "PERNAMBUCO": "PE", "CEARÁ": "CE", "CEARA": "CE",
-            "GOIÁS": "GO", "GOIAS": "GO", "MARANHÃO": "MA", "MARANHAO": "MA", "PARA": "PA",
-            "PARÁ": "PA", "AMAZONAS": "AM", "ESPÍRITO SANTO": "ES", "ESPIRITO SANTO": "ES",
-            "PIAUÍ": "PI", "PIAUI": "PI", "ALAGOAS": "AL", "DISTRITO FEDERAL": "DF",
-            "MATO GROSSO": "MT", "MATO GROSSO DO SUL": "MS", "SERGIPE": "SE", "RONDÔNIA": "RO",
-            "RONDONIA": "RO", "TOCANTINS": "TO", "ACRE": "AC", "AMAPÁ": "AP", "AMAPA": "AP",
-            "RORAIMA": "RR", "PARAÍBA": "PB", "PARAIBA": "PB", "RIO GRANDE DO NORTE": "RN",
-          };
-          uf = ufsMap[uf] || uf.slice(0, 2);
-        }
+        const uf = (c.estado || "").trim().toUpperCase();
         if (!uf) return;
         estadoMap.set(uf, (estadoMap.get(uf) ?? 0) + 1);
       });
-
-      const listEstados = Array.from(estadoMap.entries())
+      setEstadoData(Array.from(estadoMap.entries())
         .map(([estado, total]) => ({ estado, total }))
-        .sort((a, b) => b.total - a.total);
-
-      setEstadoData(listEstados);
-      setDadosMapaEstados(
-        listEstados.map((e) => ({
-          uf: e.estado,
-          totalClientes: e.total,
-        }))
-      );
+        .sort((a, b) => b.total - a.total));
 
       // Repasses agrupados por parceiro
       const grupos = new Map<string, number>();
@@ -367,26 +379,31 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
     return () => { ativo = false; };
   }, [verFinanceiro, verEquipe]);
 
+  const totalArea = useMemo(() => areaData.reduce((s, a) => s + a.total, 0), [areaData]);
+  const totalClientesUf = useMemo(() => estadoData.reduce((s, e) => s + e.total, 0), [estadoData]);
+
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Alertas bloqueantes */}
       {alertas.length > 0 && (
-        <Card className="border-destructive/40 bg-destructive/5 p-5">
+        <Card className="border-destructive/30 bg-destructive/5 p-5 shadow-none">
           <div className="flex items-start gap-3">
-            <AlertOctagon className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-            <div className="flex-1 space-y-2 min-w-0">
-              <h3 className="font-display text-lg text-destructive">
-                {alertas.length} alerta{alertas.length > 1 ? "s" : ""} {alertas.length > 1 ? "exigem" : "exige"} atenção
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertOctagon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1 space-y-2">
+              <h3 className="font-display text-base text-destructive">
+                {alertas.length} alerta{alertas.length > 1 ? "s" : ""} {alertas.length > 1 ? "exigem" : "exige"} sua atenção
               </h3>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {alertas.map((a, i) => (
-                  <Link key={i} to={a.link} className="block group">
-                    <div className="flex items-center justify-between gap-3 p-2 rounded-md hover:bg-destructive/10 transition-colors">
+                  <Link key={i} to={a.link} className="group block">
+                    <div className="flex items-center justify-between gap-3 rounded-xl p-2 transition-colors hover:bg-destructive/10">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate group-hover:text-destructive">{a.titulo}</p>
-                        <p className="text-xs text-muted-foreground truncate">{a.subtitulo}</p>
+                        <p className="truncate text-sm font-medium group-hover:text-destructive">{a.titulo}</p>
+                        <p className="truncate text-xs text-muted-foreground">{a.subtitulo}</p>
                       </div>
                       <Badge variant={a.gravidade === "critica" ? "destructive" : "outline"} className="shrink-0">
                         {a.gravidade === "critica" ? "Crítico" : "Urgente"}
@@ -400,80 +417,170 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
         </Card>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-        <KpiCard icon={Briefcase} label="Processos ativos" value={cards.processos_ativos} accent="primary" />
-        <KpiCard icon={Clock} label="Prazos 7 dias" value={cards.prazos_proximos_7d} accent="warning" />
-        <KpiCard icon={AlertTriangle} label="Prazos vencidos" value={cards.prazos_vencidos} accent="destructive" />
-        <KpiCard icon={ListTodo} label="Tarefas abertas" value={cards.tarefas_abertas} accent="primary" />
-        {verFinanceiro && (
-          <>
-            <KpiCard icon={DollarSign} label="Receita do mês" value={formatBRL(cards.receita_mes)} accent="success" />
-            <KpiCard icon={TrendingUp} label="A receber" value={formatBRL(cards.a_receber_mes)} accent="gold" />
-            <KpiCard icon={AlertTriangle} label="Em atraso" value={formatBRL(cards.em_atraso)} accent="destructive" />
-            <KpiCard icon={HandCoins} label="Repasses pend." value={formatBRL(cards.repasses_pendentes)} accent="gold" />
-          </>
+      {/* Faixa de KPIs */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <KpiCard
+          icon={Users} accent="primary" label="Clientes ativos"
+          value={cards.clientes_ativos}
+          hint={`${estadoData.length} UF${estadoData.length === 1 ? "" : "s"} atendidas`}
+          to="/clientes"
+        />
+        <KpiCard
+          icon={Briefcase} accent="navy" label="Processos ativos"
+          value={cards.processos_ativos}
+          hint={`${areaData.length} área${areaData.length === 1 ? "" : "s"} do direito`}
+          to="/processos"
+        />
+        <KpiCard
+          icon={ListTodo} accent={cards.tarefas_atrasadas > 0 ? "warning" : "primary"} label="Tarefas abertas"
+          value={cards.tarefas_abertas}
+          hint={cards.tarefas_atrasadas > 0 ? `${cards.tarefas_atrasadas} atrasada${cards.tarefas_atrasadas > 1 ? "s" : ""}` : "nenhuma atrasada"}
+          tone={cards.tarefas_atrasadas > 0 ? "warning" : undefined}
+          to="/controladoria"
+        />
+        <KpiCard
+          icon={Clock} accent={cards.prazos_vencidos > 0 ? "destructive" : "warning"} label="Prazos próximos"
+          value={cards.prazos_proximos_7d}
+          hint={cards.prazos_vencidos > 0 ? `${cards.prazos_vencidos} vencido${cards.prazos_vencidos > 1 ? "s" : ""}` : "vencem em 7 dias"}
+          tone={cards.prazos_vencidos > 0 ? "destructive" : undefined}
+          to="/controladoria"
+        />
+        {verFinanceiro ? (
+          <KpiCard
+            icon={DollarSign} accent="success" label="Honorários a receber"
+            value={formatBRL(cards.a_receber_mes)}
+            hint={cards.em_atraso > 0 ? `${formatBRL(cards.em_atraso)} em atraso` : "sem valores em atraso"}
+            tone={cards.em_atraso > 0 ? "destructive" : undefined}
+            to="/financeiro"
+          />
+        ) : (
+          <KpiCard
+            icon={Calendar} accent="champagne" label="Compromissos hoje"
+            value={agendaHoje.length}
+            hint="itens da controladoria"
+            to="/controladoria"
+          />
         )}
       </div>
 
-      {/* Gráficos */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {verFinanceiro && (
-          <Card className="lg:col-span-2 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-display text-2xl">Receita</h3>
-                <p className="text-sm text-muted-foreground">Realizado (6 meses) e previsto (próximos 3)</p>
+      {/* Bloco central: evolução • áreas • mapa */}
+      <div className="grid gap-4 xl:grid-cols-12">
+        {/* Evolução */}
+        <Card className="p-5 shadow-none xl:col-span-5">
+          <SectionTitle
+            title={verFinanceiro ? "Evolução do faturamento" : "Volume por área"}
+            subtitle={verFinanceiro ? "Realizado dos últimos 6 meses e previsto dos próximos 3" : "Processos ativos por área do direito"}
+          />
+          {verFinanceiro ? (
+            <>
+              <div className="mb-3 flex items-center gap-4 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-primary" /> Realizado
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-champagne" /> Previsto
+                </span>
               </div>
-              <Badge variant="outline" className="text-xs">
-                <span className="inline-block w-2 h-2 rounded-full bg-primary mr-1.5" />Realizado
-                <span className="inline-block w-2 h-2 rounded-full bg-gold ml-3 mr-1.5" />Previsto
-              </Badge>
-            </div>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={receitaHist} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
-                  formatter={(v: any) => formatBRL(Number(v))}
-                />
-                <Bar dataKey="realizado" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Realizado" />
-                <Bar dataKey="previsto" fill="hsl(var(--gold))" radius={[4, 4, 0, 0]} name="Previsto" fillOpacity={0.7} />
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={receitaHist} barGap={3}>
+                  <CartesianGrid strokeDasharray="2 6" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="mes" tickLine={false} axisLine={false} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                  <YAxis
+                    tickLine={false} axisLine={false} width={52}
+                    stroke="hsl(var(--muted-foreground))" fontSize={11}
+                    tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "hsl(var(--muted) / 0.5)" }}
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(v: any, n: any) => [formatBRL(Number(v)), n === "realizado" ? "Realizado" : "Previsto"]}
+                  />
+                  <Bar dataKey="realizado" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                  <Bar dataKey="previsto" fill="hsl(var(--champagne))" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                </BarChart>
+              </ResponsiveContainer>
+            </>
+          ) : areaData.length === 0 ? (
+            <EmptyState message="Sem processos cadastrados." />
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={areaData.slice(0, 6)} layout="vertical" margin={{ left: 4, right: 16 }}>
+                <CartesianGrid strokeDasharray="2 6" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" tickLine={false} axisLine={false} allowDecimals={false} fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <YAxis type="category" dataKey="area" width={96} tickLine={false} axisLine={false} fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.5)" }} contentStyle={TOOLTIP_STYLE} />
+                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
-          </Card>
-        )}
+          )}
+        </Card>
 
-        <Card className="p-6">
-          <h3 className="font-display text-2xl mb-1">Por área do direito</h3>
-          <p className="text-sm text-muted-foreground mb-4">Processos ativos</p>
+        {/* Donut por área */}
+        <Card className="p-5 shadow-none xl:col-span-4">
+          <SectionTitle title="Demandas por área" subtitle="Processos ativos" />
           {areaData.length === 0 ? (
             <EmptyState message="Sem processos cadastrados." />
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={areaData} dataKey="total" nameKey="area" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                    {areaData.map((_, i) => (
-                      <Cell key={i} fill={AREA_COLORS[i % AREA_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1.5 mt-3">
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={areaData} dataKey="total" nameKey="area"
+                      innerRadius={62} outerRadius={86} paddingAngle={2} stroke="none"
+                    >
+                      {areaData.map((_, i) => (
+                        <Cell key={i} fill={AREA_COLORS[i % AREA_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="font-display text-3xl tabular-nums text-foreground">{totalArea}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">processos</span>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
                 {areaData.slice(0, 5).map((a, i) => {
-                  const totalAll = areaData.reduce((s, x) => s + x.total, 0);
-                  const pct = totalAll > 0 ? Math.round((a.total / totalAll) * 100) : 0;
+                  const pct = totalArea > 0 ? Math.round((a.total / totalArea) * 100) : 0;
                   return (
-                    <div key={a.area} className="flex items-center gap-2 text-xs">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: AREA_COLORS[i % AREA_COLORS.length] }} />
+                    <Link
+                      key={a.area}
+                      to={`/processos?area=${encodeURIComponent(a.area)}`}
+                      className="flex items-center gap-2 rounded-lg px-1 py-1 text-xs transition-colors hover:bg-muted/60"
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: AREA_COLORS[i % AREA_COLORS.length] }} />
                       <span className="flex-1 truncate capitalize">{a.area}</span>
-                      <span className="text-muted-foreground tabular-nums">{a.total} ({pct}%)</span>
+                      <span className="tabular-nums text-muted-foreground">{a.total} · {pct}%</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </Card>
+
+        {/* Mapa do Brasil */}
+        <Card className="p-5 shadow-none xl:col-span-3">
+          <SectionTitle title="Clientes pelo Brasil" subtitle="Distribuição por UF" />
+          {estadoData.length === 0 ? (
+            <EmptyState message="Nenhum cliente com UF cadastrada." />
+          ) : (
+            <>
+              <MapaBrasilClientes
+                dados={estadoData}
+                onSelectUf={(uf) => navigate(`/clientes?uf=${uf}`)}
+                className="mx-auto max-w-[320px]"
+              />
+              <div className="mt-4 space-y-2">
+                {estadoData.slice(0, 5).map((e) => {
+                  const pct = totalClientesUf > 0 ? Math.round((e.total / totalClientesUf) * 100) : 0;
+                  return (
+                    <div key={e.estado} className="flex items-center gap-2 text-xs">
+                      <MapPin className="h-3 w-3 shrink-0 text-champagne" />
+                      <span className="flex-1 truncate">{UF_NOMES[e.estado] ?? e.estado}</span>
+                      <span className="tabular-nums text-muted-foreground">{e.total} · {pct}%</span>
                     </div>
                   );
                 })}
@@ -483,143 +590,148 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
         </Card>
       </div>
 
-      {/* Mapa do Brasil de Clientes */}
-      <MapaBrasilClientes
-        dadosEstados={dadosMapaEstados}
-        totalGeralClientes={totalClientesGeral}
-      />
-
-      {/* Prazos da semana + Tarefas atrasadas */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <ListCard
-          title="Prazos da semana"
-          subtitle="Próximos 7 dias"
-          link="/controladoria"
-          empty="Nenhum prazo nos próximos 7 dias."
-          items={prazosSemana}
-          renderItem={(p: any) => {
-            const diff = Math.ceil((new Date(p.data_vencimento).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-            return (
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/40">
-                <div className="min-w-0 flex items-center gap-3">
-                  <div className={`w-1 h-10 rounded-full ${diff <= 1 ? "bg-destructive" : diff <= 3 ? "bg-warning" : "bg-gold"}`} />
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{p.titulo}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {p.clientes?.nome ?? "—"} • {p.processos?.numero_cnj ?? "—"}
+      {/* Operação do dia: agenda • tarefas prioritárias • movimentações */}
+      <div className="grid gap-4 xl:grid-cols-12">
+        <Card className="p-5 shadow-none xl:col-span-4">
+          <SectionTitle title="Agenda de hoje" subtitle="Compromissos e prazos com vencimento hoje" link="/controladoria" />
+          {agendaHoje.length === 0 ? (
+            <EmptyState message="Nenhum compromisso para hoje." />
+          ) : (
+            <div className="relative space-y-3 pl-4">
+              <span className="absolute bottom-2 left-1 top-2 w-px bg-border" />
+              {agendaHoje.map((a: any) => (
+                <Link key={a.id} to="/controladoria" className="group block">
+                  <span className="absolute -ml-[19px] mt-1.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-primary" />
+                  <div className="rounded-xl px-2 py-1.5 transition-colors group-hover:bg-muted/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-medium">{a.titulo}</p>
+                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                        {new Date(a.data_vencimento).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      <span className="capitalize">{String(a.tipo).replace(/_/g, " ")}</span>
+                      {a.clientes?.nome ? ` • ${a.clientes.nome}` : ""}
                     </p>
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs font-medium">{formatDate(p.data_vencimento)}</p>
-                  <Badge variant={diff <= 1 ? "destructive" : "outline"} className="text-[10px] mt-0.5">
-                    {diff === 0 ? "hoje" : `D-${diff}`}
-                  </Badge>
-                </div>
-              </div>
-            );
-          }}
-        />
-
-        <ListCard
-          title="Tarefas atrasadas"
-          subtitle="Pendentes com vencimento passado"
-          link="/controladoria"
-          empty="Nenhuma tarefa atrasada."
-          items={tarefasAtrasadas}
-          renderItem={(p: any) => {
-            const diff = Math.floor((Date.now() - new Date(p.data_vencimento).getTime()) / (1000 * 60 * 60 * 24));
-            return (
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-destructive/5">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{p.titulo}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {p.clientes?.nome ?? "—"} • {p.processos?.numero_cnj ?? "—"}
-                  </p>
-                </div>
-                <Badge variant="destructive" className="shrink-0 text-[10px]">{diff}d atrás</Badge>
-              </div>
-            );
-          }}
-        />
-      </div>
-
-      {/* Desempenho equipe */}
-      {verEquipe && (
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-display text-2xl">Desempenho da equipe</h3>
-              <p className="text-sm text-muted-foreground">Atingimento de metas — mês atual</p>
-            </div>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/equipe">Ver equipe <ArrowRight className="w-4 h-4 ml-1" /></Link>
-            </Button>
-          </div>
-          {desempenho.length === 0 ? (
-            <EmptyState message="Sem dados de desempenho deste mês." />
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {desempenho.map((d) => (
-                <div key={d.membro_id} className="p-3 rounded-lg border border-border bg-muted/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                        {d.nome.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{d.nome}</p>
-                      <p className="text-[10px] text-muted-foreground capitalize">{d.cargo}</p>
-                    </div>
-                  </div>
-                  <Progress value={Math.min(d.atingimento_pct, 100)} className="h-2" />
-                  <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-[10px] text-muted-foreground">Atingimento</span>
-                    <Badge
-                      variant="outline"
-                      className={
-                        d.atingimento_pct >= 90 ? "text-success border-success/40" :
-                        d.atingimento_pct >= 70 ? "text-warning border-warning/40" :
-                        "text-destructive border-destructive/40"
-                      }
-                    >
-                      {d.atingimento_pct.toFixed(0)}%
-                    </Badge>
-                  </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
         </Card>
+
+        <Card className="p-5 shadow-none xl:col-span-4">
+          <SectionTitle title="Tarefas prioritárias" subtitle="Pendências com vencimento passado" link="/controladoria" />
+          {tarefasAtrasadas.length === 0 ? (
+            <EmptyState message="Nenhuma tarefa atrasada. Tudo em dia." />
+          ) : (
+            <div className="space-y-1.5">
+              {tarefasAtrasadas.map((p: any) => {
+                const diff = Math.floor((Date.now() - new Date(p.data_vencimento).getTime()) / 86400000);
+                const grave = diff >= 3 || p.prioridade === "urgente";
+                return (
+                  <Link
+                    key={p.id}
+                    to="/controladoria"
+                    className="flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                  >
+                    <CircleDot className={cn("h-4 w-4 shrink-0", grave ? "text-destructive" : "text-warning")} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{p.titulo}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {p.clientes?.nome ?? "—"} • {p.processos?.numero_cnj ?? "—"}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "shrink-0 text-[10px]",
+                        grave ? "border-destructive/40 text-destructive" : "border-warning/40 text-warning",
+                      )}
+                    >
+                      {diff <= 0 ? "hoje" : `${diff}d`}
+                    </Badge>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-5 shadow-none xl:col-span-4">
+          <SectionTitle title="Prazos da semana" subtitle="Próximos 7 dias" link="/controladoria" />
+          {prazosSemana.length === 0 ? (
+            <EmptyState message="Nenhum prazo nos próximos 7 dias." />
+          ) : (
+            <div className="space-y-1.5">
+              {prazosSemana.map((p: any) => {
+                const diff = Math.ceil((new Date(p.data_vencimento).getTime() - Date.now()) / 86400000);
+                return (
+                  <Link
+                    key={p.id}
+                    to="/controladoria"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/60"
+                  >
+                    <span
+                      className={cn(
+                        "h-8 w-1 shrink-0 rounded-full",
+                        diff <= 1 ? "bg-destructive" : diff <= 3 ? "bg-warning" : "bg-primary/50",
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{p.titulo}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {p.clientes?.nome ?? "—"} • {p.processos?.numero_cnj ?? "—"}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[11px] tabular-nums text-muted-foreground">{formatDate(p.data_vencimento)}</p>
+                      <span className={cn("text-[10px] font-medium", diff <= 1 ? "text-destructive" : "text-muted-foreground")}>
+                        {diff <= 0 ? "hoje" : `D-${diff}`}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Financeiro amplo */}
+      {verFinanceiro && (
+        <Card className="p-5 shadow-none">
+          <SectionTitle title="Financeiro do mês" subtitle="Valores reais registrados no sistema" link="/financeiro" />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MiniStat label="Recebido no mês" value={formatBRL(cards.receita_mes)} tone="success" icon={TrendingUp} />
+            <MiniStat label="A receber" value={formatBRL(cards.a_receber_mes)} tone="neutral" icon={DollarSign} />
+            <MiniStat label="Em atraso" value={formatBRL(cards.em_atraso)} tone={cards.em_atraso > 0 ? "destructive" : "neutral"} icon={AlertTriangle} />
+            <MiniStat label="Repasses pendentes" value={formatBRL(cards.repasses_pendentes)} tone="champagne" icon={HandCoins} />
+          </div>
+        </Card>
       )}
 
-      {/* DataJud + Aniversariantes + Repasses */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-display text-xl flex items-center gap-2">
-                <Activity className="w-4 h-4 text-primary" /> Andamentos DataJud — hoje
-              </h3>
-              <p className="text-sm text-muted-foreground">Movimentações detectadas automaticamente</p>
-            </div>
-          </div>
+      {/* Movimentações recentes */}
+      <div className="grid gap-4 xl:grid-cols-12">
+        <Card className="p-5 shadow-none xl:col-span-8">
+          <SectionTitle title="Movimentações recentes" subtitle="Andamentos DataJud detectados hoje" />
           {datajudHoje.length === 0 ? (
             <EmptyState message="Nenhum andamento novo hoje." />
           ) : (
-            <ScrollArea className="h-[280px]">
-              <div className="space-y-2 pr-3">
+            <ScrollArea className="h-[260px]">
+              <div className="space-y-1 pr-3">
                 {datajudHoje.map((a: any) => (
-                  <div key={a.id} className="flex gap-3 p-2.5 rounded-md hover:bg-muted/50 transition-colors">
-                    <div className="w-1 self-stretch rounded-full bg-primary/40" />
+                  <div key={a.id} className="flex gap-3 rounded-xl p-2.5 transition-colors hover:bg-muted/50">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Gavel className="h-3.5 w-3.5" />
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm truncate">{a.descricao}</p>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="truncate text-sm">{a.descricao}</p>
+                      <p className="truncate text-xs text-muted-foreground">
                         {a.processos?.numero_cnj ?? "—"} • {a.processos?.clientes?.nome ?? "—"}
                       </p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
+                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
                       {new Date(a.criado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
@@ -629,57 +741,97 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
           )}
         </Card>
 
-        <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="font-display text-xl flex items-center gap-2 mb-3">
-              <Cake className="w-4 h-4 text-gold" /> Aniversariantes
-            </h3>
-            {aniversariantes.length === 0 ? (
-              <EmptyState message="Nenhum nesta semana." />
-            ) : (
-              <div className="space-y-2">
-                {aniversariantes.map((c: any) => {
-                  const [, mm, dd] = c.nascimento.split("-").map(Number);
-                  return (
-                    <Link key={c.id} to={`/clientes/${c.id}`} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-gold/20 text-gold-dark text-xs font-semibold">
-                          {c.nome.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm truncate">{c.nome}</p>
-                      </div>
-                      <Badge variant="outline" className="text-[10px]">
-                        {String(dd).padStart(2, "0")}/{String(mm).padStart(2, "0")}
-                      </Badge>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          {verFinanceiro && repasses.length > 0 && (
-            <Card className="p-6">
-              <h3 className="font-display text-xl flex items-center gap-2 mb-3">
-                <HandCoins className="w-4 h-4 text-gold" /> Repasses pendentes
-              </h3>
-              <div className="space-y-2">
-                {repasses.map((r) => (
-                  <div key={r.parceiro} className="flex items-center justify-between p-2 rounded-md bg-muted/40">
-                    <span className="text-sm truncate">{r.parceiro}</span>
-                    <span className="text-sm font-semibold tabular-nums">{formatBRL(r.total)}</span>
-                  </div>
-                ))}
-              </div>
-              <Button variant="ghost" size="sm" asChild className="w-full mt-3">
-                <Link to="/financeiro/repasses">Ver todos <ArrowRight className="w-4 h-4 ml-1" /></Link>
-              </Button>
-            </Card>
+        <Card className="p-5 shadow-none xl:col-span-4">
+          <SectionTitle title="Aniversariantes" subtitle="Clientes nesta semana" />
+          {aniversariantes.length === 0 ? (
+            <EmptyState message="Nenhum nesta semana." />
+          ) : (
+            <div className="space-y-1">
+              {aniversariantes.map((c: any) => {
+                const [, mm, dd] = c.nascimento.split("-").map(Number);
+                return (
+                  <Link key={c.id} to={`/clientes/${c.id}`} className="flex items-center gap-3 rounded-xl p-2 hover:bg-muted/60">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-champagne-soft text-[11px] font-semibold text-champagne">
+                        {c.nome.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="min-w-0 flex-1 truncate text-sm">{c.nome}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      <Cake className="mr-1 inline h-3 w-3 text-champagne" />
+                      {String(dd).padStart(2, "0")}/{String(mm).padStart(2, "0")}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
           )}
-        </div>
+        </Card>
       </div>
+
+      {/* Seção secundária: equipe + repasses */}
+      {(verEquipe || (verFinanceiro && repasses.length > 0)) && (
+        <section className="space-y-4 border-t border-border pt-6">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            Visão complementar
+          </p>
+          <div className="grid gap-4 xl:grid-cols-12">
+            {verEquipe && (
+              <Card className="p-5 shadow-none xl:col-span-8">
+                <SectionTitle title="Desempenho da equipe" subtitle="Atingimento de metas — mês atual" link="/equipe" />
+                {desempenho.length === 0 ? (
+                  <EmptyState message="Sem dados de desempenho deste mês." />
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {desempenho.map((d) => (
+                      <div key={d.membro_id} className="rounded-xl border border-border/70 p-3">
+                        <div className="mb-2 flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                              {d.nome.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{d.nome}</p>
+                            <p className="text-[10px] capitalize text-muted-foreground">{d.cargo}</p>
+                          </div>
+                        </div>
+                        <Progress value={Math.min(d.atingimento_pct, 100)} className="h-1.5" />
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground">Atingimento</span>
+                          <span
+                            className={cn(
+                              "text-xs font-semibold tabular-nums",
+                              d.atingimento_pct >= 90 ? "text-success" :
+                              d.atingimento_pct >= 70 ? "text-warning" : "text-destructive",
+                            )}
+                          >
+                            {d.atingimento_pct.toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {verFinanceiro && repasses.length > 0 && (
+              <Card className="p-5 shadow-none xl:col-span-4">
+                <SectionTitle title="Repasses pendentes" subtitle="Por parceiro" link="/financeiro/repasses" />
+                <div className="space-y-1">
+                  {repasses.map((r) => (
+                    <div key={r.parceiro} className="flex items-center justify-between rounded-xl px-2 py-2 hover:bg-muted/60">
+                      <span className="min-w-0 truncate text-sm">{r.parceiro}</span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">{formatBRL(r.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -750,9 +902,11 @@ function DashboardOperacional({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
-      <Card className="p-5 bg-gradient-to-r from-primary/5 to-gold/5 border-primary/20">
+      <Card className="border-primary/20 bg-primary/5 p-4 shadow-none">
         <div className="flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-gold" />
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-champagne-soft text-champagne">
+            <Sparkles className="h-4 w-4" />
+          </span>
           <p className="text-sm">
             Você tem <strong className="text-primary">{tarefasHoje.length}</strong> tarefa{tarefasHoje.length !== 1 ? "s" : ""} para hoje
             {prazosSemana.length > 0 && (
@@ -762,81 +916,91 @@ function DashboardOperacional({ userId }: { userId: string }) {
         </div>
       </Card>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <ListCard
-          title="Minhas tarefas de hoje"
-          subtitle={`${tarefasHoje.length} pendente${tarefasHoje.length !== 1 ? "s" : ""}`}
-          link="/controladoria"
-          empty="Tudo em dia! Nenhuma tarefa para hoje."
-          items={tarefasHoje}
-          renderItem={(t: any) => (
-            <Link to="/controladoria" className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 hover:bg-muted transition-colors">
-              <CheckCircle2 className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate text-sm">{t.titulo}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {t.clientes?.nome ?? "—"} • {t.processos?.numero_cnj ?? "—"}
-                </p>
-              </div>
-              <Badge variant={t.prioridade === "alta" || t.prioridade === "urgente" ? "destructive" : "outline"} className="text-[10px]">
-                {t.prioridade}
-              </Badge>
-            </Link>
-          )}
-        />
-
-        <ListCard
-          title="Meus prazos da semana"
-          subtitle="Próximos 7 dias"
-          link="/controladoria"
-          empty="Sem prazos esta semana."
-          items={prazosSemana}
-          renderItem={(p: any) => {
-            const diff = Math.ceil((new Date(p.data_vencimento).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-            return (
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/40">
-                <div className="min-w-0 flex items-center gap-3">
-                  <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium truncate text-sm">{p.titulo}</p>
-                    <p className="text-xs text-muted-foreground truncate">{p.processos?.numero_cnj ?? "—"}</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-5 shadow-none">
+          <SectionTitle
+            title="Minhas tarefas de hoje"
+            subtitle={`${tarefasHoje.length} pendente${tarefasHoje.length !== 1 ? "s" : ""}`}
+            link="/controladoria"
+          />
+          {tarefasHoje.length === 0 ? (
+            <EmptyState message="Tudo em dia! Nenhuma tarefa para hoje." />
+          ) : (
+            <div className="space-y-1.5">
+              {tarefasHoje.map((t: any) => (
+                <Link
+                  key={t.id}
+                  to="/controladoria"
+                  className="flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                >
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{t.titulo}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {t.clientes?.nome ?? "—"} • {t.processos?.numero_cnj ?? "—"}
+                    </p>
                   </div>
-                </div>
-                <Badge variant={diff <= 1 ? "destructive" : "outline"} className="shrink-0 text-[10px]">
-                  {diff === 0 ? "hoje" : `D-${diff}`}
-                </Badge>
-              </div>
-            );
-          }}
-        />
+                  <Badge
+                    variant={t.prioridade === "alta" || t.prioridade === "urgente" ? "destructive" : "outline"}
+                    className="text-[10px]"
+                  >
+                    {t.prioridade}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-5 shadow-none">
+          <SectionTitle title="Meus prazos da semana" subtitle="Próximos 7 dias" link="/controladoria" />
+          {prazosSemana.length === 0 ? (
+            <EmptyState message="Sem prazos esta semana." />
+          ) : (
+            <div className="space-y-1.5">
+              {prazosSemana.map((p: any) => {
+                const diff = Math.ceil((new Date(p.data_vencimento).getTime() - Date.now()) / 86400000);
+                return (
+                  <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/60">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{p.titulo}</p>
+                        <p className="truncate text-xs text-muted-foreground">{p.processos?.numero_cnj ?? "—"}</p>
+                      </div>
+                    </div>
+                    <span className={cn("shrink-0 text-[11px] font-medium", diff <= 1 ? "text-destructive" : "text-muted-foreground")}>
+                      {diff <= 0 ? "hoje" : `D-${diff}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
       </div>
 
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-display text-2xl">Meus processos ativos</h3>
-            <p className="text-sm text-muted-foreground">Últimos atualizados</p>
-          </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/processos">Ver todos <ArrowRight className="w-4 h-4 ml-1" /></Link>
-          </Button>
-        </div>
+      <Card className="p-5 shadow-none">
+        <SectionTitle title="Meus processos ativos" subtitle="Últimos atualizados" link="/processos" />
         {meusProcessos.length === 0 ? (
           <EmptyState message="Você ainda não é responsável por processos." />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1">
             {meusProcessos.map((p: any) => (
-              <Link key={p.id} to={`/processos/${p.id}`}
-                className="flex items-center justify-between gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="min-w-0 flex items-center gap-3">
-                  <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
+              <Link
+                key={p.id}
+                to={`/processos/${p.id}`}
+                className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/60"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <p className="font-medium truncate text-sm">{p.numero_cnj ?? "Sem CNJ"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{p.clientes?.nome ?? "—"}</p>
+                    <p className="truncate text-sm font-medium">{p.numero_cnj ?? "Sem CNJ"}</p>
+                    <p className="truncate text-xs text-muted-foreground">{p.clientes?.nome ?? "—"}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {p.area_direito && <Badge variant="outline" className="capitalize text-[10px]">{p.area_direito}</Badge>}
+                <div className="flex shrink-0 items-center gap-2">
+                  {p.area_direito && <Badge variant="outline" className="text-[10px] capitalize">{p.area_direito}</Badge>}
                   <Badge variant="secondary" className="text-[10px]">{p.status}</Badge>
                 </div>
               </Link>
@@ -851,74 +1015,109 @@ function DashboardOperacional({ userId }: { userId: string }) {
 // =================================================================
 // HELPERS
 // =================================================================
-function KpiCard({ icon: Icon, label, value, accent }: { icon: any; label: string; value: any; accent: string }) {
-  const accentClasses: Record<string, string> = {
-    primary: "bg-primary/10 text-primary",
-    warning: "bg-warning/10 text-warning",
-    destructive: "bg-destructive/10 text-destructive",
-    success: "bg-success/10 text-success",
-    gold: "bg-gold/15 text-gold-dark",
-  };
+function SectionTitle({ title, subtitle, link }: { title: string; subtitle?: string; link?: string }) {
   return (
-    <Card className="p-4 hover:brand-shadow transition-shadow">
-      <div className={`w-9 h-9 rounded-lg ${accentClasses[accent] ?? "bg-muted"} flex items-center justify-center mb-2`}>
-        <Icon className="w-4 h-4" />
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="font-display text-base tracking-tight text-foreground">{title}</h3>
+        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
       </div>
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{label}</p>
-      <p className="text-xl font-display font-semibold mt-0.5 truncate">{value}</p>
-    </Card>
+      {link && (
+        <Button variant="ghost" size="sm" asChild className="h-7 shrink-0 px-2 text-xs text-muted-foreground">
+          <Link to={link}>Ver todos <ArrowRight className="ml-1 h-3 w-3" /></Link>
+        </Button>
+      )}
+    </div>
   );
 }
 
-function ListCard<T>({ title, subtitle, link, items, empty, renderItem }: {
-  title: string; subtitle: string; link: string; items: T[]; empty: string;
-  renderItem: (item: T) => React.ReactNode;
+const KPI_ACCENT: Record<string, string> = {
+  primary: "bg-primary/10 text-primary",
+  navy: "bg-navy-soft text-navy",
+  warning: "bg-warning/10 text-warning",
+  destructive: "bg-destructive/10 text-destructive",
+  success: "bg-success/10 text-success",
+  champagne: "bg-champagne-soft text-champagne",
+};
+
+function KpiCard({
+  icon: Icon, label, value, hint, accent, tone, to,
+}: {
+  icon: any; label: string; value: React.ReactNode; hint?: string;
+  accent: string; tone?: "warning" | "destructive"; to?: string;
 }) {
-  return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="font-display text-2xl">{title}</h3>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+  const conteudo = (
+    <Card className="h-full border-border/80 p-4 shadow-none transition-colors hover:border-primary/40">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="mt-1 truncate font-display text-2xl tabular-nums tracking-tight text-foreground">{value}</p>
+          {hint && (
+            <p
+              className={cn(
+                "mt-1 truncate text-[11px]",
+                tone === "destructive" ? "text-destructive" : tone === "warning" ? "text-warning" : "text-muted-foreground",
+              )}
+            >
+              {hint}
+            </p>
+          )}
         </div>
-        <Button variant="ghost" size="sm" asChild>
-          <Link to={link}>Ver todos <ArrowRight className="w-4 h-4 ml-1" /></Link>
-        </Button>
+        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", KPI_ACCENT[accent] ?? "bg-muted")}>
+          <Icon className="h-4 w-4" />
+        </span>
       </div>
-      {items.length === 0 ? (
-        <EmptyState message={empty} />
-      ) : (
-        <div className="space-y-2">
-          {items.map((it, i) => <div key={i}>{renderItem(it)}</div>)}
-        </div>
-      )}
     </Card>
+  );
+  return to ? <Link to={to} className="block h-full">{conteudo}</Link> : conteudo;
+}
+
+function MiniStat({
+  label, value, tone, icon: Icon,
+}: { label: string; value: string; tone: "success" | "destructive" | "champagne" | "neutral"; icon: any }) {
+  const toneClass = {
+    success: "text-success",
+    destructive: "text-destructive",
+    champagne: "text-champagne",
+    neutral: "text-foreground",
+  }[tone];
+  return (
+    <div className="rounded-xl border border-border/70 p-4">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        <span className="text-xs font-medium">{label}</span>
+      </div>
+      <p className={cn("mt-1.5 font-display text-xl tabular-nums tracking-tight", toneClass)}>{value}</p>
+    </div>
   );
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="py-10 text-center text-muted-foreground">
-      <CheckCircle2 className="w-9 h-9 mx-auto mb-2 opacity-30" />
-      <p className="text-sm">{message}</p>
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
+      <CheckCircle2 className="mb-2 h-7 w-7 text-muted-foreground/40" />
+      <p className="max-w-[220px] text-xs text-muted-foreground">{message}</p>
     </div>
   );
 }
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+    <div className="space-y-8">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
       </div>
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Skeleton className="h-80 lg:col-span-2 rounded-lg" />
-        <Skeleton className="h-80 rounded-lg" />
+      <div className="grid gap-4 xl:grid-cols-12">
+        <Skeleton className="h-80 rounded-xl xl:col-span-5" />
+        <Skeleton className="h-80 rounded-xl xl:col-span-4" />
+        <Skeleton className="h-80 rounded-xl xl:col-span-3" />
       </div>
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Skeleton className="h-64 rounded-lg" />
-        <Skeleton className="h-64 rounded-lg" />
+      <div className="grid gap-4 xl:grid-cols-12">
+        <Skeleton className="h-64 rounded-xl xl:col-span-4" />
+        <Skeleton className="h-64 rounded-xl xl:col-span-4" />
+        <Skeleton className="h-64 rounded-xl xl:col-span-4" />
       </div>
+      <Skeleton className="h-36 rounded-xl" />
     </div>
   );
 }

@@ -1,0 +1,2 @@
+ALTER TABLE public.honorarios_repasses DROP CONSTRAINT honorarios_repasses_status_check;
+ALTER TABLE public.honorarios_repasses ADD CONSTRAINT honorarios_repasses_status_check CHECK (status = ANY (ARRAY['pendente'::text, 'enviado'::text, 'confirmado'::text, 'pago'::text]));

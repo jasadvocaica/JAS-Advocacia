@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/** Etapas canônicas do fluxo da Controladoria (POP 01). */
 export type EtapaWorkflow =
   | "criacao"
   | "execucao"
@@ -8,16 +9,9 @@ export type EtapaWorkflow =
   | "protocolo"
   | "finalizado";
 
-export const ETAPAS_ORDENADAS: EtapaWorkflow[] = [
-  "criacao",
-  "execucao",
-  "revisao",
-  "correcao",
-  "protocolo",
-  "finalizado",
+export const ETAPAS_ORDEM: EtapaWorkflow[] = [
+  "criacao", "execucao", "revisao", "correcao", "protocolo", "finalizado",
 ];
-
-export const ETAPAS_ORDEM = ETAPAS_ORDENADAS;
 
 export const ETAPA_LABEL: Record<EtapaWorkflow, string> = {
   criacao: "Criação",
@@ -28,21 +22,35 @@ export const ETAPA_LABEL: Record<EtapaWorkflow, string> = {
   finalizado: "Finalizado",
 };
 
-export const ETAPA_DESCRICAO: Record<EtapaWorkflow, string> = {
-  criacao: "Item cadastrado, aguardando início da execução",
-  execucao: "Peça / tarefa em elaboração pelo responsável",
-  revisao: "Minuta em conferência pelo advogado / gestor",
-  correcao: "Apontamentos devolvidos para ajuste pelo executor",
-  protocolo: "Peça aprovada, pronta para protocolo no tribunal",
-  finalizado: "Item protocolado / concluído e arquivado",
+/** Campo do item que guarda o responsável de cada etapa (null = sem responsável próprio). */
+export const ETAPA_RESP_KEY: Record<EtapaWorkflow, string | null> = {
+  criacao: null,
+  execucao: "executor_id",
+  revisao: "revisor_id",
+  correcao: "corretor_id",
+  protocolo: "protocolador_id",
+  finalizado: null,
 };
 
-/** Matriz canônica de transições permitidas (POP 01 - Controladoria). */
+export interface ItemFluxo {
+  etapa_workflow?: string | null;
+  exige_revisao?: boolean | null;
+}
+
+export function etapaAtualDe(item: ItemFluxo): EtapaWorkflow {
+  const e = (item.etapa_workflow ?? "criacao") as EtapaWorkflow;
+  return ETAPAS_ORDEM.includes(e) ? e : "criacao";
+}
+
+/**
+ * Máquina de estados canônica. Única fonte de verdade no cliente —
+ * espelha `public.controladoria_transicionar_etapa` no banco.
+ */
 export function transicoesPermitidas(
-  origem: EtapaWorkflow,
-  exigeRevisao: boolean = true,
+  etapaAtual: EtapaWorkflow,
+  exigeRevisao = true,
 ): EtapaWorkflow[] {
-  switch (origem) {
+  switch (etapaAtual) {
     case "criacao":
       return ["execucao"];
     case "execucao":
@@ -54,141 +62,70 @@ export function transicoesPermitidas(
     case "protocolo":
       return ["finalizado"];
     case "finalizado":
-      return [];
     default:
       return [];
   }
 }
 
-/** Valida se uma transição é válida segundo o fluxo canônico. */
 export function podeTransicionar(
-  origem: EtapaWorkflow,
-  destino: EtapaWorkflow,
-  exigeRevisao: boolean = true,
+  etapaAtual: EtapaWorkflow,
+  novaEtapa: EtapaWorkflow,
+  exigeRevisao = true,
 ): boolean {
-  if (origem === destino) return false;
-  const permitidas = transicoesPermitidas(origem, exigeRevisao);
-  return permitidas.includes(destino);
+  return transicoesPermitidas(etapaAtual, exigeRevisao).includes(novaEtapa);
 }
 
-/** Indica se a transição para a etapa informada exige observação/apontamento. */
-export function exigeObservacao(destino: EtapaWorkflow): boolean {
-  return destino === "correcao";
+/** Rótulo da ação para cada transição possível. */
+export function labelTransicao(
+  etapaAtual: EtapaWorkflow,
+  novaEtapa: EtapaWorkflow,
+): string {
+  if (etapaAtual === "criacao" && novaEtapa === "execucao") return "Iniciar execução";
+  if (novaEtapa === "revisao") return etapaAtual === "correcao" ? "Reenviar para revisão" : "Enviar para revisão";
+  if (novaEtapa === "correcao") return "Devolver para correção";
+  if (etapaAtual === "revisao" && novaEtapa === "protocolo") return "Aprovar para protocolo";
+  if (novaEtapa === "protocolo") return "Enviar para protocolo";
+  if (novaEtapa === "finalizado") return "Marcar como protocolado";
+  return ETAPA_LABEL[novaEtapa];
 }
 
-/** Rótulo de ação claro para botões de transição. */
-export function labelTransicao(origem: EtapaWorkflow, destino: EtapaWorkflow): string {
-  if (origem === "criacao" && destino === "execucao") return "Iniciar execução";
-  if (origem === "execucao" && destino === "revisao") return "Enviar para revisão";
-  if (origem === "execucao" && destino === "protocolo") return "Liberar para protocolo";
-  if (origem === "revisao" && destino === "correcao") return "Devolver para correção";
-  if (origem === "revisao" && destino === "protocolo") return "Aprovar para protocolo";
-  if (origem === "correcao" && destino === "revisao") return "Reenviar para revisão";
-  if (origem === "protocolo" && destino === "finalizado") return "Concluir protocolo";
-  return ETAPA_LABEL[destino] ?? destino;
-}
-
-/** Descobre a etapa canônica de um item, considerando fallbacks de itens antigos. */
-export function etapaAtualDe(item: {
-  etapa_workflow?: EtapaWorkflow | string | null;
-  status?: string | null;
-}): EtapaWorkflow {
-  if (item?.etapa_workflow && (item.etapa_workflow as EtapaWorkflow) in ETAPA_LABEL) {
-    return item.etapa_workflow as EtapaWorkflow;
-  }
-  if (item?.status === "concluido") return "finalizado";
-  if (item?.status === "aguardando_revisao") return "revisao";
-  if (item?.status === "em_andamento") return "execucao";
-  return "criacao";
-}
-
-export interface TransicionarParams {
-  itemId: string;
-  novaEtapa: EtapaWorkflow;
-  etapaAtual?: EtapaWorkflow | string | null;
-  exigeRevisao?: boolean;
-  responsavelId?: string | null;
-  novoResponsavelId?: string | null;
-  observacao?: string | null;
-  arquivoProtocoloUrl?: string | null;
-  numeroProtocolo?: string | null;
+/** Observação é obrigatória ao devolver para correção. */
+export function exigeObservacao(novaEtapa: EtapaWorkflow): boolean {
+  return novaEtapa === "correcao";
 }
 
 export interface TransicaoResult {
   ok: boolean;
-  etapa: EtapaWorkflow;
   erro?: string;
-  error?: string;
 }
 
 /**
- * Transiciona a etapa do item chamando a função canônica do banco
- * `controladoria_transicionar_etapa`, que:
- *  - Valida a máquina de estados
- *  - Atualiza status, coluna_kanban e etapa_workflow
- *  - Registra histórico imutável com executor e observação
- *  - Sincroniza campos de conclusão se aplicável
+ * Transição canônica — TODA mudança de etapa (detalhe, kanban, atalhos)
+ * deve passar por aqui. A validação real acontece no banco.
  */
-export async function transicionarEtapa(
-  params: TransicionarParams,
-): Promise<TransicaoResult> {
-  const respId = params.responsavelId ?? params.novoResponsavelId ?? null;
-  const etapaAtual = params.etapaAtual;
-  const exigeRevisao = params.exigeRevisao ?? true;
+export async function transicionarEtapa(params: {
+  itemId: string;
+  etapaAtual: EtapaWorkflow;
+  novaEtapa: EtapaWorkflow;
+  exigeRevisao?: boolean;
+  responsavelId?: string | null;
+  observacao?: string | null;
+}): Promise<TransicaoResult> {
+  const { itemId, etapaAtual, novaEtapa, exigeRevisao = true, responsavelId, observacao } = params;
 
-  // Validação prévia de máquina de estados se etapa atual for informada
-  if (etapaAtual) {
-    const atual = etapaAtual as EtapaWorkflow;
-    if (!podeTransicionar(atual, params.novaEtapa, exigeRevisao)) {
-      const msg = `Transição inválida: ${atual} → ${params.novaEtapa}`;
-      return {
-        ok: false,
-        erro: msg,
-      };
-    }
+  if (!podeTransicionar(etapaAtual, novaEtapa, exigeRevisao)) {
+    return { ok: false, erro: `Transição não permitida: ${ETAPA_LABEL[etapaAtual]} → ${ETAPA_LABEL[novaEtapa]}` };
+  }
+  if (exigeObservacao(novaEtapa) && !observacao?.trim()) {
+    return { ok: false, erro: "Informe o que deve ser corrigido" };
   }
 
-  // Devolução para correção exige observação obrigatória
-  if (exigeObservacao(params.novaEtapa) && (!params.observacao || !params.observacao.trim())) {
-    const msg = "Informe o que deve ser corrigido";
-    return {
-      ok: false,
-      erro: msg,
-    };
-  }
-
-  let obs = params.observacao?.trim() || null;
-  if (params.novaEtapa === "finalizado") {
-    const complementos: string[] = [];
-    if (params.numeroProtocolo?.trim()) complementos.push(`Protocolo nº ${params.numeroProtocolo.trim()}`);
-    if (params.arquivoProtocoloUrl?.trim()) complementos.push(`Comprovante: ${params.arquivoProtocoloUrl.trim()}`);
-    if (complementos.length > 0) {
-      obs = obs ? `${obs} (${complementos.join(" - ")})` : complementos.join(" - ");
-    }
-  }
-
-  const { data, error } = await (supabase as any).rpc(
-    "controladoria_transicionar_etapa",
-    {
-      _item_id: params.itemId,
-      _nova_etapa: params.novaEtapa,
-      _responsavel_id: respId,
-      _observacao: obs,
-    },
-  );
-
-  if (error) {
-    console.error("[workflow] erro ao transicionar:", error);
-    const msg = error.message || "Erro ao transicionar etapa";
-    return { ok: false, erro: msg };
-  }
-
-  const res = (data as any) ?? {};
-  if (res.ok === false) {
-    const msg = res.error || res.erro || "Transição inválida";
-    return { ok: false, erro: msg };
-  }
-
-  const etapaRetornada = (res.etapa_workflow as EtapaWorkflow) || (res.etapa as EtapaWorkflow) || params.novaEtapa;
-  return { ok: true, etapa: etapaRetornada };
+  const { error } = await (supabase as any).rpc("controladoria_transicionar_etapa", {
+    _item_id: itemId,
+    _nova_etapa: novaEtapa,
+    _responsavel_id: responsavelId ?? null,
+    _observacao: observacao?.trim() || null,
+  });
+  if (error) return { ok: false, erro: error.message };
+  return { ok: true };
 }

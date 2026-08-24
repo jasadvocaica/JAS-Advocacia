@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS on_controladoria_comentario_notificar ON public.controladoria_comentarios;

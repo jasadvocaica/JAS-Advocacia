@@ -45,7 +45,7 @@ export async function registrarErro(reg: RegistroErro): Promise<void> {
   const modulo = reg.modulo ?? env.modulo;
 
   // eslint-disable-next-line no-console
-  console.warn(`[telemetria:${reg.tipo}]`, {
+  console.error(`[telemetria:${reg.tipo}]`, {
     modulo,
     rota: env.rota,
     mensagem: reg.mensagem,
@@ -60,7 +60,7 @@ export async function registrarErro(reg: RegistroErro): Promise<void> {
   try {
     const { data: auth } = await supabase.auth.getUser();
     await supabase.from("ui_error_logs").insert({
-      user_id: auth?.user?.id ?? null,
+      user_id: auth.user?.id ?? null,
       tipo: reg.tipo,
       rota: env.rota,
       modulo,
@@ -77,7 +77,8 @@ export async function registrarErro(reg: RegistroErro): Promise<void> {
       },
     });
   } catch (e) {
-    // Silencia falhas de persistência para evitar loops
+    // eslint-disable-next-line no-console
+    console.warn("[telemetria] falha ao persistir log", e);
   }
 }
 
@@ -115,74 +116,53 @@ let interceptorInstalado = false;
  * de negócio e gerariam ruído.
  */
 export function instalarInterceptorFetch() {
-  if (interceptorInstalado || typeof window === "undefined" || typeof window.fetch !== "function") return;
+  if (interceptorInstalado || typeof window === "undefined") return;
   interceptorInstalado = true;
 
-  try {
-    const fetchOriginal = window.fetch.bind(window);
+  const fetchOriginal = window.fetch.bind(window);
 
-    const wrappedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const endpoint = extrairEndpoint(input);
-      const metodo = init?.method ?? (input instanceof Request ? input.method : "GET");
-
-      try {
-        const resp = await fetchOriginal(input, init);
-
-        if (!deveIgnorar(endpoint)) {
-          const status = resp.status;
-          const ehErroServidor = status >= 500 && status <= 599;
-          const ehDegradacao = status === 408 || status === 429;
-
-          if (ehErroServidor || ehDegradacao) {
-            // Não consumimos o body para não quebrar o consumidor original.
-            void registrarErro({
-              tipo: "api",
-              mensagem: `HTTP ${status} ${resp.statusText || ""}`.trim(),
-              statusHttp: status,
-              endpoint,
-              contexto: { metodo },
-            });
-          }
-        }
-
-        return resp;
-      } catch (err) {
-        if (!deveIgnorar(endpoint)) {
-          const e = err as Error;
-          // AbortError costuma ser navegação/cancelamento — ignoramos.
-          if (e?.name !== "AbortError") {
-            void registrarErro({
-              tipo: "api",
-              mensagem: e?.message ?? "Falha de rede",
-              stack: e?.stack ?? null,
-              endpoint,
-              contexto: { metodo, name: e?.name ?? null },
-            });
-          }
-        }
-        throw err;
-      }
-    };
+  window.fetch = async (input, init) => {
+    const endpoint = extrairEndpoint(input);
+    const metodo = init?.method ?? (input instanceof Request ? input.method : "GET");
 
     try {
-      window.fetch = wrappedFetch;
-    } catch {
-      try {
-        Object.defineProperty(window, "fetch", {
-          value: wrappedFetch,
-          writable: true,
-          configurable: true,
-          enumerable: true,
-        });
-      } catch {
-        // Se o ambiente proibir estritamente override de window.fetch, ignora sem travar a aplicação
+      const resp = await fetchOriginal(input, init);
+
+      if (!deveIgnorar(endpoint)) {
+        const status = resp.status;
+        const ehErroServidor = status >= 500 && status <= 599;
+        const ehDegradacao = status === 408 || status === 429;
+
+        if (ehErroServidor || ehDegradacao) {
+          // Não consumimos o body para não quebrar o consumidor original.
+          void registrarErro({
+            tipo: "api",
+            mensagem: `HTTP ${status} ${resp.statusText || ""}`.trim(),
+            statusHttp: status,
+            endpoint,
+            contexto: { metodo },
+          });
+        }
       }
+
+      return resp;
+    } catch (err) {
+      if (!deveIgnorar(endpoint)) {
+        const e = err as Error;
+        // AbortError costuma ser navegação/cancelamento — ignoramos.
+        if (e?.name !== "AbortError") {
+          void registrarErro({
+            tipo: "api",
+            mensagem: e?.message ?? "Falha de rede",
+            stack: e?.stack ?? null,
+            endpoint,
+            contexto: { metodo, name: e?.name ?? null },
+          });
+        }
+      }
+      throw err;
     }
-  } catch (err) {
-    if (typeof console !== "undefined") {
-      console.warn("[telemetria] Não foi possível interceptar fetch:", err);
-    }
-  }
+  };
 }
 
 /** Captura promises rejeitadas e erros globais não tratados. */

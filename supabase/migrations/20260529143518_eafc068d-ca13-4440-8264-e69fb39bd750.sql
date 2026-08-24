@@ -1,0 +1,6 @@
+DROP TRIGGER IF EXISTS on_controladoria_comentario_notificar ON public.controladoria_comentarios;
+
+CREATE TRIGGER on_controladoria_comentario_notificar
+AFTER INSERT ON public.controladoria_comentarios
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_notificar_comentario_controladoria();

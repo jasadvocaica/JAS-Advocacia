@@ -1,0 +1,1 @@
+ALTER TYPE public.modulo ADD VALUE IF NOT EXISTS 'marketing';

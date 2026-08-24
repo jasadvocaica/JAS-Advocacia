@@ -1,0 +1,1 @@
+ALTER VIEW public.v_clientes_duplicados SET (security_invoker = true);

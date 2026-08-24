@@ -1,0 +1,1 @@
+ALTER TABLE public.doc_pecas ALTER COLUMN processo_id DROP NOT NULL;

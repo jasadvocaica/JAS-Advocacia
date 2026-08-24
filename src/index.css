@@ -1,1 +1,366 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Juliana Araujo Advocacia — Identidade Astrea-like
+   Azul vibrante #1976d2 sobre fundo claro, com suporte completo a tema escuro */
+
+@layer base {
+  :root {
+    /* Fundo neutro levemente azulado (estilo Astrea) */
+    --background: 210 25% 98%;
+    --foreground: 215 30% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 30% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 30% 15%;
+
+    /* Azul Astrea — primário vibrante (#1976d2) */
+    --primary: 210 79% 46%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 207 90% 54%;
+    --primary-dark: 211 100% 38%;
+
+    /* Secundário — cinza azulado suave */
+    --secondary: 210 30% 95%;
+    --secondary-foreground: 215 30% 20%;
+
+    /* Acento "gold" remapeado para preto (compat com componentes legados) */
+    --gold: 215 30% 12%;
+    --gold-light: 215 20% 30%;
+    --gold-dark: 215 40% 6%;
+    --gold-foreground: 0 0% 100%;
+
+    --muted: 210 25% 95%;
+    --muted-foreground: 215 15% 45%;
+
+    --accent: 207 90% 54%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 55% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 215 20% 90%;
+    --input: 215 20% 92%;
+    --ring: 210 79% 46%;
+
+    /* Accent editorial — champagne discreto + navy estrutural */
+    --champagne: 38 38% 62%;
+    --champagne-soft: 40 55% 94%;
+    --navy: 215 55% 14%;
+    --navy-soft: 215 40% 96%;
+
+    --radius: 0.875rem;
+
+
+    /* Sidebar — fundo claro com texto escuro e item ativo azul (estilo Astrea) */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 25% 25%;
+    --sidebar-primary: 210 79% 46%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 60% 96%;
+    --sidebar-accent-foreground: 210 79% 46%;
+    --sidebar-border: 215 20% 92%;
+    --sidebar-ring: 210 79% 46%;
+
+    --sidebar-header: 215 60% 12%;
+    --sidebar-header-foreground: 0 0% 100%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(211 100% 38%), hsl(207 90% 54%));
+    --gradient-navy: linear-gradient(135deg, hsl(215 60% 10%), hsl(211 80% 25%));
+    --gradient-gold: linear-gradient(135deg, hsl(215 30% 12%), hsl(215 20% 30%));
+    --gradient-hero: linear-gradient(135deg, hsl(210 25% 98%) 0%, hsl(210 40% 95%) 60%, hsl(210 60% 92%) 100%);
+
+    /* Shadows — sutis estilo SaaS moderno */
+    --shadow-elegant: 0 8px 28px -12px hsl(210 79% 46% / 0.18);
+    --shadow-gold: 0 4px 20px -6px hsl(215 30% 12% / 0.25);
+    --shadow-card: 0 1px 2px hsl(215 30% 20% / 0.04), 0 2px 6px hsl(215 30% 20% / 0.04);
+  }
+
+  .dark {
+    /* Azul-marinho profundo */
+    --background: 215 50% 8%;
+    --foreground: 210 30% 95%;
+    --card: 215 45% 12%;
+    --card-foreground: 210 30% 95%;
+    --popover: 215 45% 12%;
+    --popover-foreground: 210 30% 95%;
+
+    --primary: 207 90% 60%;
+    --primary-foreground: 215 50% 8%;
+    --primary-glow: 210 79% 55%;
+    --primary-dark: 211 100% 40%;
+
+    --secondary: 215 40% 16%;
+    --secondary-foreground: 210 30% 95%;
+
+    /* Acento "gold" no escuro = branco/claro p/ contrastar */
+    --gold: 210 30% 95%;
+    --gold-light: 210 25% 85%;
+    --gold-dark: 210 30% 70%;
+    --gold-foreground: 215 50% 8%;
+
+    --muted: 215 35% 16%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 215 40% 20%;
+    --accent-foreground: 207 90% 70%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 55% 45%;
+    --warning: 38 92% 55%;
+
+    --border: 215 35% 18%;
+    --input: 215 35% 18%;
+    --ring: 207 90% 60%;
+
+    --champagne: 38 42% 66%;
+    --champagne-soft: 38 20% 18%;
+    --navy: 215 50% 10%;
+    --navy-soft: 215 40% 14%;
+
+
+    --sidebar-background: 215 55% 6%;
+    --sidebar-foreground: 210 25% 88%;
+    --sidebar-primary: 207 90% 60%;
+    --sidebar-primary-foreground: 215 50% 8%;
+    --sidebar-accent: 215 45% 12%;
+    --sidebar-accent-foreground: 207 90% 70%;
+    --sidebar-border: 215 40% 14%;
+    --sidebar-ring: 207 90% 60%;
+    --sidebar-header: 215 60% 5%;
+    --sidebar-header-foreground: 207 90% 60%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html { font-family: 'DM Sans', system-ui, sans-serif; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "cv01", "kern";
+  }
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Space Grotesk', 'DM Sans', system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  h1 { letter-spacing: -0.03em; font-weight: 700; }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-md border border-border/60;
+  }
+  .gold-divider {
+    @apply h-px w-12 bg-gradient-to-r from-primary to-transparent;
+  }
+  .brand-shadow { box-shadow: var(--shadow-elegant); }
+  .gold-shadow { box-shadow: var(--shadow-gold); }
+}
+
+@layer utilities {
+  .text-gradient-gold {
+    background: var(--gradient-gold);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .text-gradient-primary {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .bg-navy-gradient { background: var(--gradient-navy); }
+  .bg-primary-gradient { background: var(--gradient-primary); }
+  .bg-hero-gradient { background: var(--gradient-hero); }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--sidebar-border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--sidebar-border));
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--sidebar-accent-foreground) / 0.5);
+    background-clip: padding-box;
+  }
+}
+
+/* ============================================================
+   Editor Jurídico — workspace + folha A4 + marcação de variáveis
+   ============================================================ */
+@layer components {
+  .editor-workspace {
+    background-color: #e8e8e8;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: auto;
+    border-radius: 0.5rem;
+    min-height: 60vh;
+  }
+
+  .editor-juridico-page {
+    width: 794px;
+    min-height: 1123px;
+    margin: 0 auto 24px;
+    background: #ffffff;
+    color: #000000;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18), 0 0 1px rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+    box-sizing: border-box;
+    position: relative;
+    transform-origin: top center;
+    transition: transform 0.15s ease-out;
+  }
+
+  @media (max-width: 880px) {
+    .editor-juridico-page { transform: scale(0.78); margin-bottom: -180px; }
+    .editor-workspace { padding: 16px 8px; }
+  }
+  @media (max-width: 640px) {
+    .editor-juridico-page { transform: scale(0.55); margin-bottom: -480px; }
+  }
+
+  .editor-juridico-page .ProseMirror {
+    min-height: 900px;
+    outline: none;
+    font-family: 'Libre Baskerville', Georgia, serif;
+  }
+  .editor-juridico-page .ProseMirror p {
+    margin: 0 0 0.6em 0;
+    text-align: justify;
+    text-indent: 1.25cm;
+  }
+  .editor-juridico-page .ProseMirror p[style*="text-align: center"],
+  .editor-juridico-page .ProseMirror p[style*="text-align: right"] {
+    text-indent: 0;
+  }
+  .editor-juridico-page .ProseMirror h1,
+  .editor-juridico-page .ProseMirror h2,
+  .editor-juridico-page .ProseMirror h3 {
+    font-family: inherit;
+    font-weight: 700;
+    margin: 1em 0 0.5em;
+    text-indent: 0;
+  }
+  .editor-juridico-page .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: hsl(217 20% 60%);
+    pointer-events: none;
+    height: 0;
+    float: left;
+  }
+
+  .doc-variavel,
+  mark[data-variavel] {
+    background: hsl(45 95% 88%);
+    color: hsl(35 90% 28%);
+    padding: 0 4px;
+    border-radius: 3px;
+    font-weight: 500;
+    border: 1px dashed hsl(35 80% 55%);
+  }
+  .doc-variavel-pendente {
+    background: hsl(0 90% 92%);
+    color: hsl(0 70% 35%);
+    border-color: hsl(0 75% 55%);
+  }
+}
+
+@media print {
+  @page { size: A4; margin: 2cm; }
+
+  html, body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body * { visibility: hidden; }
+  .editor-juridico-print, .editor-juridico-print *,
+  .perdcomp-print, .perdcomp-print * { visibility: visible; }
+
+  .editor-workspace {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+  }
+
+  .editor-juridico-print {
+    position: static !important;
+    width: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    transform: none !important;
+    overflow: visible !important;
+  }
+  .editor-juridico-print .ProseMirror { min-height: 0 !important; }
+
+  .editor-juridico-print h1,
+  .editor-juridico-print h2,
+  .editor-juridico-print h3 {
+    page-break-after: avoid;
+    break-after: avoid-page;
+  }
+  .editor-juridico-print p,
+  .editor-juridico-print li {
+    orphans: 3;
+    widows: 3;
+    page-break-inside: avoid;
+    break-inside: avoid-page;
+  }
+  .editor-juridico-print img,
+  .editor-juridico-print table {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    max-width: 100%;
+  }
+
+  .perdcomp-print {
+    position: absolute; left: 0; top: 0; width: 100%;
+    box-shadow: none !important; border-radius: 0 !important;
+    padding: 16px;
+  }
+  .perdcomp-print .no-print { display: none !important; }
+
+  .page-break { page-break-after: always; break-after: page; }
+  .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+}

@@ -3,33 +3,6 @@ import App from "./App.tsx";
 import "./index.css";
 import { instalarInterceptorFetch, instalarHandlersGlobais } from "./lib/telemetria";
 
-// Suprime warnings conhecidos de bibliotecas de terceiros (ex: recharts defaultProps no React 18)
-if (typeof console !== "undefined") {
-  const originalError = console.error.bind(console);
-  console.error = (...args: any[]) => {
-    const firstArg = typeof args[0] === "string" ? args[0] : "";
-    if (
-      firstArg.includes("Support for defaultProps will be removed") ||
-      firstArg.includes("defaultProps will be removed from function components")
-    ) {
-      return;
-    }
-    originalError(...args);
-  };
-
-  const originalWarn = console.warn.bind(console);
-  console.warn = (...args: any[]) => {
-    const firstArg = typeof args[0] === "string" ? args[0] : "";
-    if (
-      firstArg.includes("Support for defaultProps will be removed") ||
-      firstArg.includes("defaultProps will be removed from function components")
-    ) {
-      return;
-    }
-    originalWarn(...args);
-  };
-}
-
 // Aplica o tema (claro/escuro) o quanto antes para evitar flash de tela branca.
 try {
   const salvo = localStorage.getItem("app:tema");
@@ -55,39 +28,35 @@ instalarHandlersGlobais();
 // um no-op (ou inserimos no lugar correto). É a solução padrão recomendada
 // pela comunidade React para conviver com o Google Translate.
 // =============================================================================
-try {
-  if (typeof Node !== "undefined" && Node.prototype) {
-    const originalRemoveChild = Node.prototype.removeChild;
-    Node.prototype.removeChild = function <T extends Node>(child: T): T {
-      if (child.parentNode !== this) {
-        // O nó já foi removido/movido (provavelmente por uma extensão).
-        // Devolve o próprio nó sem lançar para o React seguir o ciclo de vida.
-        if (typeof console !== "undefined") {
-          // eslint-disable-next-line no-console
-          console.warn("[dom-patch] removeChild ignorado: nó não é mais filho deste pai.");
-        }
-        return child;
+if (typeof Node !== "undefined") {
+  const originalRemoveChild = Node.prototype.removeChild;
+  Node.prototype.removeChild = function <T extends Node>(child: T): T {
+    if (child.parentNode !== this) {
+      // O nó já foi removido/movido (provavelmente por uma extensão).
+      // Devolve o próprio nó sem lançar para o React seguir o ciclo de vida.
+      if (typeof console !== "undefined") {
+        // eslint-disable-next-line no-console
+        console.warn("[dom-patch] removeChild ignorado: nó não é mais filho deste pai.");
       }
-      // eslint-disable-next-line prefer-rest-params
-      return originalRemoveChild.apply(this, arguments as any) as T;
-    } as typeof Node.prototype.removeChild;
+      return child;
+    }
+    // eslint-disable-next-line prefer-rest-params
+    return originalRemoveChild.apply(this, arguments as any) as T;
+  } as typeof Node.prototype.removeChild;
 
-    const originalInsertBefore = Node.prototype.insertBefore;
-    Node.prototype.insertBefore = function <T extends Node>(newNode: T, referenceNode: Node | null): T {
-      if (referenceNode && referenceNode.parentNode !== this) {
-        // Reference foi movida pela extensão — apenas anexa ao final.
-        if (typeof console !== "undefined") {
-          // eslint-disable-next-line no-console
-          console.warn("[dom-patch] insertBefore caiu para appendChild: reference não é filho.");
-        }
-        return this.appendChild(newNode) as T;
+  const originalInsertBefore = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function <T extends Node>(newNode: T, referenceNode: Node | null): T {
+    if (referenceNode && referenceNode.parentNode !== this) {
+      // Reference foi movida pela extensão — apenas anexa ao final.
+      if (typeof console !== "undefined") {
+        // eslint-disable-next-line no-console
+        console.warn("[dom-patch] insertBefore caiu para appendChild: reference não é filho.");
       }
-      // eslint-disable-next-line prefer-rest-params
-      return originalInsertBefore.apply(this, arguments as any) as T;
-    } as typeof Node.prototype.insertBefore;
-  }
-} catch {
-  // Ignora se o ambiente proibir alteração de protótipos de nós do DOM
+      return this.appendChild(newNode) as T;
+    }
+    // eslint-disable-next-line prefer-rest-params
+    return originalInsertBefore.apply(this, arguments as any) as T;
+  } as typeof Node.prototype.insertBefore;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

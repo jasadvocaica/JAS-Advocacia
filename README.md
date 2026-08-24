@@ -33,14 +33,15 @@ npm install
 
 ### 2. Variáveis de ambiente
 
-Crie um arquivo `.env.local` na raiz:
+Copie `.env.example` para `.env.local` e preencha apenas com valores públicos:
 
 ```env
-VITE_SUPABASE_URL=https://<seu-projeto>.supabase.co
-VITE_SUPABASE_ANON_KEY=<sua-chave-anon>
+VITE_SUPABASE_URL=https://mzwnljgujheumdslkloc.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<sua-chave-publicavel>
+VITE_APP_URL=https://faithful-screen-craft.ai.studio
 ```
 
-Você encontra esses valores em **Supabase → Project Settings → API**.
+Você encontra a chave publicável em **Supabase → Project Settings → API**. Nunca coloque a chave `service_role` no frontend ou no GitHub.
 
 ### 3. Banco de dados
 
@@ -58,7 +59,7 @@ Ou importe o schema manualmente via Supabase Studio.
 npm run dev
 ```
 
-A aplicação estará disponível em `http://localhost:8080`.
+A aplicação estará disponível em `http://localhost:3000`.
 
 ## Scripts disponíveis
 
@@ -132,4 +133,5 @@ npm run build
 # Faça o deploy da pasta dist/ no seu provedor (Vercel, Netlify, etc.)
 ```
 
-Certifique-se de configurar as variáveis de ambiente `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no ambiente de produção.
+Certifique-se de configurar `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` e `VITE_APP_URL` no ambiente de produção.
+

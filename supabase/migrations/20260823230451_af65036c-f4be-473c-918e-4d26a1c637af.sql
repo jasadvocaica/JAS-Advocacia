@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.trg_gerar_comunicacao_pos_protocolo() FROM public, anon, authenticated;

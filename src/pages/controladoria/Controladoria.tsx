@@ -228,25 +228,16 @@ export default function Controladoria() {
   async function moverEtapa(itemId: string, novaEtapa: EtapaKanban) {
     const it = itens.find((i) => i.id === itemId);
     if (!it) return;
-    try {
-      const r = await transicionarEtapa({
-        itemId,
-        etapaAtual: etapaAtualDe(it),
-        novaEtapa: novaEtapa as EtapaWorkflow,
-        exigeRevisao: it.exige_revisao !== false,
-        responsavelId: it.responsavel_id,
-      });
-      if (!r.ok) {
-        toast.error(r.erro || r.error || "Não foi possível mover a etapa");
-        loadItens();
-        return;
-      }
-      toast.success(`Etapa: ${ETAPA_LABEL[novaEtapa as EtapaWorkflow]}`);
-      loadItens();
-    } catch (err: any) {
-      toast.error(err?.message || "Erro ao movimentar etapa no Kanban");
-      loadItens();
-    }
+    const r = await transicionarEtapa({
+      itemId,
+      etapaAtual: etapaAtualDe(it),
+      novaEtapa: novaEtapa as EtapaWorkflow,
+      exigeRevisao: it.exige_revisao !== false,
+      responsavelId: it.responsavel_id,
+    });
+    if (!r.ok) return toast.error(r.erro ?? "Não foi possível mover");
+    toast.success(`Etapa: ${ETAPA_LABEL[novaEtapa as EtapaWorkflow]}`);
+    loadItens();
   }
 
 
