@@ -12,6 +12,11 @@ const corsHeaders = {
 
 export const BASE_URL = "https://api-publica.datajud.cnj.jus.br";
 
+// Chave pública vigente publicada pelo próprio CNJ. A variável de ambiente
+// continua tendo prioridade, permitindo rotação sem novo deploy.
+const DATAJUD_PUBLIC_API_KEY =
+  "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
+
 // Aliases por tribunal (replica src/lib/datajud.ts)
 export const TRIBUNAL_ALIAS: Record<string, string> = {
   TST: "api_publica_tst", TSE: "api_publica_tse", STJ: "api_publica_stj", STM: "api_publica_stm",
@@ -379,7 +384,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("DATAJUD_API_KEY");
+    const apiKey = Deno.env.get("DATAJUD_API_KEY")?.trim() || DATAJUD_PUBLIC_API_KEY;
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "DATAJUD_API_KEY não configurada" }), {
         status: 500,
