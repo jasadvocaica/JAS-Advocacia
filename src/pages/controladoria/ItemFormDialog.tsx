@@ -34,9 +34,18 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item?: ControladoriaItem | null;
-  onSaved: () => void;
+  onSaved: (itemId?: string) => void;
   /** Pré-preenchimento ao criar um item novo (ignorado em edição). */
-  prefill?: { processoId?: string; clienteId?: string };
+  prefill?: {
+    processoId?: string;
+    clienteId?: string;
+    titulo?: string;
+    descricao?: string;
+    tipo?: TipoItem;
+    prioridade?: Prioridade;
+    dataIntimacao?: string;
+    origem?: string;
+  };
 }
 
 interface SimpleOption { id: string; label: string; }
@@ -147,15 +156,15 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
         setCoResponsaveis(ids);
       })();
     } else {
-      setTitulo("");
-      setDescricao("");
-      setTipo("prazo_processual");
+      setTitulo(prefill?.titulo ?? "");
+      setDescricao(prefill?.descricao ?? "");
+      setTipo(prefill?.tipo ?? "prazo_processual");
       setStatus("pendente");
-      setPrioridade("media");
+      setPrioridade(prefill?.prioridade ?? "media");
       setClienteId(prefill?.clienteId ?? "");
       setProcessoId(prefill?.processoId ?? "");
       setTipoPrazoId("");
-      setDataIntimacao(undefined);
+      setDataIntimacao(prefill?.dataIntimacao ? new Date(prefill.dataIntimacao + "T00:00:00") : undefined);
       setDataVencimento(undefined);
       setVara("");
       setJuiz("");
@@ -273,6 +282,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       visivel_parceiro: visivelParceiro,
       o_que_levar: isEvento ? (oQueLevar.trim() || null) : null,
       orientacoes: isEvento ? (orientacoes.trim() || null) : null,
+      origem: prefill?.origem ?? (isEdit ? item?.origem : "controladoria"),
     };
 
     let savedId: string | null = null;
@@ -432,7 +442,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
     }
 
     clearDraft();
-    onSaved();
+    onSaved(savedId ?? undefined);
     onOpenChange(false);
   }
 
@@ -474,7 +484,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
 
         <div className="grid gap-5 py-2">
           {/* Fluxo como modelo (apenas em criação) */}
-          {!isEdit && fluxos.length > 0 && (
+          {!isEdit && prefill?.origem !== "djen" && fluxos.length > 0 && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
