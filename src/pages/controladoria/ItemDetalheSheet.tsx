@@ -65,7 +65,7 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
   const isGestor = authIsGestor || roles.includes("gestor");
   const isEstagiario = roles.includes("estagiario") && !isGestor && !roles.includes("advogado");
   // Quem pode concluir: gestor, advogado ou admin
-  const podeConcluir = !isEstagiario;
+  const podeConcluir = podeEditar && !isEstagiario;
 
   const isEvento = item ? TIPOS_EVENTO.includes(item.tipo) : false;
 
