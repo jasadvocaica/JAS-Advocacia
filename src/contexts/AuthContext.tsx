@@ -109,11 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions(permSet);
   };
 
-  // Canal entre abas — sincroniza login/logout para evitar refresh-token "roubado"
-  const bcRef = (typeof window !== "undefined" && "BroadcastChannel" in window)
-    ? new BroadcastChannel("auth-sync")
-    : null;
-
   const clearLocalAuthArtifacts = () => {
     try {
       Object.keys(localStorage).forEach((k) => {
@@ -123,14 +118,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // O canal pertence ao ciclo de vida do provider e é fechado no cleanup.
+    const authChannel = (typeof window !== "undefined" && "BroadcastChannel" in window)
+      ? new BroadcastChannel("auth-sync")
+      : null;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
         setTimeout(() => loadUserData(newSession.user.id), 0);
-        if (event === "SIGNED_IN" && bcRef) {
-          bcRef.postMessage({ type: "signed-in", userId: newSession.user.id });
+        if (event === "SIGNED_IN" && authChannel) {
+          authChannel.postMessage({ type: "signed-in", userId: newSession.user.id });
         }
       } else {
         setProfile(null);
@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Sessão perdida (logout, token revogado/expirado sem refresh válido)
         if (event === "SIGNED_OUT") {
           clearLocalAuthArtifacts();
-          if (bcRef) bcRef.postMessage({ type: "signed-out" });
+          if (authChannel) authChannel.postMessage({ type: "signed-out" });
           const path = window.location.pathname;
           const publicas = ["/login", "/esqueci-senha", "/reset-password", "/conta-inativa"];
           if (!publicas.some((p) => path.startsWith(p))) {
@@ -165,14 +165,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const msg = ev.data;
       if (!msg || typeof msg !== "object") return;
       if (msg.type === "signed-in" && msg.userId) {
-        // Outra aba logou com usuário diferente → conflito de sessão
-        const current = (supabase.auth as any).currentUser?.id ?? null;
-        if (current && current !== msg.userId) window.location.reload();
+        // Outra aba logou com usuário diferente → atualiza a sessão desta aba.
+        void supabase.auth.getSession().then(({ data }) => {
+          const currentUserId = data.session?.user.id ?? null;
+          if (currentUserId && currentUserId !== msg.userId) window.location.reload();
+        });
       }
       // Importante: NÃO reagir a "signed-out" — pode ser apenas refresh expirado
       // numa aba inativa. O usuário ativo não deve perder o trabalho.
     };
-    bcRef?.addEventListener("message", onBcMessage);
+    authChannel?.addEventListener("message", onBcMessage);
 
     // Quando a aba volta a ficar visível, força refresh do token antes que o
     // usuário clique em salvar (evita falha por token expirado após minimizar).
@@ -198,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let offlineToastId: string | number | null = null;
     const onOffline = () => {
       offlineToastId = toast.warning("Sem conexão", {
-        description: "Suas alterações serão salvas localmente até voltar.",
+        description: "Verifique sua internet antes de salvar novas alterações.",
         duration: Infinity,
       });
     };
@@ -216,8 +218,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       subscription.unsubscribe();
-      bcRef?.removeEventListener("message", onBcMessage);
-      bcRef?.close();
+      authChannel?.removeEventListener("message", onBcMessage);
+      authChannel?.close();
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onVisibility);
       window.removeEventListener("offline", onOffline);
