@@ -706,7 +706,15 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select value={clienteId || "none"} onValueChange={(v) => { setClienteId(v === "none" ? "" : v); setProcessoId(""); }}>
+              <Select
+                value={clienteId || "none"}
+                onValueChange={(v) => {
+                  const proximoClienteId = v === "none" ? "" : v;
+                  const processosDoCliente = processos.filter((p) => p.cliente_id === proximoClienteId);
+                  setClienteId(proximoClienteId);
+                  setProcessoId(processosDoCliente.length === 1 ? processosDoCliente[0].id : "");
+                }}
+              >
                 <SelectTrigger className={!clienteId && !processoId ? "border-destructive/60" : ""}>
                   <SelectValue placeholder="Selecione um cliente" />
                 </SelectTrigger>
@@ -715,7 +723,15 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
                   {clientes.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={processoId || "none"} onValueChange={(v) => setProcessoId(v === "none" ? "" : v)}>
+              <Select
+                value={processoId || "none"}
+                onValueChange={(v) => {
+                  const proximoProcessoId = v === "none" ? "" : v;
+                  setProcessoId(proximoProcessoId);
+                  const processo = processos.find((p) => p.id === proximoProcessoId);
+                  if (processo?.cliente_id) setClienteId(processo.cliente_id);
+                }}
+              >
                 <SelectTrigger className={!clienteId && !processoId ? "border-destructive/60" : ""}>
                   <SelectValue placeholder="Selecione um processo" />
                 </SelectTrigger>
