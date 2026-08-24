@@ -131,6 +131,7 @@ export default function Dashboard() {
 function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean; verEquipe: boolean }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [cards, setCards] = useState<DashboardCards>({
     clientes_ativos: 0, processos_ativos: 0, prazos_proximos_7d: 0, prazos_vencidos: 0,
     receita_mes: 0, a_receber_mes: 0, em_atraso: 0,
@@ -239,6 +240,19 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
       ] = await Promise.all(queries);
 
       if (!ativo) return;
+
+      const resultados = [
+        rProcAtivos, rPrazos7, rPrazosVenc, rTarefasAbertas, rTarefasAtrasadas,
+        rPagamentos, rParcelas, rRepasses, rArea, rDesempenho, rDataJud, rClientes,
+        rAgendaHoje,
+      ];
+      const falha = resultados.find((resultado) => resultado?.error)?.error;
+      if (falha) {
+        setLoadError(falha.message ?? "Não foi possível carregar o painel.");
+        setLoading(false);
+        return;
+      }
+      setLoadError(null);
 
       const pagamentos = (rPagamentos.data ?? []) as any[];
       const parcelas = (rParcelas.data ?? []) as any[];
@@ -383,6 +397,19 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
   const totalClientesUf = useMemo(() => estadoData.reduce((s, e) => s + e.total, 0), [estadoData]);
 
   if (loading) return <DashboardSkeleton />;
+
+  if (loadError) {
+    return (
+      <Card className="border-destructive/30 bg-destructive/5 p-6 text-center shadow-none">
+        <AlertTriangle className="mx-auto mb-3 h-7 w-7 text-destructive" />
+        <h2 className="font-display text-lg text-foreground">Não foi possível carregar o painel</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{loadError}</p>
+        <Button className="mt-4" variant="outline" onClick={() => window.location.reload()}>
+          Tentar novamente
+        </Button>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-8">
