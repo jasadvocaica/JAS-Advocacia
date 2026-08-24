@@ -21,6 +21,11 @@ interface KPIs {
   contratosAtivos: number;
   parcelasAtrasadas: number;
   repassesPendentes: number;
+  diligenciasContratado: number;
+  diligenciasRecebido: number;
+  diligenciasAReceber: number;
+  diligenciasCustos: number;
+  diligenciasLucro: number;
 }
 
 interface ParcelaProx {
@@ -40,6 +45,8 @@ export default function FinanceiroDashboard() {
   const [kpis, setKpis] = useState<KPIs>({
     recebidoMes: 0, aReceber30: 0, atrasado: 0, exitoEstimado: 0,
     contratosAtivos: 0, parcelasAtrasadas: 0, repassesPendentes: 0,
+    diligenciasContratado: 0, diligenciasRecebido: 0, diligenciasAReceber: 0,
+    diligenciasCustos: 0, diligenciasLucro: 0,
   });
   const [proximas, setProximas] = useState<ParcelaProx[]>([]);
 
@@ -52,7 +59,7 @@ export default function FinanceiroDashboard() {
       const fim30 = new Date(hoje.getTime() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
       const hojeIso = hoje.toISOString().slice(0, 10);
 
-      const [pagsMes, parc30, parcAtraso, contAtivos, exitoEst, repPend, proximasRes] = await Promise.all([
+      const [pagsMes, parc30, parcAtraso, contAtivos, exitoEst, repPend, proximasRes, diligenciasMes] = await Promise.all([
         supabase.from("honorarios_pagamentos").select("valor_recebido").gte("data_pagamento", inicioMes),
         supabase.from("honorarios_parcelas").select("valor").eq("status", "pendente").lte("data_vencimento", fim30).gte("data_vencimento", hojeIso),
         supabase.from("honorarios_parcelas").select("valor, id").in("status", ["pendente", "atrasado"]).lt("data_vencimento", hojeIso),
@@ -64,6 +71,9 @@ export default function FinanceiroDashboard() {
           .in("status", ["pendente", "atrasado"])
           .order("data_vencimento", { ascending: true })
           .limit(10),
+        (supabase as any).from("diligencias")
+          .select("valor_contratado,valor_recebido,custo_total,pagamento_status")
+          .gte("data_hora", inicioMes + "T00:00:00-04:00"),
       ]);
 
       if (!alive) return;
@@ -74,6 +84,14 @@ export default function FinanceiroDashboard() {
       const atrasado = atrasadoArr.reduce((s, p: any) => s + Number(p.valor), 0);
       const exitoEstimado = (exitoEst.data ?? []).reduce((s, c: any) => s + Number(c.valor_exito_estimado ?? 0), 0);
       const repassesPendentes = (repPend.data ?? []).reduce((s, r: any) => s + Number(r.valor_repasse), 0);
+      const diligencias = (diligenciasMes.data ?? []) as any[];
+      const diligenciasContratado = diligencias.reduce((s, d) => s + Number(d.valor_contratado ?? 0), 0);
+      const diligenciasRecebido = diligencias.reduce((s, d) => s + Number(d.valor_recebido ?? 0), 0);
+      const diligenciasCustos = diligencias.reduce((s, d) => s + Number(d.custo_total ?? 0), 0);
+      const diligenciasAReceber = diligencias
+        .filter(d => ["a_receber", "parcial"].includes(d.pagamento_status))
+        .reduce((s, d) => s + Math.max(0, Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0)), 0);
+      const diligenciasLucro = diligenciasRecebido - diligenciasCustos;
 
       // Buscar nomes de clientes para próximas parcelas
       const proxList = (proximasRes.data as any[]) ?? [];
@@ -95,6 +113,11 @@ export default function FinanceiroDashboard() {
         contratosAtivos: contAtivos.count ?? 0,
         parcelasAtrasadas: atrasadoArr.length,
         repassesPendentes,
+        diligenciasContratado,
+        diligenciasRecebido,
+        diligenciasAReceber,
+        diligenciasCustos,
+        diligenciasLucro,
       });
       setProximas(proxList.map(p => ({ ...p, cliente_nome: nomeMap[p.contrato_id] })));
       setLoading(false);
@@ -106,7 +129,7 @@ export default function FinanceiroDashboard() {
     <div className="space-y-6">
       <PageHeader
         title="Financeiro"
-        description="Visão geral de honorários, recebimentos e repasses"
+        description="Visão geral de honorários, diligências, recebimentos e repasses"
       >
         {isGestor && (
           <Button asChild variant="outline" size="sm">
@@ -156,6 +179,23 @@ export default function FinanceiroDashboard() {
             />
           </div>
 
+          <Card className="p-5 border-primary/20">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-display text-lg">Diligências no mês</h3>
+                <p className="text-xs text-muted-foreground">Valores consolidados automaticamente, sem lançamento duplicado</p>
+              </div>
+              <Button asChild variant="outline" size="sm"><Link to="/diligencias">Abrir diligências <ArrowUpRight className="w-3.5 h-3.5" /></Link></Button>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <KpiCard icon={<FileText className="w-3.5 h-3.5 text-primary" />} label="Contratado" value={formatBRL(kpis.diligenciasContratado)} />
+              <KpiCard icon={<CheckCircle2 className="w-3.5 h-3.5 text-success" />} label="Recebido" value={formatBRL(kpis.diligenciasRecebido)} />
+              <KpiCard icon={<Clock className="w-3.5 h-3.5 text-amber-600" />} label="A receber" value={formatBRL(kpis.diligenciasAReceber)} />
+              <KpiCard icon={<TrendingDown className="w-3.5 h-3.5 text-destructive" />} label="Custos" value={formatBRL(kpis.diligenciasCustos)} />
+              <KpiCard icon={<TrendingUp className="w-3.5 h-3.5 text-gold" />} label="Lucro realizado" value={formatBRL(kpis.diligenciasLucro)} />
+            </div>
+          </Card>
+
           {/* Grupos organizados */}
           <div className="grid lg:grid-cols-2 gap-4">
             <SecaoAtalhos
@@ -166,6 +206,7 @@ export default function FinanceiroDashboard() {
                 { to: "/financeiro/contratos", icon: FileText, label: "Contratos", badge: String(kpis.contratosAtivos), sub: "ativos" },
                 { to: "/financeiro/parcelas", icon: CheckCircle2, label: "Parcelas a receber", sub: "baixa em lote" },
                 { to: "/financeiro/pagamentos", icon: Wallet, label: "Pagamentos", sub: "histórico" },
+                { to: "/diligencias", icon: Calculator, label: "Financeiro de diligências", badge: kpis.diligenciasAReceber > 0 ? formatBRL(kpis.diligenciasAReceber) : undefined, sub: "custos, lucro e recebimentos" },
               ]}
             />
 
