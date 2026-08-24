@@ -229,19 +229,22 @@ export default function PublicacoesPje() {
 
   async function registrarTarefaCriada(itemId?: string) {
     if (!itemId || !publicacaoEmTratamento) return;
-    const { error } = await supabase
+    const { data: vinculada, error } = await supabase
       .from("pje_publicacoes")
       .update({
         item_controladoria_id: itemId,
         status_leitura: "vista",
         vista_em: new Date().toISOString(),
       })
-      .eq("id", publicacaoEmTratamento.id);
+      .eq("id", publicacaoEmTratamento.id)
+      .is("item_controladoria_id", null)
+      .select("id")
+      .maybeSingle();
 
-    if (error) {
+    if (error || !vinculada) {
       toast({
         title: "Tarefa criada, mas o vínculo não foi concluído",
-        description: error.message,
+        description: error?.message ?? "Esta publicação já possui uma tarefa vinculada.",
         variant: "destructive",
       });
       return;
@@ -584,7 +587,13 @@ function PublicacaoItem({
         </div>
         <div className="flex gap-1 shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
           <BiaAcoesButton alvo="publicacao" id={pub.id} onAcaoExecutada={onAcaoBia} />
-          {pub.processo_id ? (
+          {pub.item_controladoria_id ? (
+            <Button asChild size="sm" variant="outline">
+              <Link to={"/controladoria?item=" + pub.item_controladoria_id}>
+                <ListTodo className="w-3.5 h-3.5 mr-1" /> Ver tarefa
+              </Link>
+            </Button>
+          ) : pub.processo_id ? (
             <Button asChild size="sm" variant="outline">
               <Link to={`/processos/${pub.processo_id}`}>
                 <Link2 className="w-3.5 h-3.5 mr-1" /> Ver processo
