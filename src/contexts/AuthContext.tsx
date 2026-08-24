@@ -40,6 +40,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const getPublicAppUrl = () => {
+  const configuredUrl = import.meta.env.VITE_APP_URL?.trim();
+  if (configuredUrl) return configuredUrl.replace(/\/$/, "");
+
+  const { origin, hostname } = window.location;
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return "https://faithful-screen-craft.ai.studio";
+  }
+
+  return origin;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { preview } = usePreviewMode();
   const [user, setUser] = useState<User | null>(null);
@@ -67,44 +79,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     (async () => {
-      try {
-        const [pRes, rRes, permRes] = await Promise.all([
-          supabase.from("profiles").select("*").eq("id", previewEquipeId).maybeSingle(),
-          supabase.from("user_roles").select("role").eq("user_id", previewEquipeId),
-          supabase
-            .from("user_permissions")
-            .select("modulo, acao, permitido")
-            .eq("user_id", previewEquipeId)
-            .eq("permitido", true),
-        ]);
-        setPreviewProfile((pRes?.data as Profile | null) ?? null);
-        setPreviewRoles(((rRes?.data ?? []) as any[]).map((r) => r.role));
-        const set = new Set<string>();
-        ((permRes?.data ?? []) as any[]).forEach((p) => set.add(`${p.modulo}:${p.acao}`));
-        setPreviewPermissions(set);
-      } catch (err) {
-        console.warn("[auth] Falha ao carregar preview do usuário:", err);
-      }
+      const [pRes, rRes, permRes] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", previewEquipeId).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", previewEquipeId),
+        supabase
+          .from("user_permissions")
+          .select("modulo, acao, permitido")
+          .eq("user_id", previewEquipeId)
+          .eq("permitido", true),
+      ]);
+      setPreviewProfile((pRes.data as Profile | null) ?? null);
+      setPreviewRoles(((rRes.data ?? []) as any[]).map((r) => r.role));
+      const set = new Set<string>();
+      ((permRes.data ?? []) as any[]).forEach((p) => set.add(`${p.modulo}:${p.acao}`));
+      setPreviewPermissions(set);
     })();
   }, [previewEquipeId]);
 
   const loadUserData = async (userId: string) => {
-    try {
-      const [profileRes, rolesRes, permsRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", userId),
-        supabase.from("user_permissions").select("modulo, acao, permitido").eq("user_id", userId).eq("permitido", true),
-      ]);
-      if (profileRes?.data) setProfile(profileRes.data as Profile | null);
-      if (rolesRes?.data) setRoles((rolesRes.data ?? []).map((r: any) => r.role));
-      if (permsRes?.data) {
-        const permSet = new Set<string>();
-        (permsRes.data ?? []).forEach((p: any) => permSet.add(`${p.modulo}:${p.acao}`));
-        setPermissions(permSet);
-      }
-    } catch (err) {
-      console.warn("[auth] Falha ao carregar permissões/perfil do usuário:", err);
-    }
+    const [profileRes, rolesRes, permsRes] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId),
+      supabase.from("user_permissions").select("modulo, acao, permitido").eq("user_id", userId).eq("permitido", true),
+    ]);
+    setProfile(profileRes.data as Profile | null);
+    setRoles((rolesRes.data ?? []).map((r: any) => r.role));
+    const permSet = new Set<string>();
+    (permsRes.data ?? []).forEach((p: any) => permSet.add(`${p.modulo}:${p.acao}`));
+    setPermissions(permSet);
   };
 
   // Canal entre abas — sincroniza login/logout para evitar refresh-token "roubado"
@@ -259,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${getPublicAppUrl()}/`,
         data: { nome },
       },
     });
@@ -280,7 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${getPublicAppUrl()}/reset-password`,
     });
     return { error: error?.message ?? null };
   };
@@ -317,3 +319,4 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
+
