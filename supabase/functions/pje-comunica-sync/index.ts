@@ -71,11 +71,10 @@ function chaveMonitoramento(m: MonitoramentoRow): string {
   return `${m.tipo}:${m.valor.toLowerCase()}`;
 }
 
-function hashItem(item: PjeItem, monKey: string): string {
+function hashItem(item: PjeItem): string {
   const partes = [
     String(item.id ?? ""),
     item.hash ?? "",
-    monKey,
     limparCnj(item.numero_processo ?? item.numeroprocessocommascara),
     parseDataISO(item.data_disponibilizacao ?? item.datadisponibilizacao) ?? "",
     (item.texto ?? "").slice(0, 80),
@@ -201,20 +200,22 @@ async function sincronizarMonitoramento(
 
     for (const item of items) {
       try {
-        const hash_dedup = hashItem(item, monKey);
+        const hash_dedup = hashItem(item);
         const cnjMascara = item.numero_processo ?? item.numeroprocessocommascara ?? null;
         const cnjLimpo = limparCnj(cnjMascara);
         const dataDisp = parseDataISO(item.data_disponibilizacao ?? item.datadisponibilizacao);
 
         // Tenta achar processo existente
         let processoId: string | null = null;
+        let processoResponsavelId: string | null = null;
         if (cnjLimpo) {
           const { data: proc } = await supabase
             .from("processos")
-            .select("id")
+            .select("id, responsavel_id")
             .eq("numero_cnj_limpo", cnjLimpo)
             .maybeSingle();
           processoId = (proc?.id as string) ?? null;
+          processoResponsavelId = (proc?.responsavel_id as string) ?? null;
         }
 
         if (dryRun) continue;
@@ -263,6 +264,34 @@ async function sincronizarMonitoramento(
             .eq("id", inserted.id);
           if (!updErr) r.vinculadas += 1;
         }
+
+        if (inserted?.id) {
+          const { data: gestores } = await supabase
+            .from("user_roles")
+            .select("user_id, profiles!inner(ativo)")
+            .eq("role", "gestor")
+            .eq("profiles.ativo", true);
+          const destinatarios = new Set<string>();
+          if (processoResponsavelId) destinatarios.add(processoResponsavelId);
+          for (const gestor of gestores ?? []) {
+            if (gestor.user_id) destinatarios.add(gestor.user_id);
+          }
+          if (destinatarios.size > 0) {
+            await supabase.from("notificacoes").insert(
+              Array.from(destinatarios).map((user_id) => ({
+                user_id,
+                tipo: "djen_nova_publicacao",
+                titulo: item.tipoComunicacao ?? "Nova publicação no DJEN",
+                descricao: cnjMascara
+                  ? `${cnjMascara} · ${item.nomeOrgao ?? item.siglaTribunal ?? "DJEN"}`
+                  : item.nomeOrgao ?? item.siglaTribunal ?? "DJEN",
+                link: processoId
+                  ? `/processos/${processoId}`
+                  : "/ferramentas/publicacoes-pje",
+              })),
+            );
+          }
+        }
       } catch (e) {
         console.error("Erro ao processar item PJe:", e);
         r.erros += 1;
@@ -299,7 +328,19 @@ Deno.serve(async (req) => {
     const dryRun: boolean = body.dry_run === true;
 
     let disparadoPor: string | null = null;
-    if (modo === "manual") {
+    if (modo === "agendado") {
+      const cronSecret = req.headers.get("x-djen-cron-secret") ?? "";
+      const { data: cronValido, error: cronError } = await supabase.rpc(
+        "validar_djen_cron_secret",
+        { _secret: cronSecret },
+      );
+      if (cronError || cronValido !== true) {
+        return new Response(JSON.stringify({ error: "Unauthorized scheduler" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
       const authHeader = req.headers.get("Authorization");
       if (!authHeader?.startsWith("Bearer ")) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -321,6 +362,19 @@ Deno.serve(async (req) => {
         });
       }
       disparadoPor = data.claims.sub as string;
+
+      const { data: gestor } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", disparadoPor)
+        .eq("role", "gestor")
+        .maybeSingle();
+      if (!gestor) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const hoje = new Date();
