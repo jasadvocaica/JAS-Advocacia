@@ -226,8 +226,8 @@ export default function PublicacoesPje() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Publicações do PJe Comunica"
-        description="Monitoramento automático do DJE eletrônico do CNJ por OAB, nome, CPF/CNPJ ou número de processo"
+        title="Intimações e Publicações do DJEN"
+        description="Monitoramento automático da API oficial do DJEN por OAB, nome, parte ou número de processo"
       >
         <Button
           variant="outline"
@@ -268,7 +268,7 @@ export default function PublicacoesPje() {
         </Card>
         <Card className="p-4">
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Próx. sync auto.</p>
-          <p className="text-sm font-medium">Diário, 07h BRT</p>
+          <p className="text-sm font-medium">Diário, 06h30 Cuiabá</p>
           <p className="text-xs text-muted-foreground">Janela: últimos 7 dias</p>
         </Card>
       </div>
@@ -373,7 +373,7 @@ export default function PublicacoesPje() {
         <TabsContent value="monitoramentos" className="space-y-4">
           <div className="flex justify-between items-center gap-2">
             <p className="text-xs text-muted-foreground">
-              Cadastre os critérios que devem ser pesquisados diariamente no PJe Comunica.
+              Cadastre os critérios que devem ser pesquisados diariamente no DJEN.
               CPF/CNPJ é resolvido pelo nome do cliente vinculado (a API pública não aceita documento).
             </p>
             <NovoMonitoramentoDialog onCriado={() => qc.invalidateQueries({ queryKey: ["pje-monitoramentos"] })} />
@@ -743,7 +743,7 @@ function DetalhePublicacaoSheet({ pub }: { pub: PubRow }) {
           </p>
           {partes.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">
-              Não foi possível extrair as partes do payload do PJe.
+              Não foi possível extrair as partes do retorno do DJEN.
             </p>
           ) : (
             <div className="space-y-3">
