@@ -102,7 +102,7 @@ const IntegracoesConfig = lazy(() => import("@/pages/configuracoes/integracoes/I
 const BiaPreferencias = lazy(() => import("@/pages/configuracoes/bia/BiaPreferencias"));
 const ConfiguracoesEmail = lazy(() => import("@/pages/configuracoes/email/ConfiguracoesEmail"));
 const Notificacoes = lazy(() => import("@/pages/Notificacoes"));
-const Agenda = lazy(() => import("@/pages/agenda/Agenda"));
+const Agenda = lazy(() => import("@/pages/agenda/Agenda"));\nconst Diligencias = lazy(() => import("@/pages/diligencias/Diligencias"));
 const FerramentasHub = lazy(() => import("@/pages/ferramentas/FerramentasHub"));
 const CalculadoraHonorarios = lazy(() => import("@/pages/ferramentas/CalculadoraHonorarios"));
 const GerenciarTabelasOAB = lazy(() => import("@/pages/ferramentas/GerenciarTabelasOAB"));
@@ -299,7 +299,7 @@ const AppRoutes = () => {
         <Route path="/processos/:id/editar" element={<ProtectedRoute requireModulo="processos" requireAcao="editar"><ProcessoForm /></ProtectedRoute>} />
         <Route path="/controladoria" element={<ProtectedRoute requireModulo="controladoria"><Controladoria /></ProtectedRoute>} />
         <Route path="/controladoria/performance" element={<ProtectedRoute requireModulo="controladoria"><ControladoriaPerformance /></ProtectedRoute>} />
-        <Route path="/agenda" element={<Agenda />} />
+        <Route path="/agenda" element={<Agenda />} />\n        <Route path="/diligencias" element={<Diligencias />} />
         <Route path="/fluxos" element={<ProtectedRoute requireModulo="controladoria"><FluxosList /></ProtectedRoute>} />
         <Route path="/fluxos/novo" element={<ProtectedRoute requireModulo="controladoria"><FluxoEditor /></ProtectedRoute>} />
         <Route path="/fluxos/:id" element={<ProtectedRoute requireModulo="controladoria"><FluxoEditor /></ProtectedRoute>} />
