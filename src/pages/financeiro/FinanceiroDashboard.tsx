@@ -56,6 +56,7 @@ export default function FinanceiroDashboard() {
       setLoading(true);
       const hoje = new Date();
       const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
+      const inicioProximoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1).toISOString().slice(0, 10);
       const fim30 = new Date(hoje.getTime() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
       const hojeIso = hoje.toISOString().slice(0, 10);
 
@@ -73,7 +74,8 @@ export default function FinanceiroDashboard() {
           .limit(10),
         (supabase as any).from("diligencias")
           .select("valor_contratado,valor_recebido,custo_total,pagamento_status")
-          .gte("data_hora", inicioMes + "T00:00:00-04:00"),
+          .gte("data_hora", inicioMes + "T00:00:00-04:00")
+          .lt("data_hora", inicioProximoMes + "T00:00:00-04:00"),
       ]);
 
       if (!alive) return;
@@ -106,7 +108,7 @@ export default function FinanceiroDashboard() {
       }
 
       setKpis({
-        recebidoMes,
+        recebidoMes: recebidoMes + diligenciasRecebido,
         aReceber30,
         atrasado,
         exitoEstimado,
