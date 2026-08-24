@@ -45,7 +45,7 @@ export async function registrarErro(reg: RegistroErro): Promise<void> {
   const modulo = reg.modulo ?? env.modulo;
 
   // eslint-disable-next-line no-console
-  console.error(`[telemetria:${reg.tipo}]`, {
+  console.warn(`[telemetria:${reg.tipo}]`, {
     modulo,
     rota: env.rota,
     mensagem: reg.mensagem,
@@ -60,7 +60,7 @@ export async function registrarErro(reg: RegistroErro): Promise<void> {
   try {
     const { data: auth } = await supabase.auth.getUser();
     await supabase.from("ui_error_logs").insert({
-      user_id: auth.user?.id ?? null,
+      user_id: auth?.user?.id ?? null,
       tipo: reg.tipo,
       rota: env.rota,
       modulo,
@@ -77,8 +77,7 @@ export async function registrarErro(reg: RegistroErro): Promise<void> {
       },
     });
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn("[telemetria] falha ao persistir log", e);
+    // Silencia falhas de persistência para evitar loops
   }
 }
 

@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, CheckCircle2, Pencil, Trash2, ExternalLink, MessageSquare, Maximize2, X, Sparkles, Send, FileCheck2, RotateCcw, Play, Square, CheckSquare, History } from "lucide-react";
+import {
+  Loader2, Pencil, Trash2, ExternalLink, MessageSquare, Maximize2, X, Sparkles,
+  Square, CheckSquare, History, Users, User, Clock, AlertTriangle, CheckCircle2,
+  Calendar, Info, Tag, ArrowRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -28,10 +31,9 @@ import { Input } from "@/components/ui/input";
 import { ClipboardList, Lightbulb, FileSignature, CheckCircle, AlertCircle } from "lucide-react";
 import ItemChat from "./ItemChat";
 import { BiaCentralInline } from "@/components/assistente/BiaCentralInline";
-import { useEquipeInterna } from "./equipe";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import WorkflowEtapas from "./WorkflowEtapas";
 import { ETAPA_LABEL, type EtapaWorkflow } from "./workflow";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type TabId = "detalhes" | "ia" | "chat" | "historico";
 
@@ -43,7 +45,7 @@ interface Props {
 }
 
 export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChanged }: Props) {
-  const { user, hasPermission, roles } = useAuth();
+  const { user, hasPermission, roles, isGestor: authIsGestor } = useAuth();
   const [item, setItem] = useState<ControladoriaItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<TabId>("chat");
@@ -60,27 +62,24 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
   const open = !!itemId;
   const podeEditar = hasPermission("controladoria", "editar");
   const podeExcluir = hasPermission("controladoria", "excluir");
-  const isGestor = roles.includes("gestor");
+  const isGestor = authIsGestor || roles.includes("gestor");
   const isEstagiario = roles.includes("estagiario") && !isGestor && !roles.includes("advogado");
-  // Quem pode concluir/protocolar: gestor, advogado ou admin. Estagiários só iniciam e enviam para revisão.
+  // Quem pode concluir: gestor, advogado ou admin
   const podeConcluir = !isEstagiario;
 
   const isEvento = item ? TIPOS_EVENTO.includes(item.tipo) : false;
-  const corHeader = item ? EVENTO_COR_HEADER[item.tipo] : null;
-
-  // Modais de fluxo
-  const [devolverOpen, setDevolverOpen] = useState(false);
-  const [devolverComentario, setDevolverComentario] = useState("");
-  const [devolverResponsavelId, setDevolverResponsavelId] = useState<string>("");
-  const [protocoloOpen, setProtocoloOpen] = useState(false);
-  const [salvandoFluxo, setSalvandoFluxo] = useState(false);
-  const { equipe: equipeInterna } = useEquipeInterna();
 
   useEffect(() => {
-    if (!itemId) { setItem(null); setTab("chat"); setLoading(false); return; }
+    if (!itemId) {
+      setItem(null);
+      setTab("chat");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setItem(null);
     loadItem();
+
     // Marca notificações de comentário deste item como lidas
     if (user) {
       supabase.from("notificacoes")
@@ -103,15 +102,13 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
 
   async function loadItem() {
     if (!itemId) return;
-    setLoading(true);
     try {
-      // Busca o item sem embeds primeiro — embeds com RLS restritivo podem falhar
-      // a query inteira e travar a caixinha em loading.
       const { data: it, error } = await supabase
         .from("controladoria_itens")
         .select("*")
         .eq("id", itemId)
         .maybeSingle();
+
       if (error) {
         toast.error("Não foi possível abrir o item: " + error.message);
         setItem(null);
@@ -122,16 +119,46 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
         setItem(null);
         return;
       }
-      // Busca cliente e processo separadamente (tolerante a RLS)
-      const [cli, proc] = await Promise.all([
-        (it as any).cliente_id
-          ? supabase.from("clientes").select("id, nome").eq("id", (it as any).cliente_id).maybeSingle()
+
+      // Busca cliente, processo, responsável, criador, concluidor e co-responsáveis em paralelo
+      const [cliRes, procRes, respRes, criadorRes, concluidorRes, coRespRes] = await Promise.all([
+        it.cliente_id
+          ? supabase.from("clientes").select("id, nome").eq("id", it.cliente_id).maybeSingle()
           : Promise.resolve({ data: null }),
-        (it as any).processo_id
-          ? supabase.from("processos").select("id, numero_cnj, tipo_acao").eq("id", (it as any).processo_id).maybeSingle()
+        it.processo_id
+          ? supabase.from("processos").select("id, numero_cnj, tipo_acao").eq("id", it.processo_id).maybeSingle()
           : Promise.resolve({ data: null }),
+        it.responsavel_id
+          ? supabase.from("profiles").select("id, nome, email, avatar_url").eq("id", it.responsavel_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        it.criado_por
+          ? supabase.from("profiles").select("id, nome").eq("id", it.criado_por).maybeSingle()
+          : Promise.resolve({ data: null }),
+        it.concluido_por
+          ? supabase.from("profiles").select("id, nome").eq("id", it.concluido_por).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase
+          .from("controladoria_responsaveis")
+          .select("id, user_id, papel, profiles:user_id(id, nome, avatar_url)")
+          .eq("item_id", it.id),
       ]);
-      setItem({ ...(it as any), cliente: cli.data, processo: proc.data } as ControladoriaItem);
+
+      const coResponsaveis = (coRespRes?.data ?? []).map((cr: any) => ({
+        id: cr.id,
+        user_id: cr.user_id,
+        papel: cr.papel,
+        profile: cr.profiles,
+      }));
+
+      setItem({
+        ...it,
+        cliente: cliRes.data,
+        processo: procRes.data,
+        responsavel: respRes.data,
+        criador: criadorRes.data,
+        concluidor: concluidorRes.data,
+        co_responsaveis: coResponsaveis,
+      } as ControladoriaItem);
     } catch (e: any) {
       toast.error("Erro inesperado ao carregar o item");
       setItem(null);
@@ -182,7 +209,6 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
       documentos_entregues: docsEntregues.trim() || null,
       documentos_recebidos: docsRecebidos.trim() || null,
     };
-    // Marca como realizado/concluído ao salvar relatório
     if (item.status !== "concluido") {
       updates.status = "concluido";
       updates.coluna_kanban = "concluido";
@@ -227,56 +253,44 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
     onChanged();
   }
 
-  async function buscarProfilePor(termo: string, role?: string) {
-    // Busca pelo nome (case-insensitive). Opcionalmente valida role em user_roles.
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, nome")
-      .ilike("nome", `%${termo}%`)
-      .eq("ativo", true)
-      .limit(5);
-    if (!data || data.length === 0) return null;
-    if (!role) return data[0];
-    const ids = data.map((d: any) => d.id);
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .in("user_id", ids)
-      .eq("role", role as any);
-    const valido = data.find((d: any) => roles?.some((r: any) => r.user_id === d.id));
-    return valido ?? data[0];
-  }
-
-  // As mudanças de etapa acontecem exclusivamente pela transição canônica
-  // (`controladoria_transicionar_etapa`), exposta no card de Fluxo da tarefa.
-
+  // Helper para cálculo visual do prazo / vencimento
+  const agora = new Date();
+  const dataVenc = item ? new Date(item.data_vencimento) : null;
+  const isAtrasado = item && dataVenc && item.status !== "concluido" && item.status !== "cancelado" && dataVenc < agora;
+  const isVenceEmBreve = item && dataVenc && item.status !== "concluido" && item.status !== "cancelado" && !isAtrasado && (dataVenc.getTime() - agora.getTime() <= 48 * 60 * 60 * 1000);
 
   const detalhes = item && (
     <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-5 sm:space-y-6">
       {item.descricao && (
-
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Descrição</p>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.descricao}</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Descrição</p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{item.descricao}</p>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
+      {/* Grid de informações estruturadas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-muted/20 p-4 rounded-lg border border-border/60">
         {item.cliente && (
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Cliente</p>
-            <p>{item.cliente.nome}</p>
+            <Link to={`/clientes/${item.cliente.id}`} className="text-primary hover:underline font-medium flex items-center gap-1">
+              {item.cliente.nome}
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </Link>
           </div>
         )}
         {item.processo && (
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Processo</p>
-            <p className="font-mono text-xs">{item.processo.numero_cnj || item.processo.tipo_acao || "—"}</p>
+            <Link to={`/processos/${item.processo.id}`} className="font-mono text-xs text-primary hover:underline flex items-center gap-1">
+              {item.processo.numero_cnj || item.processo.tipo_acao || "—"}
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </Link>
           </div>
         )}
         {item.data_intimacao && (
           <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Intimação</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Data de Intimação</p>
             <p>{formatDateTime(item.data_intimacao)}</p>
           </div>
         )}
@@ -293,26 +307,51 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
           </div>
         )}
         {item.local && (
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Local</p>
             <p>{item.local}</p>
           </div>
         )}
         {item.link_virtual && (
-          <div className="col-span-2">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Link da audiência</p>
-            <a href={item.link_virtual} target="_blank" rel="noopener noreferrer"
-               className="inline-flex items-center gap-1.5 text-primary hover:underline">
-              Abrir <ExternalLink className="w-3.5 h-3.5" />
+          <div className="sm:col-span-2">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Link da audiência / Sala virtual</p>
+            <a
+              href={item.link_virtual}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
+            >
+              Abrir link <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         )}
-        {item.concluido_em && (
-          <div className="col-span-2">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Concluído em</p>
-            <p className="text-success">{formatDateTime(item.concluido_em)}</p>
+      </div>
+
+      {/* Equipe e Responsáveis */}
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5" /> Equipe e Responsabilidades
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div>
+            <span className="text-xs text-muted-foreground block">Responsável Principal:</span>
+            <span className="font-medium text-foreground">{item.responsavel?.nome ?? "Sem responsável atribuído"}</span>
           </div>
-        )}
+          <div>
+            <span className="text-xs text-muted-foreground block">Colaboradores:</span>
+            {item.co_responsaveis && item.co_responsaveis.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {item.co_responsaveis.map((cr) => (
+                  <Badge key={cr.id} variant="secondary" className="text-xs font-normal">
+                    {cr.profile?.nome || "Colaborador"}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground text-xs">Nenhum colaborador adicional</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Toggle confirmação do cliente — apenas eventos */}
@@ -411,20 +450,29 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
         </div>
       )}
 
-      {item.cancelado_motivo && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-          <p className="text-xs uppercase tracking-wider text-destructive font-semibold mb-1">Cancelado</p>
-          <p className="text-sm">{item.cancelado_motivo}</p>
-        </div>
-      )}
+      {/* Auditoria / Metadados */}
+      <div className="text-xs text-muted-foreground border-t pt-3 space-y-1">
+        {item.criador && (
+          <p>Criado por: <span className="font-medium text-foreground">{item.criador.nome}</span> em {formatDateTime(item.criado_em)}</p>
+        )}
+        {item.concluido_em && (
+          <p className="text-success">
+            Concluído {item.concluidor ? `por ${item.concluidor.nome}` : ""} em {formatDateTime(item.concluido_em)}
+          </p>
+        )}
+        {item.cancelado_motivo && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 mt-2">
+            <p className="text-xs uppercase tracking-wider text-destructive font-semibold mb-1">Motivo do Cancelamento</p>
+            <p className="text-sm text-foreground">{item.cancelado_motivo}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 
   const acoes = item && (
     <div className="border-t bg-muted/20 px-4 sm:px-6 py-2 sm:py-3 flex flex-wrap gap-2 justify-between">
       <div className="flex gap-2 flex-wrap">
-        {/* Fluxo de etapas (Iniciar / Avançar / Revisar / Protocolo) está no card "Fluxo da tarefa" na aba Detalhes.
-            Aqui ficam apenas ações administrativas. */}
         {isEvento && item.status !== "cancelado" && item.status !== "concluido" && isGestor && (
           <Button size="sm" variant="outline" onClick={cancelarEvento} className="text-destructive hover:text-destructive">
             Cancelar evento
@@ -471,6 +519,8 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
           side="right"
           className="w-full sm:max-w-none sm:w-[75vw] lg:w-[55vw] lg:min-w-[680px] lg:max-w-[1100px] p-0 flex flex-col gap-0 overflow-hidden border-l"
         >
+          <SheetTitle className="sr-only">Detalhes do Item</SheetTitle>
+          <SheetDescription className="sr-only">Painel de detalhes da atividade, prazos e histórico</SheetDescription>
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
@@ -479,7 +529,9 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
           ) : !item ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
               <AlertCircle className="w-8 h-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Não foi possível abrir este item.<br />Ele pode ter sido removido ou você não tem permissão.</p>
+              <p className="text-sm text-muted-foreground">
+                Não foi possível abrir este item.<br />Ele pode ter sido removido ou você não tem permissão.
+              </p>
               <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
             </div>
           ) : (
@@ -489,10 +541,21 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                      <Badge variant="outline" className={cn("text-[10px] h-5", TIPO_CLASS[item.tipo])}>{TIPO_LABELS[item.tipo]}</Badge>
-                      <Badge variant="outline" className={cn("text-[10px] h-5", STATUS_CLASS[item.status])}>{STATUS_LABELS[item.status]}</Badge>
+                      <Badge variant="outline" className={cn("text-[10px] h-5", TIPO_CLASS[item.tipo])}>
+                        {TIPO_LABELS[item.tipo]}
+                      </Badge>
+                      <Badge variant="outline" className={cn("text-[10px] h-5", STATUS_CLASS[item.status])}>
+                        {STATUS_LABELS[item.status]}
+                      </Badge>
                       {(item.prioridade === "urgente" || item.prioridade === "alta") && (
-                        <Badge variant="outline" className={cn("text-[10px] h-5", PRIORIDADE_CLASS[item.prioridade])}>{PRIORIDADE_LABELS[item.prioridade]}</Badge>
+                        <Badge variant="outline" className={cn("text-[10px] h-5", PRIORIDADE_CLASS[item.prioridade])}>
+                          {PRIORIDADE_LABELS[item.prioridade]}
+                        </Badge>
+                      )}
+                      {item.etapa_workflow && (
+                        <Badge variant="secondary" className="text-[10px] h-5 font-normal">
+                          Etapa: {ETAPA_LABEL[item.etapa_workflow as EtapaWorkflow] ?? item.etapa_workflow}
+                        </Badge>
                       )}
                     </div>
                     <div className="flex items-start gap-2.5">
@@ -503,9 +566,11 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                         className="mt-1 shrink-0 text-muted-foreground hover:text-success disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         title={item.status === "concluido" ? "Concluído" : podeConcluir ? "Marcar como concluído" : "Sem permissão"}
                       >
-                        {item.status === "concluido"
-                          ? <CheckSquare className="w-4 h-4 text-success" />
-                          : <Square className="w-4 h-4" />}
+                        {item.status === "concluido" ? (
+                          <CheckSquare className="w-4 h-4 text-success" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
                       </button>
                       <h2 className={cn(
                         "font-display text-lg sm:text-xl leading-snug flex-1",
@@ -515,7 +580,9 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                       </h2>
                     </div>
                     {item.descricao && (
-                      <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 pl-[26px]">{item.descricao}</p>
+                      <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 pl-[26px]">
+                        {item.descricao}
+                      </p>
                     )}
                   </div>
                   {podeEditar && (
@@ -530,43 +597,59 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                   )}
                 </div>
 
-                {/* Faixa de contexto */}
+                {/* Faixa de contexto completa e destacada */}
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-lg border border-border/70 bg-muted/25 px-3 py-2.5">
-                  <ContextoCampo label="Cliente" value={item.cliente?.nome ?? "—"} href={item.cliente?.id ? `/clientes/${item.cliente.id}` : undefined} />
+                  <ContextoCampo
+                    label="Cliente"
+                    value={item.cliente?.nome ?? "—"}
+                    href={item.cliente?.id ? `/clientes/${item.cliente.id}` : undefined}
+                  />
                   <ContextoCampo
                     label="Processo"
                     value={item.processo?.numero_cnj || item.processo?.tipo_acao || "—"}
                     href={item.processo?.id ? `/processos/${item.processo.id}` : undefined}
                   />
-                  <ContextoCampo label="Responsável" value={item.responsavel?.nome ?? "Sem responsável"} />
+                  <ContextoCampo
+                    label="Responsável"
+                    value={item.responsavel?.nome ?? "Sem responsável"}
+                  />
                   <ContextoCampo
                     label="Prazo"
                     value={formatDateTime(item.data_vencimento)}
-                    tone={
-                      item.status === "concluido" ? undefined
-                      : new Date(item.data_vencimento) < new Date() ? "destructive"
-                      : "warningSoon"
+                    badge={
+                      isAtrasado
+                        ? { text: "Atrasado", tone: "destructive" }
+                        : isVenceEmBreve
+                        ? { text: "Vence em breve", tone: "warning" }
+                        : undefined
                     }
+                    tone={isAtrasado ? "destructive" : isVenceEmBreve ? "warning" : undefined}
                   />
                 </div>
               </div>
 
-              {/* Fluxo da tarefa — sempre visível e compacto, acima das abas */}
+              {/* Fluxo da tarefa — acima das abas com atualização imediata sem recarregar */}
               <div className="px-5 sm:px-7 py-2 border-b bg-muted/20">
-                <WorkflowEtapas item={item as any} compact onChanged={() => { loadItem(); onChanged(); }} />
+                <WorkflowEtapas
+                  item={item as any}
+                  compact
+                  onChanged={() => {
+                    loadItem();
+                    onChanged();
+                  }}
+                />
               </div>
 
               <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex-1 flex flex-col min-h-0">
-                {/* Abas: Comentários primeiro (foco principal) */}
+                {/* Abas */}
                 <div className="px-5 sm:px-7 border-b flex items-center justify-between gap-2">
                   <div className="flex gap-1">
                     {([
                       { v: "chat", label: "Comentários", icon: MessageSquare },
-                      { v: "detalhes", label: "Visão geral", icon: null },
+                      { v: "detalhes", label: "Visão geral", icon: Info },
                       { v: "historico", label: "Histórico", icon: History },
                       { v: "ia", label: "IA", icon: Sparkles },
                     ] as Array<{ v: TabId; label: string; icon: any }>).map(({ v, label, icon: Icon }) => (
-
                       <button
                         key={v}
                         type="button"
@@ -590,12 +673,12 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                   )}
                 </div>
 
-
                 <TabsContent value="detalhes" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden">
                   <ScrollArea className="h-full">
                     <div className="mx-auto w-full max-w-3xl">{detalhes}</div>
                   </ScrollArea>
                 </TabsContent>
+
                 <TabsContent value="ia" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden">
                   <ScrollArea className="h-full">
                     <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 py-4">
@@ -603,11 +686,15 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                         alvo="item_controladoria"
                         id={item.id}
                         autoLoad={tab === "ia"}
-                        onAcaoExecutada={() => { loadItem(); onChanged(); }}
+                        onAcaoExecutada={() => {
+                          loadItem();
+                          onChanged();
+                        }}
                       />
                     </div>
                   </ScrollArea>
                 </TabsContent>
+
                 <TabsContent value="historico" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden">
                   <ScrollArea className="h-full">
                     <div className="mx-auto w-full max-w-3xl px-5 sm:px-7 py-5">
@@ -618,7 +705,12 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
 
                 <TabsContent value="chat" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden data-[state=active]:flex">
                   <div className="mx-auto w-full max-w-3xl h-full min-h-0 flex flex-col px-2 sm:px-4">
-                    <ItemChat itemId={item.id} processoId={item.processo_id} clienteId={item.cliente_id} itemTitulo={item.titulo} />
+                    <ItemChat
+                      itemId={item.id}
+                      processoId={item.processo_id}
+                      clienteId={item.cliente_id}
+                      itemTitulo={item.titulo}
+                    />
                   </div>
                 </TabsContent>
               </Tabs>
@@ -629,10 +721,11 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
         </SheetContent>
       </Sheet>
 
-
       {/* Modal expandido do chat */}
       <Dialog open={chatExpandido} onOpenChange={setChatExpandido}>
         <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 flex flex-col gap-0">
+          <DialogTitle className="sr-only">{item ? item.titulo : "Chat do item"}</DialogTitle>
+          <DialogDescription className="sr-only">Conversa em tempo real e menções do item</DialogDescription>
           {item && (
             <>
               <div className="px-6 py-4 border-b flex items-start justify-between gap-4">
@@ -643,7 +736,7 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                   </div>
                   <h2 className="font-display text-xl leading-tight truncate">{item.titulo}</h2>
                   <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5" /> Chat do item
+                    <MessageSquare className="w-3.5 h-3.5" /> Chat da atividade
                   </p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setChatExpandido(false)} className="shrink-0">
@@ -651,42 +744,59 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                 </Button>
               </div>
               <div className="flex-1 min-h-0">
-                <ItemChat itemId={item.id} processoId={item.processo_id} clienteId={item.cliente_id} itemTitulo={item.titulo} variant="fullscreen" />
+                <ItemChat
+                  itemId={item.id}
+                  processoId={item.processo_id}
+                  clienteId={item.cliente_id}
+                  itemTitulo={item.titulo}
+                  variant="fullscreen"
+                />
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
-
     </>
   );
 }
 
-function MetaLinha({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="text-muted-foreground shrink-0">{label}:</span>
-      <span className={valueClass ?? "text-foreground"}>{value}</span>
-    </div>
-  );
-}
-
-function ContextoCampo({ label, value, href, tone }: {
+function ContextoCampo({
+  label,
+  value,
+  href,
+  tone,
+  badge,
+}: {
   label: string;
   value: string;
   href?: string;
-  tone?: "destructive" | "warningSoon";
+  tone?: "destructive" | "warning";
+  badge?: { text: string; tone: "destructive" | "warning" };
 }) {
   const valueClass = cn(
     "text-[13px] font-medium truncate",
-    tone === "destructive" && "text-destructive",
-    tone === "warningSoon" && "text-foreground",
+    tone === "destructive" && "text-destructive font-semibold",
+    tone === "warning" && "text-warning font-semibold",
   );
   return (
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+        {badge && (
+          <span
+            className={cn(
+              "text-[9px] px-1 py-0.2 rounded font-semibold",
+              badge.tone === "destructive" ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning",
+            )}
+          >
+            {badge.text}
+          </span>
+        )}
+      </div>
       {href ? (
-        <Link to={href} className={cn(valueClass, "block text-primary hover:underline")}>{value}</Link>
+        <Link to={href} className={cn(valueClass, "block text-primary hover:underline")}>
+          {value}
+        </Link>
       ) : (
         <p className={valueClass}>{value}</p>
       )}
@@ -694,10 +804,17 @@ function ContextoCampo({ label, value, href, tone }: {
   );
 }
 
-interface EventoTimeline { id: string; quando: string; titulo: string; detalhe?: string | null }
+interface EventoTimeline {
+  id: string;
+  quando: string;
+  titulo: string;
+  autorNome?: string;
+  autorAvatar?: string | null;
+  tipo: "criacao" | "etapa" | "comentario" | "conclusao" | "cancelamento";
+  detalhe?: string | null;
+}
 
-/** Timeline derivada apenas de dados reais já existentes: criação do item,
- *  histórico de etapas e comentários. */
+/** Histórico cronológico completo e consolidado de dados reais */
 function HistoricoTimeline({ item, ativo }: { item: ControladoriaItem; ativo: boolean }) {
   const [eventos, setEventos] = useState<EventoTimeline[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -705,58 +822,190 @@ function HistoricoTimeline({ item, ativo }: { item: ControladoriaItem; ativo: bo
   useEffect(() => {
     if (!ativo) return;
     let cancelado = false;
-    (async () => {
+
+    async function carregarHistorico() {
       setCarregando(true);
-      const [hist, coment] = await Promise.all([
-        (supabase as any)
-          .from("controladoria_etapas_historico")
-          .select("id, etapa, iniciada_em, observacao")
-          .eq("item_id", item.id)
-          .order("iniciada_em", { ascending: false }),
-        (supabase as any)
-          .from("controladoria_comentarios")
-          .select("id, criado_em, texto")
-          .eq("item_id", item.id)
-          .order("criado_em", { ascending: false }),
-      ]);
-      if (cancelado) return;
-      const lista: EventoTimeline[] = [];
-      (hist?.data ?? []).forEach((h: any) => lista.push({
-        id: `h-${h.id}`,
-        quando: h.iniciada_em,
-        titulo: `Etapa: ${ETAPA_LABEL[(h.etapa ?? "criacao") as EtapaWorkflow] ?? h.etapa}`,
-        detalhe: h.observacao,
-      }));
-      (coment?.data ?? []).forEach((c: any) => lista.push({
-        id: `c-${c.id}`,
-        quando: c.criado_em,
-        titulo: "Comentário",
-        detalhe: c.texto,
-      }));
-      if (item.criado_em) {
-        lista.push({ id: "criado", quando: item.criado_em, titulo: "Atividade criada" });
+      try {
+        const [histRes, comentRes] = await Promise.all([
+          supabase
+            .from("controladoria_etapas_historico")
+            .select("id, etapa, iniciada_em, observacao, criado_por, responsavel_id")
+            .eq("item_id", item.id)
+            .order("iniciada_em", { ascending: false }),
+          supabase
+            .from("controladoria_comentarios")
+            .select("id, criado_em, texto, user_id")
+            .eq("item_id", item.id)
+            .order("criado_em", { ascending: false }),
+        ]);
+
+        if (cancelado) return;
+
+        // Coleta todos os user IDs para buscar perfis
+        const userIds = new Set<string>();
+        (histRes.data ?? []).forEach((h: any) => {
+          if (h.criado_por) userIds.add(h.criado_por);
+          if (h.responsavel_id) userIds.add(h.responsavel_id);
+        });
+        (comentRes.data ?? []).forEach((c: any) => {
+          if (c.user_id) userIds.add(c.user_id);
+        });
+
+        let perfis: Record<string, { nome: string; avatar_url: string | null }> = {};
+        if (userIds.size > 0) {
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, nome, avatar_url")
+            .in("id", Array.from(userIds));
+          perfis = Object.fromEntries((profs ?? []).map((p: any) => [p.id, p]));
+        }
+
+        const lista: EventoTimeline[] = [];
+
+        // 1. Transições de etapas
+        (histRes.data ?? []).forEach((h: any) => {
+          const autor = h.criado_por ? perfis[h.criado_por]?.nome : undefined;
+          const autorAvatar = h.criado_por ? perfis[h.criado_por]?.avatar_url : undefined;
+          const resp = h.responsavel_id ? perfis[h.responsavel_id]?.nome : undefined;
+
+          const nomeEtapa = ETAPA_LABEL[(h.etapa ?? "criacao") as EtapaWorkflow] ?? h.etapa;
+          const desc = [
+            h.observacao ? `Obs: ${h.observacao}` : null,
+            resp ? `Responsável designado: ${resp}` : null,
+          ].filter(Boolean).join(" · ");
+
+          lista.push({
+            id: `h-${h.id}`,
+            quando: h.iniciada_em,
+            titulo: `Transição para ${nomeEtapa}`,
+            autorNome: autor,
+            autorAvatar: autorAvatar,
+            tipo: "etapa",
+            detalhe: desc || null,
+          });
+        });
+
+        // 2. Resumo de comentários
+        (comentRes.data ?? []).forEach((c: any) => {
+          const autor = c.user_id ? perfis[c.user_id]?.nome : "Usuário";
+          const autorAvatar = c.user_id ? perfis[c.user_id]?.avatar_url : undefined;
+          lista.push({
+            id: `c-${c.id}`,
+            quando: c.criado_em,
+            titulo: `Comentário de ${autor}`,
+            autorNome: autor,
+            autorAvatar: autorAvatar,
+            tipo: "comentario",
+            detalhe: c.texto,
+          });
+        });
+
+        // 3. Criação da atividade
+        if (item.criado_em) {
+          lista.push({
+            id: "criado",
+            quando: item.criado_em,
+            titulo: "Atividade criada",
+            autorNome: item.criador?.nome,
+            tipo: "criacao",
+          });
+        }
+
+        // 4. Conclusão da atividade
+        if (item.concluido_em) {
+          lista.push({
+            id: "concluido",
+            quando: item.concluido_em,
+            titulo: "Atividade concluída",
+            autorNome: item.concluidor?.nome,
+            tipo: "conclusao",
+            detalhe: item.resultado ? `Resultado: ${item.resultado}` : undefined,
+          });
+        }
+
+        // 5. Cancelamento
+        if (item.cancelado_motivo) {
+          lista.push({
+            id: "cancelado",
+            quando: item.etapa_atualizada_em || item.criado_em,
+            titulo: "Atividade cancelada",
+            tipo: "cancelamento",
+            detalhe: `Motivo: ${item.cancelado_motivo}`,
+          });
+        }
+
+        lista.sort((a, b) => (b.quando ?? "").localeCompare(a.quando ?? ""));
+        setEventos(lista);
+      } catch (err: any) {
+        toast.error("Erro ao carregar histórico: " + err?.message);
+      } finally {
+        setCarregando(false);
       }
-      lista.sort((a, b) => (b.quando ?? "").localeCompare(a.quando ?? ""));
-      setEventos(lista);
-      setCarregando(false);
-    })();
-    return () => { cancelado = true; };
-  }, [ativo, item.id, item.criado_em]);
+    }
+
+    carregarHistorico();
+    return () => {
+      cancelado = true;
+    };
+  }, [ativo, item.id, item.criado_em, item.concluido_em, item.cancelado_motivo, item.etapa_atualizada_em]);
 
   if (carregando) {
-    return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+      </div>
+    );
   }
+
   if (eventos.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Nenhum evento registrado ainda.</p>;
+    return (
+      <p className="text-sm text-muted-foreground text-center py-8">
+        Nenhum evento registrado ainda.
+      </p>
+    );
   }
+
+  const initials = (nome?: string) =>
+    (nome || "U").split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+
   return (
-    <ol className="relative border-l border-border pl-5 space-y-5">
+    <ol className="relative border-l border-border pl-6 space-y-6">
       {eventos.map((e) => (
         <li key={e.id} className="relative">
-          <span className="absolute -left-[23px] top-1.5 w-2 h-2 rounded-full bg-primary/60 ring-4 ring-background" />
-          <p className="text-[13px] font-medium">{e.titulo}</p>
-          <p className="text-[11px] text-muted-foreground">{formatDateTime(e.quando)}</p>
-          {e.detalhe && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap line-clamp-4">{e.detalhe}</p>}
+          {/* Marcador na timeline */}
+          <span
+            className={cn(
+              "absolute -left-[29px] top-1 w-3 h-3 rounded-full ring-4 ring-background",
+              e.tipo === "conclusao" && "bg-success",
+              e.tipo === "cancelamento" && "bg-destructive",
+              e.tipo === "etapa" && "bg-primary",
+              e.tipo === "comentario" && "bg-blue-500",
+              e.tipo === "criacao" && "bg-muted-foreground/60",
+            )}
+          />
+
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-sm font-semibold text-foreground">{e.titulo}</p>
+            <p className="text-[11px] text-muted-foreground shrink-0">{formatDateTime(e.quando)}</p>
+          </div>
+
+          {e.autorNome && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <Avatar className="h-4 w-4 border">
+                {e.autorAvatar && <AvatarImage src={e.autorAvatar} />}
+                <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
+                  {initials(e.autorNome)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xs text-muted-foreground">{e.autorNome}</span>
+            </div>
+          )}
+
+          {e.detalhe && (
+            <p className="text-xs text-muted-foreground mt-1.5 whitespace-pre-wrap bg-muted/30 p-2 rounded border border-border/50">
+              {e.detalhe}
+            </p>
+          )}
         </li>
       ))}
     </ol>

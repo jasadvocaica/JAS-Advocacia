@@ -75,6 +75,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
   const [coResponsaveis, setCoResponsaveis] = useState<string[]>([]);
   const [oQueLevar, setOQueLevar] = useState("");
   const [orientacoes, setOrientacoes] = useState("");
+  const [exigeRevisao, setExigeRevisao] = useState(true);
 
   const { equipe } = useEquipeInterna();
   const isAuto = TIPOS_AUTO.includes(tipo);
@@ -137,6 +138,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       setResponsavelId(item.responsavel_id ?? "");
       setOQueLevar((item as any).o_que_levar ?? "");
       setOrientacoes((item as any).orientacoes ?? "");
+      setExigeRevisao(item.exige_revisao !== false);
       // Carrega co-responsáveis salvos
       (async () => {
         const { data } = await supabase
@@ -166,6 +168,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       setCoResponsaveis([]);
       setOQueLevar("");
       setOrientacoes("");
+      setExigeRevisao(true);
     }
   }, [item, open]);
 
@@ -246,6 +249,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
   });
 
   async function handleSubmit() {
+    if (saving) return;
     if (!titulo.trim()) return toast.error("Informe um título");
     if (!dataVencimento) return toast.error("Informe a data de vencimento");
     if (!responsavelId) return toast.error("Selecione o responsável pelo item");
@@ -254,186 +258,244 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
     }
 
     setSaving(true);
-    const payload = {
-      titulo: titulo.trim(),
-      descricao: descricao.trim() || null,
-      tipo,
-      status,
-      prioridade,
-      cliente_id: clienteId || null,
-      processo_id: processoId || null,
-      responsavel_id: responsavelId || null,
-      tipo_prazo_id: isAuto ? (tipoPrazoId || null) : null,
-      data_intimacao: isAuto && dataIntimacao ? format(dataIntimacao, "yyyy-MM-dd") : null,
-      data_vencimento: dataVencimento.toISOString(),
-      vara: vara.trim() || null,
-      juiz: juiz.trim() || null,
-      local: local.trim() || null,
-      link_virtual: linkVirtual.trim() || null,
-      visivel_parceiro: visivelParceiro,
-      o_que_levar: isEvento ? (oQueLevar.trim() || null) : null,
-      orientacoes: isEvento ? (orientacoes.trim() || null) : null,
-    };
+    try {
+      const payload = {
+        titulo: titulo.trim(),
+        descricao: descricao.trim() || null,
+        tipo,
+        status,
+        prioridade,
+        cliente_id: clienteId || null,
+        processo_id: processoId || null,
+        responsavel_id: responsavelId || null,
+        tipo_prazo_id: isAuto ? (tipoPrazoId || null) : null,
+        data_intimacao: isAuto && dataIntimacao ? format(dataIntimacao, "yyyy-MM-dd") : null,
+        data_vencimento: dataVencimento.toISOString(),
+        vara: vara.trim() || null,
+        juiz: juiz.trim() || null,
+        local: local.trim() || null,
+        link_virtual: linkVirtual.trim() || null,
+        visivel_parceiro: visivelParceiro,
+        exige_revisao: exigeRevisao,
+        o_que_levar: isEvento ? (oQueLevar.trim() || null) : null,
+        orientacoes: isEvento ? (orientacoes.trim() || null) : null,
+      };
 
-    let savedId: string | null = null;
-    if (isEdit && item) {
-      const { data, error } = await comRetry(async () =>
-        await supabase.from("controladoria_itens").update(payload).eq("id", item.id).select().single(),
-      );
-      setSaving(false);
-      if (error) return toast.error("Erro ao salvar: " + error.message);
-      savedId = (data as any)?.id ?? item.id;
-      toast.success("Item atualizado");
-    } else {
-      const newId = crypto.randomUUID();
-      const { error } = await comRetry(async () =>
-        await supabase
-          .from("controladoria_itens")
-          .insert({ id: newId, ...payload, criado_por: user?.id ?? null }),
-      );
-      setSaving(false);
-      if (error) return toast.error("Erro ao criar: " + error.message);
-       savedId = newId;
-      toast.success("Item criado");
-    }
-
-    // Sincroniza co-responsáveis (tabela controladoria_responsaveis)
-    if (savedId) {
-      try {
-        const todos = Array.from(new Set([responsavelId, ...coResponsaveis].filter(Boolean)));
-        await supabase.from("controladoria_responsaveis").delete().eq("item_id", savedId);
-        if (todos.length) {
-          await supabase.from("controladoria_responsaveis").insert(
-            todos.map((uid) => ({
-              item_id: savedId!,
-              user_id: uid,
-              papel: uid === responsavelId ? "principal" as const : "apoio" as const,
-            }))
-          );
+      let savedId: string | null = null;
+      if (isEdit && item) {
+        // Detecta alterações relevantes para histórico
+        const alteracoes: string[] = [];
+        if (item.responsavel_id !== (responsavelId || null)) {
+          const antigoNome = equipe.find((m) => m.id === item.responsavel_id)?.nome || "Sem responsável";
+          const novoNome = equipe.find((m) => m.id === responsavelId)?.nome || "Sem responsável";
+          alteracoes.push(`Responsável: ${antigoNome} → ${novoNome}`);
         }
-        // Notifica novos co-responsáveis (best-effort)
-        const novos = coResponsaveis.filter((id) => id !== user?.id && id !== responsavelId);
-        for (const uid of novos) {
+        if (item.data_vencimento && dataVencimento) {
+          const antigaData = format(new Date(item.data_vencimento), "dd/MM/yyyy HH:mm");
+          const novaData = format(dataVencimento, "dd/MM/yyyy HH:mm");
+          if (antigaData !== novaData) {
+            alteracoes.push(`Vencimento: ${antigaData} → ${novaData}`);
+          }
+        }
+        if (item.prioridade !== prioridade) {
+          alteracoes.push(`Prioridade: ${PRIORIDADE_LABELS[item.prioridade]} → ${PRIORIDADE_LABELS[prioridade]}`);
+        }
+        if (item.status !== status) {
+          alteracoes.push(`Status: ${STATUS_LABELS[item.status]} → ${STATUS_LABELS[status]}`);
+        }
+        if (item.tipo !== tipo) {
+          alteracoes.push(`Tipo: ${TIPO_LABELS[item.tipo]} → ${TIPO_LABELS[tipo]}`);
+        }
+        if ((item.exige_revisao !== false) !== exigeRevisao) {
+          alteracoes.push(`Exige revisão: ${item.exige_revisao !== false ? "Sim" : "Não"} → ${exigeRevisao ? "Sim" : "Não"}`);
+        }
+
+        const { data, error } = await comRetry(async () =>
+          await supabase.from("controladoria_itens").update(payload).eq("id", item.id).select().single(),
+        );
+        if (error) {
+          toast.error("Erro ao salvar atividade: " + error.message);
+          return;
+        }
+        savedId = (data as any)?.id ?? item.id;
+
+        // Registra histórico de alterações no cadastro
+        if (alteracoes.length > 0) {
+          try {
+            await supabase.from("controladoria_comentarios").insert({
+              item_id: savedId,
+              processo_id: processoId || null,
+              user_id: user?.id,
+              texto: `📝 **Alterações cadastrais:**\n${alteracoes.map((a) => `• ${a}`).join("\n")}`,
+            });
+          } catch (e) {
+            console.warn("[ItemFormDialog] falha ao registrar histórico de alterações", e);
+          }
+        }
+        toast.success("Item atualizado com sucesso");
+      } else {
+        const newId = crypto.randomUUID();
+        const { error } = await comRetry(async () =>
+          await supabase
+            .from("controladoria_itens")
+            .insert({ id: newId, ...payload, criado_por: user?.id ?? null }),
+        );
+        if (error) {
+          toast.error("Erro ao criar atividade: " + error.message);
+          return;
+        }
+        savedId = newId;
+        toast.success("Item criado com sucesso");
+      }
+
+      // Sincroniza co-responsáveis com segurança (tabela controladoria_responsaveis)
+      if (savedId) {
+        try {
+          const todos = Array.from(new Set([responsavelId, ...coResponsaveis].filter(Boolean)));
+          await supabase.from("controladoria_responsaveis").delete().eq("item_id", savedId);
+          if (todos.length) {
+            await supabase.from("controladoria_responsaveis").insert(
+              todos.map((uid) => ({
+                item_id: savedId!,
+                user_id: uid,
+                papel: uid === responsavelId ? "principal" as const : "apoio" as const,
+              }))
+            );
+          }
+        } catch (err) {
+          console.warn("[ItemFormDialog] sincronizar co-responsáveis falhou", err);
+        }
+      }
+
+      // Notificações sem duplicidade
+      const notificacoesEnviadas = new Set<string>();
+      const criadorNome = user?.user_metadata?.nome ?? user?.email ?? "Alguém da equipe";
+      const respMudou = !isEdit || (item?.responsavel_id !== responsavelId);
+
+      // Notifica responsável principal
+      if (savedId && responsavelId && respMudou && responsavelId !== user?.id) {
+        notificacoesEnviadas.add(responsavelId);
+        try {
           await supabase.from("notificacoes").insert({
-            user_id: uid,
+            user_id: responsavelId,
             tipo: "tarefa_atribuida",
-            titulo: "Você foi adicionado(a) como colaborador(a)",
+            titulo: isEdit ? `Atividade reatribuída a você por ${criadorNome}` : `Nova tarefa atribuída a você por ${criadorNome}`,
             descricao: titulo.trim(),
             link: `/controladoria?item=${savedId}`,
             item_id: savedId,
           });
+        } catch (e) {
+          console.warn("[ItemFormDialog] notificação responsável falhou", e);
         }
-      } catch (err) {
-        console.warn("[ItemFormDialog] sincronizar co-responsáveis falhou", err);
-      }
-    }
-
-    try {
-      const responsavel = equipe.find((m) => m.id === responsavelId);
-      const responsavelUserId = (responsavel as any)?.user_id ?? null;
-      const criadorNome = user?.user_metadata?.nome ?? user?.email ?? "Alguém da equipe";
-      if (responsavelUserId && responsavelId !== user?.id && savedId) {
-        // notificacoes.user_id referencia profiles.id (que = responsavelId)
-        await supabase.from("notificacoes").insert({
-          user_id: responsavelId,
-          tipo: "tarefa_atribuida",
-          titulo: `Nova tarefa atribuída a você por ${criadorNome}`,
-          descricao: titulo.trim(),
-          link: `/controladoria?item=${savedId}`,
-          item_id: savedId,
-        });
-      }
-    } catch {
-      // notificação é best-effort, não bloqueia o fluxo
-    }
-
-    // Disparo de emails (best-effort)
-    try {
-      const responsavel = equipe.find((m) => m.id === responsavelId);
-      const responsavelEmail = responsavel?.email ?? null;
-      const responsavelNome = responsavel?.nome ?? "Equipe";
-      const criadorNome = user?.user_metadata?.nome ?? user?.email ?? "Alguém da equipe";
-      const tituloItem = titulo.trim();
-      const linkItem = `/controladoria?item=${savedId}`;
-      const statusAntigo = isEdit ? item?.status : null;
-      const respAntigo = isEdit ? item?.responsavel_id : null;
-
-      // 1) Nova tarefa atribuída (criação OU mudança de responsável)
-      const houveNovaAtribuicao = !isEdit || (respAntigo !== responsavelId);
-      if (houveNovaAtribuicao && responsavelEmail && responsavelId !== user?.id) {
-        enviarEmailSilencioso({
-          para: responsavelEmail,
-          assunto: `[LegisFlow] Nova tarefa: ${tituloItem}`,
-          conteudo: `
-            <h2>Olá, ${responsavelNome.split(" ")[0]}!</h2>
-            <p><strong>${criadorNome}</strong> atribuiu uma nova tarefa a você:</p>
-            <div class="highlight"><strong>${tituloItem}</strong>${dataVencimento ? ` · vence em ${format(dataVencimento, "dd/MM/yyyy")}` : ""}</div>
-            <p>Acesse a controladoria para ver os detalhes.</p>
-          `,
-          evento: "tarefa_atribuida",
-        });
       }
 
-      // 2) Mudanças de status (apenas em edição)
-      if (isEdit && statusAntigo && statusAntigo !== status) {
-        // Buscar email da gestora (Dra. Juliana) sob demanda
-        const buscarEmailGestor = async (): Promise<string | null> => {
-          const { data } = await supabase
-            .from("user_roles")
-            .select("profiles:user_id(email)")
-            .eq("role", "gestor" as any)
-            .limit(1)
-            .maybeSingle();
-          const p = Array.isArray((data as any)?.profiles) ? (data as any).profiles[0] : (data as any)?.profiles;
-          return p?.email ?? null;
-        };
+      // Notifica novos colaboradores
+      if (savedId) {
+        const novosColabs = coResponsaveis.filter((id) => id !== user?.id && id !== responsavelId && !notificacoesEnviadas.has(id));
+        for (const uid of novosColabs) {
+          notificacoesEnviadas.add(uid);
+          try {
+            await supabase.from("notificacoes").insert({
+              user_id: uid,
+              tipo: "tarefa_atribuida",
+              titulo: "Você foi adicionado(a) como colaborador(a)",
+              descricao: titulo.trim(),
+              link: `/controladoria?item=${savedId}`,
+              item_id: savedId,
+            });
+          } catch (e) {
+            console.warn("[ItemFormDialog] notificação colaborador falhou", e);
+          }
+        }
+      }
 
-        if (status === "aguardando") {
-          const gestorEmail = await buscarEmailGestor();
-          if (gestorEmail) {
+      // Disparo de emails (best-effort)
+      try {
+        const responsavel = equipe.find((m) => m.id === responsavelId);
+        const responsavelEmail = responsavel?.email ?? null;
+        const responsavelNome = responsavel?.nome ?? "Equipe";
+        const tituloItem = titulo.trim();
+        const statusAntigo = isEdit ? item?.status : null;
+
+        // 1) Nova tarefa atribuída (criação OU mudança de responsável)
+        if (respMudou && responsavelEmail && responsavelId !== user?.id) {
+          enviarEmailSilencioso({
+            para: responsavelEmail,
+            assunto: `[LegisFlow] Nova tarefa: ${tituloItem}`,
+            conteudo: `
+              <h2>Olá, ${responsavelNome.split(" ")[0]}!</h2>
+              <p><strong>${criadorNome}</strong> atribuiu uma nova tarefa a você:</p>
+              <div class="highlight"><strong>${tituloItem}</strong>${dataVencimento ? ` · vence em ${format(dataVencimento, "dd/MM/yyyy")}` : ""}</div>
+              <p>Acesse a controladoria para ver os detalhes.</p>
+            `,
+            evento: "tarefa_atribuida",
+          });
+        }
+
+        // 2) Mudanças de status (apenas em edição)
+        if (isEdit && statusAntigo && statusAntigo !== status) {
+          const buscarEmailGestor = async (): Promise<string | null> => {
+            const { data } = await supabase
+              .from("user_roles")
+              .select("profiles:user_id(email)")
+              .eq("role", "gestor" as any)
+              .limit(1)
+              .maybeSingle();
+            const p = Array.isArray((data as any)?.profiles) ? (data as any).profiles[0] : (data as any)?.profiles;
+            return p?.email ?? null;
+          };
+
+          if (status === "aguardando") {
+            const gestorEmail = await buscarEmailGestor();
+            if (gestorEmail) {
+              enviarEmailSilencioso({
+                para: gestorEmail,
+                assunto: `[Revisão] ${responsavelNome} enviou: ${tituloItem}`,
+                conteudo: `
+                  <h2>Item enviado para revisão</h2>
+                  <p><strong>${responsavelNome}</strong> marcou o item como aguardando revisão:</p>
+                  <div class="highlight"><strong>${tituloItem}</strong></div>
+                  <p>Acesse a controladoria para revisar.</p>
+                `,
+                evento: "enviado_revisao",
+              });
+            }
+          } else if (status === "concluido" && responsavelEmail) {
             enviarEmailSilencioso({
-              para: gestorEmail,
-              assunto: `[Revisão] ${responsavelNome} enviou: ${tituloItem}`,
+              para: responsavelEmail,
+              assunto: `[Aprovado ✅] ${tituloItem}`,
               conteudo: `
-                <h2>Item enviado para revisão</h2>
-                <p><strong>${responsavelNome}</strong> marcou o item como aguardando revisão:</p>
-                <div class="highlight"><strong>${tituloItem}</strong></div>
-                <p>Acesse a controladoria para revisar.</p>
+                <h2>Item aprovado ✅</h2>
+                <p>O item <strong>${tituloItem}</strong> foi aprovado e marcado como concluído.</p>
+                <p>Bom trabalho, ${responsavelNome.split(" ")[0]}!</p>
               `,
-              evento: "enviado_revisao",
+              evento: "item_aprovado",
+            });
+          } else if (status === "cancelado" && responsavelEmail) {
+            enviarEmailSilencioso({
+              para: responsavelEmail,
+              assunto: `[Correção ↩] ${tituloItem}`,
+              conteudo: `
+                <h2>Item retornado para correção ↩</h2>
+                <p>O item <strong>${tituloItem}</strong> foi retornado para correção.</p>
+                <p>Verifique os detalhes na controladoria e ajuste o que for necessário.</p>
+              `,
+              evento: "item_reprovado",
             });
           }
-        } else if (status === "concluido" && responsavelEmail) {
-          enviarEmailSilencioso({
-            para: responsavelEmail,
-            assunto: `[Aprovado ✅] ${tituloItem}`,
-            conteudo: `
-              <h2>Item aprovado ✅</h2>
-              <p>O item <strong>${tituloItem}</strong> foi aprovado e marcado como concluído.</p>
-              <p>Bom trabalho, ${responsavelNome.split(" ")[0]}!</p>
-            `,
-            evento: "item_aprovado",
-          });
-        } else if (status === "cancelado" && responsavelEmail) {
-          enviarEmailSilencioso({
-            para: responsavelEmail,
-            assunto: `[Correção ↩] ${tituloItem}`,
-            conteudo: `
-              <h2>Item retornado para correção ↩</h2>
-              <p>O item <strong>${tituloItem}</strong> foi marcado como cancelado/reprovado.</p>
-              <p>Verifique os detalhes na controladoria e ajuste o que for necessário.</p>
-            `,
-            evento: "item_reprovado",
-          });
         }
+      } catch (err) {
+        console.warn("[ItemFormDialog] envio de email falhou", err);
       }
-    } catch (err) {
-      console.warn("[ItemFormDialog] envio de email falhou", err);
-    }
 
-    clearDraft();
-    onSaved();
-    onOpenChange(false);
+      clearDraft();
+      onSaved();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error("Erro inesperado ao salvar: " + (err?.message || "Tente novamente"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function aplicarFluxo() {
@@ -801,21 +863,37 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
             <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
           </div>
 
-          <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/40 transition-colors">
-            <input
-              type="checkbox"
-              checked={visivelParceiro}
-              onChange={(e) => setVisivelParceiro(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-primary"
-            />
-            <div className="flex-1">
-              <p className="text-sm font-medium">Visível ao parceiro</p>
-              <p className="text-xs text-muted-foreground">
-                Se o processo tiver parceiro vinculado, esta tarefa aparece no portal dele.
-                Mantenha desligado para tarefas internas, estratégia ou minutas.
-              </p>
-            </div>
-          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/40 transition-colors">
+              <input
+                type="checkbox"
+                checked={exigeRevisao}
+                onChange={(e) => setExigeRevisao(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Exigir revisão técnica</p>
+                <p className="text-xs text-muted-foreground">
+                  Quando ativo, a atividade passa por revisão antes do protocolo (Criação → Execução → Revisão → Correção/Protocolo).
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/40 transition-colors">
+              <input
+                type="checkbox"
+                checked={visivelParceiro}
+                onChange={(e) => setVisivelParceiro(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Visível ao parceiro</p>
+                <p className="text-xs text-muted-foreground">
+                  Se o processo tiver parceiro vinculado, esta tarefa aparece no portal dele.
+                </p>
+              </div>
+            </label>
+          </div>
         </div>
 
         <DialogFooter>

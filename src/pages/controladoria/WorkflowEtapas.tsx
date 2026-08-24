@@ -82,21 +82,29 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
     },
   ) {
     setSalvando(true);
-    const res = await transicionarEtapa({
-      itemId: item.id,
-      novaEtapa: destino,
-      ...extra,
-    });
-    setSalvando(false);
+    try {
+      const res = await transicionarEtapa({
+        itemId: item.id,
+        novaEtapa: destino,
+        etapaAtual: etapaAtual,
+        exigeRevisao: exigeRevisao,
+        ...extra,
+      });
 
-    if (!res.ok) {
-      toast.error(res.error || "Não foi possível avançar a etapa");
+      if (!res.ok) {
+        toast.error(res.erro || res.error || "Não foi possível avançar a etapa");
+        return false;
+      }
+
+      toast.success(`Etapa avançada para: ${ETAPA_LABEL[destino]}`);
+      onChanged();
+      return true;
+    } catch (err: any) {
+      toast.error(err?.message || "Erro inesperado ao avançar etapa");
       return false;
+    } finally {
+      setSalvando(false);
     }
-
-    toast.success(`Etapa avançada para: ${ETAPA_LABEL[destino]}`);
-    onChanged();
-    return true;
   }
 
   // --- Handlers de cada ação do workflow ---
@@ -130,7 +138,7 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
       return;
     }
     const ok = await executarTransicao("correcao", {
-      novoResponsavelId: devolverRespId || item.executor_id || item.responsavel_id,
+      novoResponsavelId: devolverRespId || item.corretor_id || item.executor_id || item.responsavel_id,
       observacao: devolverObs.trim(),
     });
     if (ok) {
@@ -189,6 +197,13 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
         );
 
       case "revisao":
+        if (isEstagiario) {
+          return (
+            <span className="text-xs text-muted-foreground italic">
+              Aguardando revisão por advogado ou gestor
+            </span>
+          );
+        }
         return (
           <div className="flex items-center gap-2 flex-wrap">
             <Button
@@ -213,6 +228,13 @@ export default function WorkflowEtapas({ item, compact = false, onChanged }: Pro
         );
 
       case "protocolo":
+        if (isEstagiario) {
+          return (
+            <span className="text-xs text-muted-foreground italic">
+              Aguardando protocolo por advogado ou gestor
+            </span>
+          );
+        }
         return (
           <div className="flex items-center gap-2 flex-wrap">
             <Button

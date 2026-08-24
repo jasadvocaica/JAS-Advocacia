@@ -2,5 +2,7 @@
   "name": "Faithful Screen Craft",
   "description": "Sistema completo de Gestão Jurídica com portais interno, parceiro e cliente, gestão de processos, agenda, relatórios e documentos.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
