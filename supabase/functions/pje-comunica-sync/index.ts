@@ -65,12 +65,6 @@ function parseDataISO(d: string | null | undefined): string | null {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
-function chaveMonitoramento(m: MonitoramentoRow): string {
-  if (m.tipo === "oab") return `oab:${m.valor}-${m.uf_oab ?? ""}`;
-  if (m.tipo === "cnj") return `cnj:${limparCnj(m.valor)}`;
-  return `${m.tipo}:${m.valor.toLowerCase()}`;
-}
-
 function hashItem(item: PjeItem): string {
   const partes = [
     String(item.id ?? ""),
@@ -154,7 +148,6 @@ async function sincronizarMonitoramento(
   dataFim: string,
   dryRun: boolean,
 ): Promise<ResultadoSync> {
-  const monKey = chaveMonitoramento(m);
   const r: ResultadoSync = {
     monitoramento_id: m.id,
     oab_id: m.oab_legacy_id,
