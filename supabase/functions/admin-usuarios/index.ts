@@ -2,8 +2,13 @@
 // Operações: criar usuário, redefinir senha, ativar/inativar
 // Apenas usuários com role 'gestor' podem executar.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.104.1";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 type AppRole = "gestor" | "advogado" | "controladoria" | "administrativo" | "estagiario";
 type Modulo = "clientes" | "processos" | "controladoria" | "financeiro" | "documentos" | "relatorios" | "usuarios" | "parceiros" | "equipe" | "dashboard";
@@ -53,17 +58,29 @@ const PERMISSOES_PADRAO: Record<AppRole, Partial<Record<Modulo, PermDef>>> = {
   },
 };
 
+function indiceSeguro(limite: number): number {
+  const maximoValido = Math.floor(256 / limite) * limite;
+  const byte = new Uint8Array(1);
+  do crypto.getRandomValues(byte); while (byte[0] >= maximoValido);
+  return byte[0] % limite;
+}
+
 function gerarSenhaTemporaria(): string {
   const letras = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz";
   const numeros = "23456789";
   const simbolos = "!@#$%&*";
   const todos = letras + numeros + simbolos;
-  let senha = "";
-  senha += letras[Math.floor(Math.random() * letras.length)];
-  senha += numeros[Math.floor(Math.random() * numeros.length)];
-  senha += simbolos[Math.floor(Math.random() * simbolos.length)];
-  for (let i = 0; i < 7; i++) senha += todos[Math.floor(Math.random() * todos.length)];
-  return senha.split("").sort(() => Math.random() - 0.5).join("");
+  const caracteres = [
+    letras[indiceSeguro(letras.length)],
+    numeros[indiceSeguro(numeros.length)],
+    simbolos[indiceSeguro(simbolos.length)],
+  ];
+  for (let i = 0; i < 9; i++) caracteres.push(todos[indiceSeguro(todos.length)]);
+  for (let i = caracteres.length - 1; i > 0; i--) {
+    const j = indiceSeguro(i + 1);
+    [caracteres[i], caracteres[j]] = [caracteres[j], caracteres[i]];
+  }
+  return caracteres.join("");
 }
 
 Deno.serve(async (req) => {
@@ -82,7 +99,9 @@ Deno.serve(async (req) => {
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-    const adminClient = createClient(SUPABASE_URL, SERVICE_KEY);
+    const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
     const token = authHeader.replace("Bearer ", "");
     const { data: claims, error: claimsErr } = await userClient.auth.getClaims(token);
@@ -91,14 +110,15 @@ Deno.serve(async (req) => {
     }
     const callerId = claims.claims.sub;
 
-    // Verificar se é gestor
-    const { data: rolesData } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId);
-    const isGestor = (rolesData ?? []).some((r: any) => r.role === "gestor");
-    if (!isGestor) {
-      return new Response(JSON.stringify({ error: "Apenas gestores podem executar esta ação" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Exige gestor interno e ativo. O service role é usado somente depois desta verificação.
+    const [{ data: rolesData, error: rolesErr }, { data: callerProfile, error: profileErr }] = await Promise.all([
+      adminClient.from("user_roles").select("role").eq("user_id", callerId),
+      adminClient.from("profiles").select("ativo, tipo_portal").eq("id", callerId).maybeSingle(),
+    ]);
+    const isGestor = (rolesData ?? []).some((r: { role: string }) => r.role === "gestor");
+    const isInternoAtivo = callerProfile?.ativo === true && callerProfile?.tipo_portal === "interno";
+    if (rolesErr || profileErr || !isGestor || !isInternoAtivo) {
+      return new Response(JSON.stringify({ error: "Apenas gestores internos ativos podem executar esta ação" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const body = await req.json();
@@ -109,9 +129,15 @@ Deno.serve(async (req) => {
     // ============================================================
     if (action === "criar") {
       const { nome, email, perfil, senha: senhaProvided, forcarTroca = true } = body;
+      const nomeNormalizado = typeof nome === "string" ? nome.trim().replace(/\s+/g, " ") : "";
+      const emailNormalizado = typeof email === "string" ? email.trim().toLowerCase() : "";
 
-      if (!nome || !email || !perfil) {
+      if (!nomeNormalizado || !emailNormalizado || !perfil) {
         return new Response(JSON.stringify({ error: "nome, email e perfil são obrigatórios" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      if (nomeNormalizado.length < 3 || nomeNormalizado.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado)) {
+        return new Response(JSON.stringify({ error: "Nome ou e-mail inválido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       const perfisValidos: AppRole[] = ["gestor", "advogado", "controladoria", "administrativo", "estagiario"];
@@ -123,10 +149,10 @@ Deno.serve(async (req) => {
 
       // Cria usuário no auth (auto-confirmado)
       const { data: created, error: createErr } = await adminClient.auth.admin.createUser({
-        email,
+        email: emailNormalizado,
         password: senha,
         email_confirm: true,
-        user_metadata: { nome },
+        user_metadata: { nome: nomeNormalizado },
       });
       if (createErr) {
         return new Response(JSON.stringify({ error: createErr.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -135,7 +161,7 @@ Deno.serve(async (req) => {
 
       // O trigger handle_new_user já cria o profile. Atualizamos primeiro_acesso conforme escolha
       await adminClient.from("profiles").update({
-        nome,
+        nome: nomeNormalizado,
         primeiro_acesso: !!forcarTroca,
       }).eq("id", newUserId);
 
@@ -193,12 +219,18 @@ Deno.serve(async (req) => {
     // RESETAR PERMISSÕES PARA PADRÃO DO PERFIL
     // ============================================================
     if (action === "resetar_permissoes") {
-      const { user_id, perfil } = body;
-      if (!user_id || !perfil) {
-        return new Response(JSON.stringify({ error: "user_id e perfil obrigatórios" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const { user_id } = body;
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "user_id obrigatório" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: targetRoles, error: targetRoleErr } = await adminClient
+        .from("user_roles").select("role").eq("user_id", user_id);
+      const perfil = targetRoles?.[0]?.role as AppRole | undefined;
+      if (targetRoleErr || !perfil || !PERMISSOES_PADRAO[perfil]) {
+        return new Response(JSON.stringify({ error: "Perfil atual do usuário não encontrado" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       await adminClient.from("user_permissions").delete().eq("user_id", user_id);
-      const padrao = PERMISSOES_PADRAO[perfil as AppRole] || {};
+      const padrao = PERMISSOES_PADRAO[perfil];
       const rows: any[] = [];
       for (const [modulo, def] of Object.entries(padrao)) {
         const acoes: [Acao, boolean][] = [
