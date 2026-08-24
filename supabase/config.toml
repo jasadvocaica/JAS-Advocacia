@@ -1,28 +1,29 @@
+# Funções internas exigem JWT. O MCP usa token próprio validado no corpo da função.
 project_id = "mzwnljgujheumdslkloc"
 
 [functions.google-calendar]
-verify_jwt = false
+verify_jwt = true
 
 [functions.controladoria-sync-calendar]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ia-alerta-prazos-diario]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ia-relatorio-financeiro-mensal]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ia-gerar-peticao]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ia-analise-novo-cliente]
-verify_jwt = false
+verify_jwt = true
 
 [functions.mcp-server]
 verify_jwt = false
 
 [functions.scraper-tribunais]
-verify_jwt = false
+verify_jwt = true
 
 [functions.email-eventos]
-verify_jwt = false
+verify_jwt = true
