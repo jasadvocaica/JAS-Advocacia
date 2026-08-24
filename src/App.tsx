@@ -119,6 +119,7 @@ const AssistenteIA = lazy(() => import("@/pages/assistente/AssistenteIA"));
 const AutomacoesIA = lazy(() => import("@/pages/ia/AutomacoesIA"));
 const MCPServer = lazy(() => import("@/pages/ia/MCPServer"));
 const HistoricoImportacoes = lazy(() => import("@/pages/importacao-exportacao/HistoricoImportacoes"));
+const MigracaoClientesProcessos = lazy(() => import("@/pages/importacao-exportacao/MigracaoClientesProcessos"));
 const ProcessosImportadosPdpj = lazy(() => import("@/pages/importacao-exportacao/ProcessosImportadosPdpj"));
 const ValidacaoImportPdpj = lazy(() => import("@/pages/importacao-exportacao/ValidacaoImportPdpj"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -389,6 +390,7 @@ const AppRoutes = () => {
         <Route path="/ia/servidor-mcp" element={<ProtectedRoute requireGestor><MCPServer /></ProtectedRoute>} />
         <Route path="/importacao-exportacao" element={<ProtectedRoute requireGestor><ImportacaoExportacaoHub /></ProtectedRoute>} />
         <Route path="/importacao-exportacao/historico" element={<ProtectedRoute requireGestor><HistoricoImportacoes /></ProtectedRoute>} />
+        <Route path="/importacao-exportacao/migracao-clientes-processos" element={<ProtectedRoute requireGestor><MigracaoClientesProcessos /></ProtectedRoute>} />
         <Route path="/importacao-exportacao/pdpj" element={<ProtectedRoute requireGestor><ProcessosImportadosPdpj /></ProtectedRoute>} />
         <Route path="/importacao-exportacao/pdpj/validacao" element={<ProtectedRoute requireGestor><ValidacaoImportPdpj /></ProtectedRoute>} />
       </Route>
