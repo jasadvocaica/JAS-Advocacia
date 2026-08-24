@@ -219,6 +219,44 @@ async function processarAcaoAutomatica(
   return !!acaoTipo;
 }
 
+async function notificarNovosAndamentos(
+  supabase: any,
+  processo: any,
+  quantidade: number,
+  descricaoMaisRecente: string | null,
+) {
+  if (quantidade <= 0) return;
+  try {
+    const { data: gestores } = await supabase
+      .from("user_roles")
+      .select("user_id, profiles!inner(ativo)")
+      .eq("role", "gestor")
+      .eq("profiles.ativo", true);
+
+    const destinatarios = new Set<string>();
+    if (processo.responsavel_id) destinatarios.add(processo.responsavel_id);
+    for (const gestor of gestores ?? []) {
+      if (gestor.user_id) destinatarios.add(gestor.user_id);
+    }
+    if (destinatarios.size === 0) return;
+
+    const numero = formatarCNJ(processo.numero_cnj_limpo ?? "");
+    await supabase.from("notificacoes").insert(
+      Array.from(destinatarios).map((user_id) => ({
+        user_id,
+        tipo: "datajud_novo_andamento",
+        titulo: quantidade === 1
+          ? "Novo andamento processual"
+          : `${quantidade} novos andamentos processuais`,
+        descricao: `${numero}${descricaoMaisRecente ? ` · ${descricaoMaisRecente}` : ""}`,
+        link: `/processos/${processo.id}`,
+      })),
+    );
+  } catch (erro) {
+    console.error("[datajud-consulta] falha ao notificar novos andamentos:", erro);
+  }
+}
+
 async function processarUmProcesso(
   supabase: any,
   apiKey: string,
@@ -279,6 +317,16 @@ async function processarUmProcesso(
     const gerou = await processarAcaoAutomatica(supabase, inserido, processo, cliente?.nome ?? null);
     if (gerou) acoesGeradas++;
   }
+
+  const descricaoMaisRecente = novos
+    .slice()
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)))[0]?.descricao ?? null;
+  await notificarNovosAndamentos(
+    supabase,
+    processo,
+    inseridosOk,
+    descricaoMaisRecente,
+  );
 
   // Calcula data do andamento mais recente p/ exibir "Última atualização" no card
   const ultimaData = andamentos
@@ -392,72 +440,75 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ---- AUTHENTICATION ----
-    // Reject unauthenticated requests. Only active gestores may trigger DataJud
-    // queries (which use the service-role key and write to multiple tables).
-    const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const authClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const userId = claimsData.claims.sub as string;
-
-    // Service-role client for the actual work (RLS-bypass needed for cross-tenant ops)
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Body precisa ser lido antes para sabermos se é preview (autenticado basta)
-    // ou modo de escrita (gestor obrigatório).
     const body = await req.json().catch(() => ({}));
     const modo: "processo_unico" | "manual" | "agendado" | "preview" = body.modo ?? "manual";
 
-    // Restrict write modes:
-    // - "manual" / "agendado" (job em massa): apenas gestor
-    // - "processo_unico": gestor OU advogado responsável pelo processo alvo
-    if (modo !== "preview") {
-      const { data: isGestorRow } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "gestor")
-        .maybeSingle();
-
-      let autorizado = !!isGestorRow;
-
-      if (!autorizado && modo === "processo_unico" && body.processo_id) {
-        const { data: procResp } = await supabase
-          .from("processos")
-          .select("responsavel_id")
-          .eq("id", body.processo_id)
-          .maybeSingle();
-        if (procResp?.responsavel_id === userId) autorizado = true;
-      }
-
-      if (!autorizado) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
+    let userId: string | null = null;
+    if (modo === "agendado") {
+      const cronSecret = req.headers.get("x-datajud-cron-secret") ?? "";
+      const { data: cronValido, error: cronError } = await supabase.rpc(
+        "validar_datajud_cron_secret",
+        { _secret: cronSecret },
+      );
+      if (cronError || cronValido !== true) {
+        return new Response(JSON.stringify({ error: "Unauthorized scheduler" }), {
+          status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+    } else {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      if (!authHeader.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const authClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const token = authHeader.replace("Bearer ", "");
+      const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = claimsData.claims.sub as string;
+
+      if (modo !== "preview") {
+        const { data: isGestorRow } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "gestor")
+          .maybeSingle();
+
+        let autorizado = !!isGestorRow;
+        if (!autorizado && modo === "processo_unico" && body.processo_id) {
+          const { data: procResp } = await supabase
+            .from("processos")
+            .select("responsavel_id")
+            .eq("id", body.processo_id)
+            .maybeSingle();
+          if (procResp?.responsavel_id === userId) autorizado = true;
+        }
+
+        if (!autorizado) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
@@ -568,7 +619,7 @@ Deno.serve(async (req) => {
 
       const { data: processo, error } = await supabase
         .from("processos")
-        .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, nb_inss")
+        .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, responsavel_id, nb_inss")
         .eq("id", body.processo_id)
         .maybeSingle();
 
@@ -629,7 +680,7 @@ Deno.serve(async (req) => {
     // Job em massa
     const { data: processos } = await supabase
       .from("processos")
-      .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, nb_inss")
+      .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, responsavel_id, nb_inss")
       .eq("tipo", "judicial")
       .eq("datajud_ativo", true)
       .not("numero_cnj_limpo", "is", null)
