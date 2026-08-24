@@ -30,6 +30,9 @@ type Diligencia = {
   pagamento_status: string;
   valor_contratado: number | null;
   valor_recebido: number;
+  paginas_impressas: number;
+  km_rodado: number;
+  outras_despesas: number;
   custo_total: number;
   lucro_previsto: number;
   sincronizar_google: boolean;
@@ -90,6 +93,7 @@ export default function Diligencias() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mes, setMes] = useState(format(new Date(), "yyyy-MM"));
   const [filtroPagamento, setFiltroPagamento] = useState("todos");
   const [form, setForm] = useState(FORM_INICIAL);
@@ -165,22 +169,19 @@ export default function Diligencias() {
     };
 
     setSalvando(true);
-    const { data, error } = await (supabase as any).from("diligencias").insert(payload).select("id").single();
+    const operacao = editandoId
+      ? (supabase as any).from("diligencias").update(payload).eq("id", editandoId).select("id").single()
+      : (supabase as any).from("diligencias").insert(payload).select("id").single();
+    const { error } = await operacao;
     if (error) {
       toast.error(error.message);
       setSalvando(false);
       return;
     }
 
-    if (form.sincronizar_google && data?.id) {
-      const { error: syncError } = await supabase.functions.invoke("controladoria-sync-calendar", {
-        body: { action: "upsert_diligencia", diligencia_id: data.id },
-      });
-      if (syncError) toast.warning("Diligência salva; a agenda será sincronizada depois.");
-    }
-
-    toast.success("Diligência cadastrada");
+    toast.success(editandoId ? "Diligência atualizada" : "Diligência cadastrada");
     setForm({ ...FORM_INICIAL, data_hora: hojeLocal() });
+    setEditandoId(null);
     setOpen(false);
     setSalvando(false);
     carregar();
@@ -198,6 +199,47 @@ export default function Diligencias() {
     carregar();
   }
 
+  function editar(item: Diligencia) {
+    const d = new Date(item.data_hora);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    setForm({
+      cliente_id: item.cliente_id || "_none",
+      processo_id: item.processo_id || "_none",
+      contratante_nome: item.contratante_nome,
+      contratante_telefone: item.contratante_telefone || "",
+      descricao: item.descricao,
+      tipo: item.tipo,
+      data_hora: d.toISOString().slice(0, 16),
+      local: item.local || "",
+      status: item.status,
+      pagamento_status: item.pagamento_status,
+      valor_contratado: item.valor_contratado == null ? "" : String(item.valor_contratado),
+      valor_recebido: String(item.valor_recebido || 0),
+      paginas_impressas: String(item.paginas_impressas || 0),
+      km_rodado: String(item.km_rodado || 0),
+      outras_despesas: String(item.outras_despesas || 0),
+      observacoes: item.observacoes || "",
+      sincronizar_google: item.sincronizar_google,
+    });
+    setEditandoId(item.id);
+    setOpen(true);
+  }
+
+  function abrirGoogleAgenda(item: Diligencia) {
+    const inicio = new Date(item.data_hora);
+    const fim = new Date(inicio.getTime() + 60 * 60 * 1000);
+    const compacta = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: `⚖️ Diligência — ${item.descricao}`,
+      dates: `${compacta(inicio)}/${compacta(fim)}`,
+      details: `Contratante: ${item.contratante_nome}\n${item.observacoes || ""}\n\nCriado pelo sistema JAS Advocacia.`,
+      location: item.local || "",
+      ctz: "America/Cuiaba",
+    });
+    window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, "_blank", "noopener,noreferrer");
+  }
+
   async function excluir(id: string) {
     if (!confirm("Excluir esta diligência?")) return;
     const { error } = await (supabase as any).from("diligencias").delete().eq("id", id);
@@ -211,10 +253,10 @@ export default function Diligencias() {
       <PageHeader title="Diligências" description="Agenda, execução, custos, cobrança e lucro das diligências">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button variant="gold"><Plus className="w-4 h-4" /> Nova diligência</Button>
+            <Button variant="gold" onClick={() => { setEditandoId(null); setForm({ ...FORM_INICIAL, data_hora: hojeLocal() }); }}><Plus className="w-4 h-4" /> Nova diligência</Button>
           </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Nova diligência</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editandoId ? "Editar diligência" : "Nova diligência"}</DialogTitle></DialogHeader>
             <div className="grid sm:grid-cols-2 gap-4">
               <div><Label>Contratante *</Label><Input value={form.contratante_nome} onChange={e => setForm({ ...form, contratante_nome: e.target.value })} /></div>
               <div><Label>Telefone</Label><Input value={form.contratante_telefone} onChange={e => setForm({ ...form, contratante_telefone: e.target.value })} /></div>
@@ -228,6 +270,13 @@ export default function Diligencias() {
                     <SelectItem value="digitalizacao">Digitalização</SelectItem><SelectItem value="copia">Cópia</SelectItem>
                     <SelectItem value="despacho">Despacho</SelectItem><SelectItem value="outra">Outra</SelectItem>
                   </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Situação</Label>
+                <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="solicitada">Solicitada</SelectItem><SelectItem value="agendada">Agendada</SelectItem><SelectItem value="em_execucao">Em execução</SelectItem><SelectItem value="concluida">Concluída</SelectItem><SelectItem value="cancelada">Cancelada</SelectItem></SelectContent>
                 </Select>
               </div>
               <div><Label>Data e horário *</Label><Input type="datetime-local" value={form.data_hora} onChange={e => setForm({ ...form, data_hora: e.target.value })} /></div>
@@ -301,7 +350,12 @@ export default function Diligencias() {
                   <TableCell className="font-mono">{formatBRL(item.custo_total)}</TableCell>
                   <TableCell><Badge className={item.pagamento_status === "recebido" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{pagamentoLabel[item.pagamento_status] ?? item.pagamento_status}</Badge></TableCell>
                   <TableCell>{item.google_event_id ? <Badge variant="outline" className="text-emerald-700"><CalendarDays className="w-3 h-3 mr-1" />Sincronizada</Badge> : item.sincronizar_google ? <span className="text-xs text-muted-foreground">Pendente</span> : "—"}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{item.pagamento_status !== "recebido" && item.valor_contratado !== null && <Button size="sm" variant="ghost" onClick={() => marcarRecebido(item)}>Recebi</Button>}{isGestor && <Button size="icon" variant="ghost" onClick={() => excluir(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {!item.google_event_id && item.status !== "cancelada" && <Button size="sm" variant="ghost" onClick={() => abrirGoogleAgenda(item)}><CalendarDays className="w-4 h-4" /> Agenda</Button>}
+                    {item.pagamento_status !== "recebido" && item.valor_contratado !== null && <Button size="sm" variant="ghost" onClick={() => marcarRecebido(item)}>Recebi</Button>}
+                    <Button size="sm" variant="ghost" onClick={() => editar(item)}>Editar</Button>
+                    {isGestor && <Button size="icon" variant="ghost" onClick={() => excluir(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>}
+                  </TableCell>
                 </TableRow>
               ))}</TableBody>
             </Table>
