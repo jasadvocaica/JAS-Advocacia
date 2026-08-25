@@ -202,13 +202,26 @@ export default function ProcessoForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.cliente_id) { toast.error("Selecione um cliente"); return; }
-    if (form.tipo === "judicial" && form.numero_cnj && !validarCNJ(form.numero_cnj)) {
-      toast.error("Número CNJ deve ter 20 dígitos");
+    if (form.tipo === "judicial" && !form.numero_cnj) {
+      toast.error("Informe o número CNJ do processo judicial");
       return;
     }
-    setSaving(true);
+    if (form.tipo === "judicial" && !validarCNJ(form.numero_cnj)) {
+      toast.error("Número CNJ inválido");
+      return;
+    }
 
     const cnjLimpo = form.numero_cnj ? onlyDigits(form.numero_cnj) : null;
+    if (cnjLimpo) {
+      let duplicadoQuery = supabase.from("processos").select("id").eq("numero_cnj", cnjLimpo);
+      if (id) duplicadoQuery = duplicadoQuery.neq("id", id);
+      const { data: duplicado } = await duplicadoQuery.maybeSingle();
+      if (duplicado) {
+        toast.error("Este processo já está cadastrado", { description: "Abra o processo existente para atualizar os dados." });
+        return;
+      }
+    }
+    setSaving(true);
     const tribunalInfo = form.tribunal_sigla ? TRIBUNAIS[form.tribunal_sigla] : null;
     const datajudPodeUsar = form.tipo === "judicial" && tribunalSuportado(form.tribunal_sigla);
 
@@ -244,13 +257,23 @@ export default function ProcessoForm() {
       const { error } = await comRetry(async () =>
         await supabase.from("processos").update(payload).eq("id", id!).select("id").single(),
       );
-      if (error) { setSaving(false); return toast.error("Erro ao salvar", { description: error.message }); }
+      if (error) {
+        setSaving(false);
+        return toast.error(error.code === "23505" ? "Número CNJ já cadastrado" : "Erro ao salvar", {
+          description: error.code === "23505" ? "Use o processo existente para evitar duplicidade." : error.message,
+        });
+      }
     } else {
       payload.criado_por = user?.id;
       const { data, error } = await comRetry(async () =>
         await supabase.from("processos").insert(payload).select("id").single(),
       );
-      if (error) { setSaving(false); return toast.error("Erro ao criar", { description: error.message }); }
+      if (error) {
+        setSaving(false);
+        return toast.error(error.code === "23505" ? "Número CNJ já cadastrado" : "Erro ao criar", {
+          description: error.code === "23505" ? "Use o processo existente para evitar duplicidade." : error.message,
+        });
+      }
       processoId = data.id;
     }
 
