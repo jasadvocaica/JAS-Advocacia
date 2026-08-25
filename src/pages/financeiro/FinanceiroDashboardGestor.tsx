@@ -67,8 +67,8 @@ export default function FinanceiroDashboardGestor() {
   const [pctMktPadrao, setPctMktPadrao] = useState(5);
   // Quando não há fechamento salvo, usamos sugestões em tempo real
   const [sugestao, setSugestao] = useState<{
-    receitaFixo: number; receitaExito: number; repasses: number;
-    rbt12: number; valorMkt: number; valorPl: number;
+    receitaFixo: number; receitaExito: number; receitaDiligencias: number; repasses: number;
+    rbt12: number; valorMkt: number; valorPl: number; saidas: number;
   } | null>(null);
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export default function FinanceiroDashboardGestor() {
       if (!fechRow) {
         const inicio = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
         const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
-        const [pagsRes, repRes, rbt12Res, mktRes, plRes] = await Promise.all([
+        const [pagsRes, repRes, rbt12Res, mktRes, plRes, diligRes, saidasRes] = await Promise.all([
           supabase.from("honorarios_pagamentos")
             .select("valor_recebido, tipo_pagamento")
             .gte("data_pagamento", inicio).lte("data_pagamento", fim),
@@ -128,6 +128,13 @@ export default function FinanceiroDashboardGestor() {
             .select("valor").eq("mes", mes).eq("ano", ano),
           supabase.from("financeiro_pro_labore")
             .select("valor").eq("mes", mes).eq("ano", ano),
+          (supabase as any).from("diligencias")
+            .select("valor_recebido")
+            .gte("data_recebimento", inicio).lte("data_recebimento", fim)
+            .eq("pagamento_status", "recebido"),
+          (supabase as any).from("financeiro_saidas")
+            .select("valor,status,data_pagamento")
+            .gte("data_competencia", inicio).lte("data_competencia", fim),
         ]);
         if (!alive) return;
 
@@ -140,10 +147,13 @@ export default function FinanceiroDashboardGestor() {
         const mktTotal = (mktRes.data ?? []).reduce((s: number, m: any) => s + Number(m.valor || 0), 0);
         const plTotal = (plRes.data ?? []).reduce((s: number, p: any) => s + Number(p.valor || 0), 0);
         const rbt12 = Number((rbt12Res.data as any) ?? cfgRes.data?.rbt12_manual ?? 0);
+        const receitaDiligencias = (diligRes.data ?? []).reduce((s: number, d: any) => s + Number(d.valor_recebido ?? 0), 0);
+        const saidas = (saidasRes.data ?? []).filter((s: any) => s.status === "pago" || s.data_pagamento)
+          .reduce((total: number, s: any) => total + Number(s.valor ?? 0), 0);
 
         setSugestao({
-          receitaFixo: recOutros, receitaExito: recExito,
-          repasses: repTotal, rbt12, valorMkt: mktTotal, valorPl: plTotal,
+          receitaFixo: recOutros, receitaExito: recExito, receitaDiligencias,
+          repasses: repTotal, rbt12, valorMkt: mktTotal, valorPl: plTotal, saidas,
         });
       } else {
         setSugestao(null);
@@ -186,7 +196,7 @@ export default function FinanceiroDashboardGestor() {
       };
     }
     if (sugestao) {
-      const receitaTotal = sugestao.receitaFixo + sugestao.receitaExito;
+      const receitaTotal = sugestao.receitaFixo + sugestao.receitaExito + sugestao.receitaDiligencias;
       const simples = calcularSimplesNacional(receitaTotal, sugestao.rbt12);
       const valorMkt = sugestao.valorMkt > 0
         ? sugestao.valorMkt
@@ -197,14 +207,14 @@ export default function FinanceiroDashboardGestor() {
         valorSimples: simples.valorSimples,
         valorMarketing: valorMkt,
         valorProLabore: sugestao.valorPl,
-        outrasDespesas: 0,
+        outrasDespesas: sugestao.saidas,
       });
       return {
         receitaTotal,
         repasses: sugestao.repasses,
         simples, valorMkt,
         proLabore: sugestao.valorPl,
-        outras: 0,
+        outras: sugestao.saidas,
         liquido,
         margem: receitaTotal > 0 ? (liquido / receitaTotal) * 100 : 0,
         rbt12: sugestao.rbt12,
@@ -384,6 +394,7 @@ export default function FinanceiroDashboardGestor() {
               <div className="space-y-1.5">
                 <Linha label="Honorários fixos / mensalidades" value={fech?.receita_honorarios_fixo ?? sugestao?.receitaFixo ?? 0} />
                 <Linha label="Honorários de êxito" value={fech?.receita_honorarios_exito ?? sugestao?.receitaExito ?? 0} />
+                {!fech && <Linha label="Diligências recebidas" value={sugestao?.receitaDiligencias ?? 0} />}
                 {fech && (
                   <>
                     <Linha label="Consultoria" value={fech.receita_consultoria} />
