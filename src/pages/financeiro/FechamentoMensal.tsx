@@ -116,7 +116,7 @@ export default function FechamentoMensal() {
         // Sugere a partir de pagamentos do mês + repasses + RBT12 calculado
         const inicio = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
         const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
-        const [pagsRes, repRes, rbt12Res, mktRes, plRes] = await Promise.all([
+        const [pagsRes, repRes, rbt12Res, mktRes, plRes, diligRes, saidasRes] = await Promise.all([
           supabase.from("honorarios_pagamentos")
             .select("valor_recebido, tipo_pagamento")
             .gte("data_pagamento", inicio).lte("data_pagamento", fim),
@@ -128,6 +128,12 @@ export default function FechamentoMensal() {
             .select("valor").eq("mes", mes).eq("ano", ano),
           supabase.from("financeiro_pro_labore")
             .select("valor").eq("mes", mes).eq("ano", ano),
+          (supabase as any).from("diligencias")
+            .select("valor_recebido").eq("pagamento_status", "recebido")
+            .gte("data_recebimento", inicio).lte("data_recebimento", fim),
+          (supabase as any).from("financeiro_saidas")
+            .select("valor,status,data_pagamento")
+            .gte("data_competencia", inicio).lte("data_competencia", fim),
         ]);
 
         const pags = (pagsRes.data ?? []) as any[];
@@ -139,12 +145,17 @@ export default function FechamentoMensal() {
         const mktTotal = (mktRes.data ?? []).reduce((s: number, m: any) => s + Number(m.valor || 0), 0);
         const plTotal = (plRes.data ?? []).reduce((s: number, p: any) => s + Number(p.valor || 0), 0);
         const rbt12 = Number((rbt12Res.data as any) ?? cfgRes.data?.rbt12_manual ?? 0);
+        const recDiligencias = (diligRes.data ?? []).reduce((s: number, d: any) => s + Number(d.valor_recebido || 0), 0);
+        const saidasPagas = (saidasRes.data ?? []).filter((s: any) => s.status === "pago" || s.data_pagamento)
+          .reduce((total: number, s: any) => total + Number(s.valor || 0), 0);
 
         if (alive) setFech({
           ...vazio(mes, ano, pctPadrao),
           receita_honorarios_fixo: recOutros,
           receita_honorarios_exito: recExito,
+          receita_outros: recDiligencias,
           repasses_parceiros: repTotal,
+          outras_despesas: saidasPagas,
           rbt12,
           valor_marketing: mktTotal,
           valor_pro_labore: plTotal,
@@ -165,7 +176,7 @@ export default function FechamentoMensal() {
       const inicio = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
       const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
-      const [entRes, saiRes, repRes] = await Promise.all([
+      const [entRes, saiRes, repRes, diligRes] = await Promise.all([
         supabase.from("honorarios_pagamentos")
           .select("id, data_pagamento, valor_recebido, tipo_pagamento, forma_pagamento, cliente:cliente_id(nome)")
           .gte("data_pagamento", inicio).lte("data_pagamento", fim)
@@ -178,14 +189,25 @@ export default function FechamentoMensal() {
           .select("id, valor_repasse, data_repasse, criado_em, parceiro:parceiro_id(nome), cliente:cliente_id(nome)")
           .or(`and(data_repasse.gte.${inicio},data_repasse.lte.${fim}),and(data_repasse.is.null,criado_em.gte.${inicio},criado_em.lte.${fim}T23:59:59)`)
           .order("criado_em", { ascending: true }),
+        (supabase as any).from("diligencias")
+          .select("id,data_recebimento,valor_recebido,forma_pagamento,contratante_nome,cliente:clientes(nome)")
+          .eq("pagamento_status", "recebido")
+          .gte("data_recebimento", inicio).lte("data_recebimento", fim)
+          .order("data_recebimento", { ascending: true }),
       ]);
 
       if (!alive) return;
       setResumo({
-        entradas: (entRes.data ?? []).map((e: any) => ({
-          id: e.id, data: e.data_pagamento, cliente: e.cliente?.nome ?? null,
-          tipo: e.tipo_pagamento, forma: e.forma_pagamento, valor: Number(e.valor_recebido || 0),
-        })),
+        entradas: [
+          ...(entRes.data ?? []).map((e: any) => ({
+            id: e.id, data: e.data_pagamento, cliente: e.cliente?.nome ?? null,
+            tipo: e.tipo_pagamento, forma: e.forma_pagamento, valor: Number(e.valor_recebido || 0),
+          })),
+          ...(diligRes.data ?? []).map((d: any) => ({
+            id: d.id, data: d.data_recebimento, cliente: d.cliente?.nome ?? d.contratante_nome ?? null,
+            tipo: "diligencia", forma: d.forma_pagamento, valor: Number(d.valor_recebido || 0),
+          })),
+        ],
         saidas: (saiRes.data ?? []).map((s: any) => ({
           id: s.id, data: s.data_competencia ?? s.data_pagamento, descricao: s.descricao,
           categoria: s.categoria, fornecedor: s.fornecedor, valor: Number(s.valor || 0),
