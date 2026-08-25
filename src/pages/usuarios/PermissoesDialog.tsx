@@ -5,6 +5,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +18,8 @@ interface Props {
 }
 
 type Matrix = Record<Modulo, Record<Acao, boolean>>;
+type CarteiraScope = "todos" | "vinculados";
+interface ClienteOption { id: string; nome: string; cpf_cnpj: string | null; }
 
 function emptyMatrix(): Matrix {
   const m: any = {};
@@ -31,6 +35,10 @@ export function PermissoesDialog({ usuario, onOpenChange }: Props) {
   const [salvando, setSalvando] = useState(false);
   const [original, setOriginal] = useState<Matrix>(emptyMatrix());
   const [atual, setAtual] = useState<Matrix>(emptyMatrix());
+  const [clientesScope, setClientesScope] = useState<CarteiraScope>("todos");
+  const [processosScope, setProcessosScope] = useState<CarteiraScope>("todos");
+  const [clientes, setClientes] = useState<ClienteOption[]>([]);
+  const [clientesVinculados, setClientesVinculados] = useState<Set<string>>(new Set());
 
   const carregar = async (uid: string) => {
     setLoading(true);
@@ -44,6 +52,16 @@ export function PermissoesDialog({ usuario, onOpenChange }: Props) {
         m[p.modulo as Modulo][p.acao as Acao] = !!p.permitido;
       }
     });
+    const db = supabase as any;
+    const [{ data: escopo }, { data: listaClientes }, { data: vinculos }] = await Promise.all([
+      db.from("user_access_scopes").select("clientes_scope, processos_scope").eq("user_id", uid).maybeSingle(),
+      db.from("clientes").select("id, nome, cpf_cnpj").eq("ativo", true).order("nome"),
+      db.from("user_client_links").select("cliente_id").eq("user_id", uid),
+    ]);
+    setClientesScope((escopo?.clientes_scope ?? "todos") as CarteiraScope);
+    setProcessosScope((escopo?.processos_scope ?? "todos") as CarteiraScope);
+    setClientes((listaClientes ?? []) as ClienteOption[]);
+    setClientesVinculados(new Set((vinculos ?? []).map((v: any) => v.cliente_id)));
     setOriginal(m);
     setAtual(JSON.parse(JSON.stringify(m)));
     setLoading(false);
@@ -80,12 +98,44 @@ export function PermissoesDialog({ usuario, onOpenChange }: Props) {
     const { error } = await supabase
       .from("user_permissions")
       .upsert(rows, { onConflict: "user_id,modulo,acao" });
-    setSalvando(false);
     if (error) {
+      setSalvando(false);
       toast.error(error.message);
       return;
     }
-    toast.success(`Permissões atualizadas (${totalChanges} alterações)`);
+
+    const db = supabase as any;
+    const { error: scopeError } = await db.from("user_access_scopes").upsert({
+      user_id: usuario.id,
+      clientes_scope: clientesScope,
+      processos_scope: processosScope,
+      atualizado_em: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+    if (scopeError) {
+      setSalvando(false);
+      toast.error(scopeError.message);
+      return;
+    }
+
+    const { error: deleteError } = await db.from("user_client_links").delete().eq("user_id", usuario.id);
+    if (deleteError) {
+      setSalvando(false);
+      toast.error(deleteError.message);
+      return;
+    }
+    if (clientesScope === "vinculados" && clientesVinculados.size > 0) {
+      const { error: linkError } = await db.from("user_client_links").insert(
+        Array.from(clientesVinculados).map((cliente_id) => ({ user_id: usuario.id, cliente_id }))
+      );
+      if (linkError) {
+        setSalvando(false);
+        toast.error(linkError.message);
+        return;
+      }
+    }
+
+    setSalvando(false);
+    toast.success("Permissões e carteira atualizadas");
     setOriginal(JSON.parse(JSON.stringify(atual)));
     onOpenChange(false);
   };
@@ -112,6 +162,13 @@ export function PermissoesDialog({ usuario, onOpenChange }: Props) {
 
   if (!usuario) return null;
   const perfil = usuario.roles[0];
+  const toggleCliente = (clienteId: string) => {
+    setClientesVinculados((prev) => {
+      const next = new Set(prev);
+      next.has(clienteId) ? next.delete(clienteId) : next.add(clienteId);
+      return next;
+    });
+  };
 
   return (
     <Dialog open={!!usuario} onOpenChange={onOpenChange}>
@@ -136,6 +193,54 @@ export function PermissoesDialog({ usuario, onOpenChange }: Props) {
         {loading ? (
           <div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
         ) : (
+          <div className="space-y-5">
+            <div className="rounded-md border p-4 space-y-4">
+              <div>
+                <h3 className="font-medium">Escopo de acesso</h3>
+                <p className="text-sm text-muted-foreground">Defina se o usuário acessa toda a carteira ou somente clientes e processos vinculados.</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Clientes disponíveis</Label>
+                  <Select value={clientesScope} onValueChange={(v) => setClientesScope(v as CarteiraScope)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os clientes</SelectItem>
+                      <SelectItem value="vinculados">Somente clientes vinculados</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Processos disponíveis</Label>
+                  <Select value={processosScope} onValueChange={(v) => setProcessosScope(v as CarteiraScope)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os processos</SelectItem>
+                      <SelectItem value="vinculados">Somente processos vinculados</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {clientesScope === "vinculados" && (
+                <div className="space-y-2">
+                  <Label>Vincular clientes ({clientesVinculados.size})</Label>
+                  <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+                    {clientes.length === 0 ? (
+                      <p className="p-4 text-sm text-muted-foreground">Nenhum cliente ativo encontrado.</p>
+                    ) : clientes.map((cliente) => (
+                      <label key={cliente.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/50">
+                        <Checkbox checked={clientesVinculados.has(cliente.id)} onCheckedChange={() => toggleCliente(cliente.id)} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">{cliente.nome}</span>
+                          {cliente.cpf_cnpj && <span className="block text-xs text-muted-foreground">{cliente.cpf_cnpj}</span>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
@@ -166,6 +271,7 @@ export function PermissoesDialog({ usuario, onOpenChange }: Props) {
               </tbody>
             </table>
           </div>
+          </div>
         )}
 
         <DialogFooter className="gap-2 sm:gap-2 flex-col sm:flex-row sm:justify-between">
@@ -175,7 +281,7 @@ export function PermissoesDialog({ usuario, onOpenChange }: Props) {
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button onClick={salvar} disabled={salvando || totalChanges === 0}>
+            <Button onClick={salvar} disabled={salvando}>
               {salvando && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Salvar {totalChanges > 0 && `(${totalChanges})`}
             </Button>
