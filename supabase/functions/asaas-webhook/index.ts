@@ -45,9 +45,36 @@ Deno.serve(async (req) => {
       }
       await admin.from("diligencias").update(patch).eq("id", diligencia.id);
     } else {
-      const patch: Record<string, unknown> = { asaas_status: payment.status ?? eventType, asaas_ultimo_sync: now, asaas_ultimo_erro: null };
-      if (recebido) patch.status = "pago";
-      await admin.from("honorarios_parcelas").update(patch).eq("asaas_payment_id", paymentId);
+      const { data: parcela } = await admin.from("honorarios_parcelas")
+        .select("id,contrato_id,valor,contrato:honorarios_contratos!inner(cliente_id)")
+        .eq("asaas_payment_id", paymentId).maybeSingle();
+      if (parcela) {
+        const patch: Record<string, unknown> = {
+          asaas_status: payment.status ?? eventType,
+          asaas_ultimo_sync: now,
+          asaas_ultimo_erro: null,
+        };
+        await admin.from("honorarios_parcelas").update(patch).eq("id", parcela.id);
+
+        if (recebido) {
+          const { data: existente } = await admin.from("honorarios_pagamentos")
+            .select("id").eq("parcela_id", parcela.id).maybeSingle();
+          if (!existente) {
+            const contrato = Array.isArray(parcela.contrato) ? parcela.contrato[0] : parcela.contrato;
+            const forma = String(payment.billingType ?? "asaas").toLowerCase();
+            await admin.from("honorarios_pagamentos").insert({
+              contrato_id: parcela.contrato_id,
+              parcela_id: parcela.id,
+              cliente_id: contrato?.cliente_id,
+              data_pagamento: String(payment.paymentDate ?? payment.confirmedDate ?? now).slice(0, 10),
+              valor_recebido: Number(payment.value ?? parcela.valor ?? 0),
+              forma_pagamento: forma,
+              tipo_pagamento: "regular",
+              observacao: `Baixa automática Asaas (${paymentId})`,
+            });
+          }
+        }
+      }
     }
 
     await admin.from("asaas_webhook_eventos").update({ processado: true, processado_em: now }).eq("event_id", eventId);
