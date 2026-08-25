@@ -10,6 +10,8 @@ import { Sparkles, Send, X, Maximize2, Loader2, StopCircle } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 
+const BIA_HABILITADA = import.meta.env.VITE_BIA_ENABLED === "true";
+
 /**
  * Botão flutuante + painel de chat rápido (Assistente "Bia").
  * Visível apenas para gestores e advogados em qualquer página interna.
@@ -33,7 +35,7 @@ export function AssistenteFlutuante() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [conversaAtual?.mensagens.length, conversaAtual?.mensagens[conversaAtual.mensagens.length - 1]?.content]);
 
-  if (!podeAcessar) return null;
+  if (!BIA_HABILITADA || !podeAcessar) return null;
 
   const submit = (texto?: string) => {
     const t = (texto ?? input).trim();
