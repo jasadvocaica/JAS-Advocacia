@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Loader2, Pencil, Search, Upload, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Pencil, Search, Upload, XCircle, AlertTriangle, Users, Scale } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { validarCNJ } from "@/lib/datajud";
 
 type Registro = {
   id: string;
@@ -33,6 +34,12 @@ type Registro = {
   processo_criado_id: string | null;
 };
 
+type Auditoria = {
+  clientes_total: number; clientes_sem_documento: number; clientes_sem_email: number; clientes_sem_whatsapp: number;
+  processos_total: number; judiciais_sem_cnj: number; processos_sem_responsavel: number;
+  migracao_total: number; migracao_revisar: number; migracao_prontos: number; migracao_importados: number;
+};
+
 const labels: Record<string, string> = {
   pendente: "Pendente", revisar: "Revisar", pronto: "Pronto",
   ignorado: "Ignorado", importado: "Importado", erro: "Erro",
@@ -45,14 +52,20 @@ export default function MigracaoClientesProcessos() {
   const [loading, setLoading] = useState(true);
   const [processando, setProcessando] = useState<string | null>(null);
   const [editando, setEditando] = useState<Registro | null>(null);
+  const [auditoria, setAuditoria] = useState<Auditoria | null>(null);
+  const [importandoLote, setImportandoLote] = useState(false);
 
   async function carregar() {
     setLoading(true);
     let q = (supabase as any).from("migracao_clientes_processos").select("*").order("linha_origem").limit(500);
     if (status !== "todos") q = q.eq("situacao_validacao", status);
-    const { data, error } = await q;
+    const [{ data, error }, auditRes] = await Promise.all([
+      q,
+      (supabase as any).rpc("auditar_base_clientes_processos"),
+    ]);
     if (error) toast.error(error.message);
     setRegistros(data ?? []);
+    if (!auditRes.error && !auditRes.data?.erro) setAuditoria(auditRes.data as Auditoria);
     setLoading(false);
   }
 
@@ -70,6 +83,9 @@ export default function MigracaoClientesProcessos() {
   async function salvarRevisao(situacao: "revisar" | "pronto" | "ignorado") {
     if (!editando) return;
     if (!editando.nome.trim()) return toast.error("O nome é obrigatório");
+    if (situacao === "pronto" && editando.numero_processo && !validarCNJ(editando.numero_processo)) {
+      return toast.error("Revise o número CNJ antes de aprovar este registro");
+    }
     const { error } = await (supabase as any).from("migracao_clientes_processos").update({
       nome: editando.nome.trim(),
       area: editando.area || null,
@@ -99,6 +115,23 @@ export default function MigracaoClientesProcessos() {
     carregar();
   }
 
+  async function importarProntos() {
+    const { data: prontos, error } = await (supabase as any).from("migracao_clientes_processos")
+      .select("id,nome").eq("situacao_validacao", "pronto").order("linha_origem").limit(500);
+    if (error) return toast.error(error.message);
+    if (!prontos?.length) return toast.info("Nenhum registro aprovado aguardando importação");
+    if (!confirm(`Importar ${prontos.length} registro(s) aprovados para a base oficial?`)) return;
+    setImportandoLote(true);
+    let ok = 0, falhas = 0;
+    for (const item of prontos) {
+      const res = await (supabase as any).rpc("importar_registro_migracao", { p_registro_id: item.id });
+      res.error ? falhas++ : ok++;
+    }
+    setImportandoLote(false);
+    falhas ? toast.warning(`${ok} importados e ${falhas} com erro`) : toast.success(`${ok} registros importados com segurança`);
+    carregar();
+  }
+
   const counts = useMemo(() => registros.reduce((a, r) => {
     a[r.situacao_validacao] = (a[r.situacao_validacao] || 0) + 1;
     return a;
@@ -108,7 +141,18 @@ export default function MigracaoClientesProcessos() {
     <div className="space-y-6">
       <PageHeader title="Migração de clientes e processos" description="Revise os dados da planilha antes de levá-los ao cadastro oficial">
         <Button asChild variant="outline"><Link to="/importacao-exportacao"><ArrowLeft className="w-4 h-4" /> Voltar</Link></Button>
+        <Button variant="gold" onClick={importarProntos} disabled={importandoLote || !auditoria?.migracao_prontos}>
+          {importandoLote ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          Importar aprovados ({auditoria?.migracao_prontos ?? 0})
+        </Button>
       </PageHeader>
+
+      {auditoria && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="p-4"><div className="flex items-center gap-2 text-xs uppercase text-muted-foreground"><Users className="w-4 h-4" /> Clientes oficiais</div><p className="font-display text-2xl mt-1">{auditoria.clientes_total}</p><p className="text-xs text-muted-foreground">{auditoria.clientes_sem_documento} sem documento · {auditoria.clientes_sem_whatsapp} sem WhatsApp</p></Card>
+        <Card className="p-4"><div className="flex items-center gap-2 text-xs uppercase text-muted-foreground"><Scale className="w-4 h-4" /> Processos oficiais</div><p className="font-display text-2xl mt-1">{auditoria.processos_total}</p><p className="text-xs text-muted-foreground">{auditoria.judiciais_sem_cnj} judiciais sem CNJ · {auditoria.processos_sem_responsavel} sem responsável</p></Card>
+        <Card className="p-4"><div className="flex items-center gap-2 text-xs uppercase text-muted-foreground"><AlertTriangle className="w-4 h-4 text-amber-600" /> A revisar</div><p className="font-display text-2xl mt-1">{auditoria.migracao_revisar}</p><p className="text-xs text-muted-foreground">permanecem fora da base oficial</p></Card>
+        <Card className="p-4"><div className="flex items-center gap-2 text-xs uppercase text-muted-foreground"><CheckCircle2 className="w-4 h-4 text-emerald-600" /> Aprovados / importados</div><p className="font-display text-2xl mt-1">{auditoria.migracao_prontos} / {auditoria.migracao_importados}</p><p className="text-xs text-muted-foreground">prontos para importar / concluídos</p></Card>
+      </div>}
 
       <Card className="p-4 border-amber-200 bg-amber-50/60">
         <p className="font-medium">Importação protegida</p>
