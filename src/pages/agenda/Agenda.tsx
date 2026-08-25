@@ -167,26 +167,9 @@ export default function Agenda() {
         )}
       </PageHeader>
 
-      <div className="flex w-fit rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="Visualização da agenda">
-        <Button
-          type="button"
-          size="sm"
-          variant={visualizacao === "google" ? "default" : "ghost"}
-          onClick={() => setVisualizacao("google")}
-          role="tab"
-          aria-selected={visualizacao === "google"}
-        >
-          Visão Google
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={visualizacao === "sistema" ? "default" : "ghost"}
-          onClick={() => setVisualizacao("sistema")}
-          role="tab"
-          aria-selected={visualizacao === "sistema"}
-        >
-          Agenda do sistema
+      <div className="flex w-fit rounded-lg border border-border bg-muted/40 p-1" aria-label="Visualização da agenda">
+        <Button type="button" size="sm" variant="default" disabled>
+          Agenda Google
         </Button>
       </div>
 
@@ -195,7 +178,7 @@ export default function Agenda() {
           <div className="border-b border-border px-4 py-3 sm:px-6">
             <h2 className="font-display text-base">Agenda Google consolidada</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Visualização conjunta das agendas do escritório. Para incluir ou alterar um compromisso, use “Novo evento” ou a Agenda do sistema.
+              Visualização conjunta das agendas do escritório. Para incluir ou alterar um compromisso, use “Abrir no Google Agenda”.
             </p>
           </div>
           <iframe
