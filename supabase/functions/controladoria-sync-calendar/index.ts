@@ -2,7 +2,51 @@
 // Disparada pelos triggers AFTER INSERT/UPDATE/DELETE em controladoria_itens.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_calendar/calendar/v3";
+
+const GOOGLE_API_URL = "https://www.googleapis.com/calendar/v3";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+let tokenCache: { accessToken: string; expiresAt: number } | null = null;
+
+function base64Url(value: Uint8Array | string) {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function getGoogleAccessToken() {
+  if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.accessToken;
+  const email = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+  const privateKeyPem = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")?.replace(/\\n/g, "\n");
+  if (!email || !privateKeyPem) {
+    throw new Error("Google Calendar não autorizado. Configure a conta de serviço no Supabase.");
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = base64Url(JSON.stringify({
+    iss: email,
+    scope: "https://www.googleapis.com/auth/calendar",
+    aud: GOOGLE_TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  }));
+  const signingInput = `${header}.${claims}`;
+  const pemBody = privateKeyPem.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
+  const keyBytes = Uint8Array.from(atob(pemBody), (char) => char.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", keyBytes, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(signingInput));
+  const assertion = `${signingInput}.${base64Url(new Uint8Array(signature))}`;
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.access_token) throw new Error(`Falha ao autorizar Google Calendar [${response.status}]: ${JSON.stringify(data)}`);
+  tokenCache = { accessToken: data.access_token, expiresAt: Date.now() + Number(data.expires_in ?? 3600) * 1000 };
+  return tokenCache.accessToken;
+}
+
 const CALENDAR_ID = Deno.env.get("GOOGLE_CALENDAR_ID") ?? "juridico@julianaaraujoadvocacia.com";
 const TZ = "America/Cuiaba";
 
@@ -84,21 +128,16 @@ function buildEvent(item: any, clienteNome?: string, processoCnj?: string) {
   };
 }
 
-async function gateway(path: string, init: RequestInit & { lovableKey: string; calKey: string }) {
-  const { lovableKey, calKey, ...rest } = init;
-  const res = await fetch(`${GATEWAY_URL}${path}`, {
-    ...rest,
-    headers: {
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": calKey,
-      "Content-Type": "application/json",
-      ...(rest.headers ?? {}),
-    },
+async function googleApi(path: string, init: RequestInit) {
+  const accessToken = await getGoogleAccessToken();
+  const res = await fetch(`${GOOGLE_API_URL}${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", ...(init.headers ?? {}) },
   });
   const text = await res.text();
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
-  if (!res.ok) throw new Error(`GCal[${res.status}]: ${JSON.stringify(data)}`);
+  if (!res.ok) throw new Error(`Google Calendar API [${res.status}]: ${JSON.stringify(data)}`);
   return data;
 }
 
@@ -108,16 +147,9 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const GOOGLE_CALENDAR_API_KEY = Deno.env.get("GOOGLE_CALENDAR_API_KEY");
-
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY não configurado");
-    if (!GOOGLE_CALENDAR_API_KEY) throw new Error("GOOGLE_CALENDAR_API_KEY não configurado");
-
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
     const payload = (await req.json()) as Payload;
     const calId = encodeURIComponent(CALENDAR_ID);
-    const common = { lovableKey: LOVABLE_API_KEY, calKey: GOOGLE_CALENDAR_API_KEY };
 
     // Buscar mapping existente
     const { data: mapping } = await admin
@@ -131,9 +163,9 @@ Deno.serve(async (req) => {
       const calendarIdDelete = payload.calendar_id ?? mapping?.google_calendar_id ?? CALENDAR_ID;
       if (eventIdDelete) {
         try {
-          await gateway(
+          await googleApi(
             `/calendars/${encodeURIComponent(calendarIdDelete)}/events/${encodeURIComponent(eventIdDelete)}`,
-            { method: "DELETE", ...common },
+            { method: "DELETE" },
           );
         } catch (e) {
           console.warn("[sync] delete falhou:", (e as Error).message);
@@ -162,9 +194,9 @@ Deno.serve(async (req) => {
     if (item.status === "cancelado") {
       if (mapping?.google_event_id) {
         try {
-          await gateway(
+          await googleApi(
             `/calendars/${encodeURIComponent(mapping.google_calendar_id)}/events/${encodeURIComponent(mapping.google_event_id)}`,
-            { method: "DELETE", ...common },
+            { method: "DELETE" },
           );
           await admin.from("controladoria_google_eventos").delete().eq("item_id", item.id);
         } catch (e) {
@@ -186,15 +218,15 @@ Deno.serve(async (req) => {
     let eventId: string;
     try {
       if (mapping?.google_event_id) {
-        const updated = await gateway(
+        const updated = await googleApi(
           `/calendars/${encodeURIComponent(mapping.google_calendar_id)}/events/${encodeURIComponent(mapping.google_event_id)}`,
-          { method: "PATCH", body: JSON.stringify(eventBody), ...common },
+          { method: "PATCH", body: JSON.stringify(eventBody) },
         );
         eventId = updated.id;
       } else {
-        const created = await gateway(
+        const created = await googleApi(
           `/calendars/${calId}/events`,
-          { method: "POST", body: JSON.stringify(eventBody), ...common },
+          { method: "POST", body: JSON.stringify(eventBody) },
         );
         eventId = created.id;
       }
