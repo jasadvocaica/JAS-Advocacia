@@ -27,3 +27,10 @@ verify_jwt = true
 
 [functions.email-eventos]
 verify_jwt = true
+
+[functions.asaas-cobranca]
+verify_jwt = true
+
+# Endpoint público somente para o Asaas; o corpo valida ASAAS_WEBHOOK_TOKEN.
+[functions.asaas-webhook]
+verify_jwt = false
