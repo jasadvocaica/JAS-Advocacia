@@ -129,7 +129,7 @@ export default function FechamentoMensal() {
           supabase.from("financeiro_pro_labore")
             .select("valor").eq("mes", mes).eq("ano", ano),
           (supabase as any).from("diligencias")
-            .select("valor_recebido").eq("pagamento_status", "recebido")
+            .select("valor_recebido").eq("natureza_receita", "escritorio").eq("pagamento_status", "recebido")
             .gte("data_recebimento", inicio).lte("data_recebimento", fim),
           (supabase as any).from("financeiro_saidas")
             .select("valor,status,data_pagamento")
@@ -191,6 +191,7 @@ export default function FechamentoMensal() {
           .order("criado_em", { ascending: true }),
         (supabase as any).from("diligencias")
           .select("id,data_recebimento,valor_recebido,forma_pagamento,contratante_nome,cliente:clientes(nome)")
+          .eq("natureza_receita", "escritorio")
           .eq("pagamento_status", "recebido")
           .gte("data_recebimento", inicio).lte("data_recebimento", fim)
           .order("data_recebimento", { ascending: true }),
