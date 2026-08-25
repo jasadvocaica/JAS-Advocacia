@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_calendar/calendar/v3";
-const CALENDAR_ID = Deno.env.get("GOOGLE_CALENDAR_ID") ?? "primary";
+const CALENDAR_ID = Deno.env.get("GOOGLE_CALENDAR_ID") ?? "juridico@julianaaraujoadvocacia.com";
 const TZ = "America/Cuiaba";
 
 const corsHeaders = {
