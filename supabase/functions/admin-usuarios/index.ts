@@ -52,7 +52,7 @@ const PERMISSOES_PADRAO: Record<AppRole, Partial<Record<Modulo, PermDef>>> = {
   estagiario: {
     clientes:      { v: true, c: false, e: false, d: false, x: false },
     processos:     { v: true, c: false, e: false, d: false, x: false },
-    controladoria: { v: true, c: true,  e: true, d: true,  x: false },
+    controladoria: { v: true, c: true,  e: true, d: false, x: false },
     documentos:    { v: true, c: true,  e: true, d: false, x: false },
     dashboard:     { v: true, c: false, e: false, d: false, x: false },
   },
