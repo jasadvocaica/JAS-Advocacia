@@ -29,6 +29,8 @@ interface KPIs {
   despesasMes: number;
   saldoRealizado: number;
   previsto30: number;
+  previsto60: number;
+  previsto90: number;
   inadimplenciaPercentual: number;
   atraso1a7: number;
   atraso8a30: number;
@@ -56,7 +58,7 @@ export default function FinanceiroDashboard() {
     contratosAtivos: 0, parcelasAtrasadas: 0, repassesPendentes: 0,
     diligenciasContratado: 0, diligenciasRecebido: 0, diligenciasAReceber: 0,
     diligenciasCustos: 0, diligenciasLucro: 0,
-    despesasMes: 0, saldoRealizado: 0, previsto30: 0, inadimplenciaPercentual: 0,
+    despesasMes: 0, saldoRealizado: 0, previsto30: 0, previsto60: 0, previsto90: 0, inadimplenciaPercentual: 0,
     atraso1a7: 0, atraso8a30: 0, atrasoMais30: 0, asaasPendentes: 0, asaasErros: 0,
   });
   const [proximas, setProximas] = useState<ParcelaProx[]>([]);
@@ -69,6 +71,8 @@ export default function FinanceiroDashboard() {
       const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
       const inicioProximoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1).toISOString().slice(0, 10);
       const fim30 = new Date(hoje.getTime() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const fim60 = new Date(hoje.getTime() + 60 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const fim90 = new Date(hoje.getTime() + 90 * 24 * 3600 * 1000).toISOString().slice(0, 10);
       const hojeIso = hoje.toISOString().slice(0, 10);
 
       const [pagsMes, parc30, parcAtraso, contAtivos, exitoEst, repPend, proximasRes, diligenciasMes, saidasMes, todasAbertas, diligenciasAbertas, asaasParcelas, asaasDiligencias] = await Promise.all([
@@ -138,6 +142,12 @@ export default function FinanceiroDashboard() {
       const atraso1a7 = abertas.filter(p => diasAtraso(p.data_vencimento) >= 1 && diasAtraso(p.data_vencimento) <= 7).reduce((s, p) => s + Number(p.valor ?? 0), 0);
       const atraso8a30 = abertas.filter(p => diasAtraso(p.data_vencimento) >= 8 && diasAtraso(p.data_vencimento) <= 30).reduce((s, p) => s + Number(p.valor ?? 0), 0);
       const atrasoMais30 = abertas.filter(p => diasAtraso(p.data_vencimento) > 30).reduce((s, p) => s + Number(p.valor ?? 0), 0);
+      const saldoDiligencia = (d: any) => Math.max(0, Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0));
+      const previstoAte = (limite: string) =>
+        abertas.filter(p => p.data_vencimento >= hojeIso && p.data_vencimento <= limite)
+          .reduce((s, p) => s + Number(p.valor ?? 0), 0) +
+        diligAbertas.filter(d => d.data_vencimento_cobranca && d.data_vencimento_cobranca >= hojeIso && d.data_vencimento_cobranca <= limite)
+          .reduce((s, d) => s + saldoDiligencia(d), 0);
       const asaasTodos = [...((asaasParcelas.data ?? []) as any[]), ...((asaasDiligencias.data ?? []) as any[])];
       const asaasPendentes = asaasTodos.filter(a => !["RECEIVED", "CONFIRMED", "REFUNDED", "DELETED"].includes(String(a.asaas_status ?? ""))).length;
       const asaasErros = asaasTodos.filter(a => Boolean(a.asaas_ultimo_erro)).length;
@@ -169,7 +179,9 @@ export default function FinanceiroDashboard() {
         diligenciasLucro,
         despesasMes,
         saldoRealizado,
-        previsto30: aReceber30 - repassesPendentes,
+        previsto30: previstoAte(fim30),
+        previsto60: previstoAte(fim60),
+        previsto90: previstoAte(fim90),
         inadimplenciaPercentual: totalCarteiraAberta > 0 ? (emAtrasoGeral / totalCarteiraAberta) * 100 : 0,
         atraso1a7,
         atraso8a30,
@@ -249,7 +261,22 @@ export default function FinanceiroDashboard() {
               <KpiCard icon={<TrendingUp className="w-3.5 h-3.5 text-success" />} label="Entradas realizadas" value={formatBRL(kpis.recebidoMes)} />
               <KpiCard icon={<TrendingDown className="w-3.5 h-3.5 text-destructive" />} label="Despesas pagas" value={formatBRL(kpis.despesasMes)} />
               <KpiCard icon={<Wallet className="w-3.5 h-3.5 text-primary" />} label="Saldo realizado" value={formatBRL(kpis.saldoRealizado)} />
-              <KpiCard icon={<Clock className="w-3.5 h-3.5 text-amber-600" />} label="Previsão líquida 30d" value={formatBRL(kpis.previsto30)} />
+              <KpiCard icon={<Clock className="w-3.5 h-3.5 text-amber-600" />} label="A receber em 30d" value={formatBRL(kpis.previsto30)} />
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-display text-lg">Previsão de recebimentos</h3>
+                <p className="text-xs text-muted-foreground">Honorários e diligências com vencimento futuro</p>
+              </div>
+              <Button asChild variant="outline" size="sm"><Link to="/financeiro/parcelas">Ver parcelas <ArrowUpRight className="w-3.5 h-3.5" /></Link></Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <KpiCard icon={<Clock className="w-3.5 h-3.5 text-primary" />} label="Próximos 30 dias" value={formatBRL(kpis.previsto30)} />
+              <KpiCard icon={<Clock className="w-3.5 h-3.5 text-amber-600" />} label="Próximos 60 dias" value={formatBRL(kpis.previsto60)} />
+              <KpiCard icon={<Clock className="w-3.5 h-3.5 text-gold" />} label="Próximos 90 dias" value={formatBRL(kpis.previsto90)} />
             </div>
           </Card>
 
