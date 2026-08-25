@@ -13,7 +13,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Loader2, Search, Wallet, ExternalLink, CheckCircle2, FileDown, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Wallet, ExternalLink, CheckCircle2, FileDown, FileText, ReceiptText } from "lucide-react";
 import { exportarCsv, exportarPdf } from "./exportar-financeiro";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,9 @@ interface Parcela {
   contrato_id: string;
   cliente_id: string;
   cliente_nome?: string;
+  asaas_payment_id?: string | null;
+  asaas_status?: string | null;
+  asaas_invoice_url?: string | null;
 }
 
 export default function ParcelasAReceber() {
@@ -41,6 +44,7 @@ export default function ParcelasAReceber() {
   const [periodo, setPeriodo] = useState("365");
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [gerandoCobranca, setGerandoCobranca] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -57,14 +61,15 @@ export default function ParcelasAReceber() {
       const hojeIso = new Date().toISOString().slice(0, 10);
       const { data } = await supabase
         .from("honorarios_parcelas")
-        .select("id, numero_parcela, valor, data_vencimento, status, contrato_id, cliente_id, clientes:cliente_id(nome)")
+        .select("id, numero_parcela, valor, data_vencimento, status, contrato_id, asaas_payment_id, asaas_status, asaas_invoice_url, contrato:honorarios_contratos!inner(cliente_id, clientes:cliente_id(nome))")
         .or(`status.eq.atrasado,and(status.eq.pendente,data_vencimento.lte.${new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().slice(0, 10)})`)
         .order("data_vencimento", { ascending: true })
         .limit(500);
       if (!alive) return;
       const list = ((data as any[]) ?? []).map(r => ({
         ...r,
-        cliente_nome: r.clientes?.nome,
+        cliente_id: r.contrato?.cliente_id,
+        cliente_nome: r.contrato?.clientes?.nome,
         status: r.status === "pendente" && r.data_vencimento < hojeIso ? "atrasado" : r.status,
       }));
       setRows(list);
@@ -127,6 +132,28 @@ export default function ParcelasAReceber() {
     setRefreshKey(k => k + 1);
   }
 
+  async function gerarCobranca(parcela: Parcela) {
+    setGerandoCobranca(parcela.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("asaas-cobranca", {
+        body: {
+          action: "criar_cobranca_parcela",
+          parcela_id: parcela.id,
+          billing_type: "UNDEFINED",
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(data?.ja_existente ? "Cobrança já existente." : "Cobrança criada no Asaas Sandbox.");
+      if (data?.invoice_url) window.open(data.invoice_url, "_blank", "noopener,noreferrer");
+      setRefreshKey(k => k + 1);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível gerar a cobrança.");
+    } finally {
+      setGerandoCobranca(null);
+    }
+  }
+
   const allChecked = filtered.length > 0 && filtered.every(p => selecionadas.has(p.id));
   const totalFiltrado = filtered.reduce((s, r) => s + Number(r.valor), 0);
 
@@ -161,7 +188,7 @@ export default function ParcelasAReceber() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Parcelas a receber" description="Selecione várias parcelas para dar baixa de uma só vez">
+      <PageHeader title="Parcelas a receber" description="Controle vencimentos, gere cobranças Asaas e registre baixas">
         <Button asChild variant="ghost" size="sm">
           <Link to="/financeiro"><ArrowLeft className="w-4 h-4" /> Voltar</Link>
         </Button>
@@ -251,6 +278,25 @@ export default function ParcelasAReceber() {
                       </p>
                     </div>
                     <span className="font-mono font-medium shrink-0">{formatBRL(Number(p.valor))}</span>
+                    {p.asaas_invoice_url ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={p.asaas_invoice_url} target="_blank" rel="noreferrer">
+                          <ExternalLink className="w-3.5 h-3.5" /> Fatura
+                        </a>
+                      </Button>
+                    ) : podeRegistrar ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => gerarCobranca(p)}
+                        disabled={gerandoCobranca === p.id}
+                      >
+                        {gerandoCobranca === p.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <ReceiptText className="w-3.5 h-3.5" />}
+                        Cobrar
+                      </Button>
+                    ) : null}
                     <Link to={`/financeiro/contratos/${p.contrato_id}`} title="Abrir contrato">
                       <ExternalLink className="w-4 h-4 text-muted-foreground" />
                     </Link>
