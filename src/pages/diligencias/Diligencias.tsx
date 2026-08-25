@@ -230,7 +230,7 @@ export default function Diligencias() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       await (supabase as any).from("diligencias").update({
         google_event_id: data.id ?? anterior?.google_event_id ?? null,
-        google_calendar_id: "primary",
+        google_calendar_id: "juridico@julianaaraujoadvocacia.com",
         google_ultimo_sync: new Date().toISOString(),
         google_ultimo_erro: null,
       }).eq("id", id);
