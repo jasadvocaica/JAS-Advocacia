@@ -89,6 +89,7 @@ export default function FinanceiroDashboard() {
           .limit(10),
         (supabase as any).from("diligencias")
           .select("valor_contratado,valor_recebido,custo_total,pagamento_status")
+          .eq("natureza_receita", "escritorio")
           .gte("data_hora", inicioMes + "T00:00:00-04:00")
           .lt("data_hora", inicioProximoMes + "T00:00:00-04:00"),
         (supabase as any).from("financeiro_saidas")
@@ -99,12 +100,15 @@ export default function FinanceiroDashboard() {
           .in("status", ["pendente", "atrasado"]),
         (supabase as any).from("diligencias")
           .select("valor_contratado,valor_recebido,data_vencimento_cobranca,pagamento_status")
+          .eq("natureza_receita", "escritorio")
           .in("pagamento_status", ["a_receber", "parcial"]),
         supabase.from("honorarios_parcelas")
           .select("asaas_status,asaas_ultimo_erro")
+          .eq("natureza_receita", "escritorio")
           .not("asaas_payment_id", "is", null),
         (supabase as any).from("diligencias")
           .select("asaas_status,asaas_ultimo_erro")
+          .eq("natureza_receita", "escritorio")
           .not("asaas_payment_id", "is", null),
       ]);
 
