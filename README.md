@@ -135,3 +135,12 @@ npm run build
 
 Certifique-se de configurar `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` e `VITE_APP_URL` no ambiente de produção.
 
+## Assistente Bia
+
+A Bia permanece desativada por padrão até a contratação de uma API de inteligência artificial.
+
+- Frontend: `VITE_BIA_ENABLED=false`
+- Supabase Edge Functions: ausência de `BIA_ENABLED=true` mantém os endpoints bloqueados
+- A aplicação jurídica, financeira, a Controladoria e as integrações operacionais não dependem da Bia
+
+Para ativar futuramente, primeiro implemente e configure o provedor escolhido (OpenAI, Anthropic ou Google), armazene a chave somente nos Secrets do Supabase e depois habilite as duas variáveis. Nunca salve chaves no GitHub.
