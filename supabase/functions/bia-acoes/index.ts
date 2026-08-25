@@ -214,8 +214,23 @@ ${JSON.stringify(ctx, null, 2)}
 Chame a função sugerir_acoes com a análise.`;
 }
 
+const BIA_HABILITADA = Deno.env.get("BIA_ENABLED")?.toLowerCase() === "true";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  if (!BIA_HABILITADA) {
+    return new Response(
+      JSON.stringify({
+        error: "Bia temporariamente desativada",
+        code: "BIA_DISABLED",
+      }),
+      {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
 
   try {
     const auth = req.headers.get("Authorization");
