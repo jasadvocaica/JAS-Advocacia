@@ -1,4 +1,4 @@
-# Funções internas exigem JWT. O MCP usa token próprio validado no corpo da função.
+# Funções internas exigem JWT. Endpoints de cron/webhook validam segredo próprio no corpo da função.
 project_id = "mzwnljgujheumdslkloc"
 
 [functions.google-calendar]
@@ -34,3 +34,21 @@ verify_jwt = true
 # Endpoint público somente para o Asaas; o corpo valida ASAAS_WEBHOOK_TOKEN.
 [functions.asaas-webhook]
 verify_jwt = false
+
+# Consulta manual pelo usuário autenticado e execução diária por segredo de cron.
+[functions.datajud-consulta]
+verify_jwt = false
+
+# Sincronização diária do DJEN; valida segredo de cron ou usuário autenticado.
+[functions.pje-comunica-sync]
+verify_jwt = false
+
+# Consultas interativas no cadastro de processos exigem sessão válida.
+[functions.datajud-search]
+verify_jwt = true
+
+[functions.datajud-lote]
+verify_jwt = true
+
+[functions.pje-comunica-consulta]
+verify_jwt = true
