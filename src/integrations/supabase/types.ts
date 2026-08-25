@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -69,6 +69,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      asaas_integracao_log: {
+        Row: {
+          acao: string
+          asaas_id: string | null
+          criado_em: string
+          criado_por: string | null
+          detalhes: Json | null
+          entidade_id: string | null
+          entidade_tipo: string | null
+          id: string
+          mensagem: string | null
+          sucesso: boolean
+        }
+        Insert: {
+          acao: string
+          asaas_id?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          detalhes?: Json | null
+          entidade_id?: string | null
+          entidade_tipo?: string | null
+          id?: string
+          mensagem?: string | null
+          sucesso: boolean
+        }
+        Update: {
+          acao?: string
+          asaas_id?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          detalhes?: Json | null
+          entidade_id?: string | null
+          entidade_tipo?: string | null
+          id?: string
+          mensagem?: string | null
+          sucesso?: boolean
+        }
+        Relationships: []
+      }
+      asaas_webhook_eventos: {
+        Row: {
+          erro: string | null
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json
+          payment_id: string | null
+          processado: boolean
+          processado_em: string | null
+          recebido_em: string
+        }
+        Insert: {
+          erro?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          payload: Json
+          payment_id?: string | null
+          processado?: boolean
+          processado_em?: string | null
+          recebido_em?: string
+        }
+        Update: {
+          erro?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          payment_id?: string | null
+          processado?: boolean
+          processado_em?: string | null
+          recebido_em?: string
+        }
+        Relationships: []
       }
       assistente_conversas: {
         Row: {
@@ -1420,6 +1495,7 @@ export type Database = {
       clientes: {
         Row: {
           advogado_responsavel_id: string | null
+          asaas_customer_id: string | null
           ativo: boolean
           atualizado_em: string
           autoriza_parceiro_ver_whatsapp: boolean
@@ -1477,6 +1553,7 @@ export type Database = {
         }
         Insert: {
           advogado_responsavel_id?: string | null
+          asaas_customer_id?: string | null
           ativo?: boolean
           atualizado_em?: string
           autoriza_parceiro_ver_whatsapp?: boolean
@@ -1534,6 +1611,7 @@ export type Database = {
         }
         Update: {
           advogado_responsavel_id?: string | null
+          asaas_customer_id?: string | null
           ativo?: boolean
           atualizado_em?: string
           autoriza_parceiro_ver_whatsapp?: boolean
@@ -2331,6 +2409,172 @@ export type Database = {
             columns: ["fluxo_template_id"]
             isOneToOne: false
             referencedRelation: "fluxos_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diligencias: {
+        Row: {
+          asaas_bank_slip_url: string | null
+          asaas_billing_type: string | null
+          asaas_invoice_url: string | null
+          asaas_payment_id: string | null
+          asaas_status: string | null
+          asaas_ultimo_erro: string | null
+          asaas_ultimo_sync: string | null
+          atualizado_em: string
+          cliente_id: string | null
+          contratante_nome: string
+          contratante_telefone: string | null
+          criado_em: string
+          criado_por: string | null
+          custo_combustivel: number
+          custo_papel: number
+          custo_tinta: number
+          custo_total: number | null
+          data_hora: string
+          data_recebimento: string | null
+          data_vencimento_cobranca: string | null
+          descricao: string
+          forma_pagamento: string | null
+          google_calendar_id: string | null
+          google_event_id: string | null
+          google_ultimo_erro: string | null
+          google_ultimo_sync: string | null
+          id: string
+          incluir_relatorio_contabil: boolean | null
+          km_rodado: number
+          local: string | null
+          lucro_previsto: number | null
+          lucro_realizado: number | null
+          natureza_receita: string
+          observacoes: string | null
+          origem: string
+          outras_despesas: number
+          pagamento_status: string
+          paginas_impressas: number
+          processo_id: string | null
+          referencia_externa: string | null
+          sincronizar_google: boolean
+          status: string
+          tipo: string
+          valor_contratado: number | null
+          valor_recebido: number
+        }
+        Insert: {
+          asaas_bank_slip_url?: string | null
+          asaas_billing_type?: string | null
+          asaas_invoice_url?: string | null
+          asaas_payment_id?: string | null
+          asaas_status?: string | null
+          asaas_ultimo_erro?: string | null
+          asaas_ultimo_sync?: string | null
+          atualizado_em?: string
+          cliente_id?: string | null
+          contratante_nome: string
+          contratante_telefone?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          custo_combustivel?: number
+          custo_papel?: number
+          custo_tinta?: number
+          custo_total?: number | null
+          data_hora: string
+          data_recebimento?: string | null
+          data_vencimento_cobranca?: string | null
+          descricao: string
+          forma_pagamento?: string | null
+          google_calendar_id?: string | null
+          google_event_id?: string | null
+          google_ultimo_erro?: string | null
+          google_ultimo_sync?: string | null
+          id?: string
+          incluir_relatorio_contabil?: boolean | null
+          km_rodado?: number
+          local?: string | null
+          lucro_previsto?: number | null
+          lucro_realizado?: number | null
+          natureza_receita?: string
+          observacoes?: string | null
+          origem?: string
+          outras_despesas?: number
+          pagamento_status?: string
+          paginas_impressas?: number
+          processo_id?: string | null
+          referencia_externa?: string | null
+          sincronizar_google?: boolean
+          status?: string
+          tipo?: string
+          valor_contratado?: number | null
+          valor_recebido?: number
+        }
+        Update: {
+          asaas_bank_slip_url?: string | null
+          asaas_billing_type?: string | null
+          asaas_invoice_url?: string | null
+          asaas_payment_id?: string | null
+          asaas_status?: string | null
+          asaas_ultimo_erro?: string | null
+          asaas_ultimo_sync?: string | null
+          atualizado_em?: string
+          cliente_id?: string | null
+          contratante_nome?: string
+          contratante_telefone?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          custo_combustivel?: number
+          custo_papel?: number
+          custo_tinta?: number
+          custo_total?: number | null
+          data_hora?: string
+          data_recebimento?: string | null
+          data_vencimento_cobranca?: string | null
+          descricao?: string
+          forma_pagamento?: string | null
+          google_calendar_id?: string | null
+          google_event_id?: string | null
+          google_ultimo_erro?: string | null
+          google_ultimo_sync?: string | null
+          id?: string
+          incluir_relatorio_contabil?: boolean | null
+          km_rodado?: number
+          local?: string | null
+          lucro_previsto?: number | null
+          lucro_realizado?: number | null
+          natureza_receita?: string
+          observacoes?: string | null
+          origem?: string
+          outras_despesas?: number
+          pagamento_status?: string
+          paginas_impressas?: number
+          processo_id?: string | null
+          referencia_externa?: string | null
+          sincronizar_google?: boolean
+          status?: string
+          tipo?: string
+          valor_contratado?: number | null
+          valor_recebido?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diligencias_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diligencias_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "v_clientes_duplicados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diligencias_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
             referencedColumns: ["id"]
           },
         ]
@@ -5584,6 +5828,13 @@ export type Database = {
       }
       honorarios_parcelas: {
         Row: {
+          asaas_bank_slip_url: string | null
+          asaas_billing_type: string | null
+          asaas_invoice_url: string | null
+          asaas_payment_id: string | null
+          asaas_status: string | null
+          asaas_ultimo_erro: string | null
+          asaas_ultimo_sync: string | null
           contrato_id: string
           criado_em: string
           data_vencimento: string
@@ -5593,6 +5844,13 @@ export type Database = {
           valor: number
         }
         Insert: {
+          asaas_bank_slip_url?: string | null
+          asaas_billing_type?: string | null
+          asaas_invoice_url?: string | null
+          asaas_payment_id?: string | null
+          asaas_status?: string | null
+          asaas_ultimo_erro?: string | null
+          asaas_ultimo_sync?: string | null
           contrato_id: string
           criado_em?: string
           data_vencimento: string
@@ -5602,6 +5860,13 @@ export type Database = {
           valor: number
         }
         Update: {
+          asaas_bank_slip_url?: string | null
+          asaas_billing_type?: string | null
+          asaas_invoice_url?: string | null
+          asaas_payment_id?: string | null
+          asaas_status?: string | null
+          asaas_ultimo_erro?: string | null
+          asaas_ultimo_sync?: string | null
           contrato_id?: string
           criado_em?: string
           data_vencimento?: string
@@ -6059,6 +6324,136 @@ export type Database = {
           valor_alvo?: number
         }
         Relationships: []
+      }
+      migracao_clientes_processos: {
+        Row: {
+          alertas: Json
+          area: string | null
+          atualizado_em: string
+          caminho_pasta: string | null
+          cliente_criado_id: string | null
+          cliente_existente_id: string | null
+          criado_em: string
+          data_entrada: string | null
+          id: string
+          linha_origem: number
+          nome: string
+          numero_processo: string | null
+          observacoes: string | null
+          origem: string
+          prioridade: string | null
+          processo_criado_id: string | null
+          processo_existente_id: string | null
+          protocolado: string | null
+          proxima_acao: string | null
+          proximo_prazo: string | null
+          responsavel: string | null
+          revisado_em: string | null
+          revisado_por: string | null
+          servico_demanda: string | null
+          situacao_validacao: string
+          status_origem: string | null
+        }
+        Insert: {
+          alertas?: Json
+          area?: string | null
+          atualizado_em?: string
+          caminho_pasta?: string | null
+          cliente_criado_id?: string | null
+          cliente_existente_id?: string | null
+          criado_em?: string
+          data_entrada?: string | null
+          id?: string
+          linha_origem: number
+          nome: string
+          numero_processo?: string | null
+          observacoes?: string | null
+          origem?: string
+          prioridade?: string | null
+          processo_criado_id?: string | null
+          processo_existente_id?: string | null
+          protocolado?: string | null
+          proxima_acao?: string | null
+          proximo_prazo?: string | null
+          responsavel?: string | null
+          revisado_em?: string | null
+          revisado_por?: string | null
+          servico_demanda?: string | null
+          situacao_validacao?: string
+          status_origem?: string | null
+        }
+        Update: {
+          alertas?: Json
+          area?: string | null
+          atualizado_em?: string
+          caminho_pasta?: string | null
+          cliente_criado_id?: string | null
+          cliente_existente_id?: string | null
+          criado_em?: string
+          data_entrada?: string | null
+          id?: string
+          linha_origem?: number
+          nome?: string
+          numero_processo?: string | null
+          observacoes?: string | null
+          origem?: string
+          prioridade?: string | null
+          processo_criado_id?: string | null
+          processo_existente_id?: string | null
+          protocolado?: string | null
+          proxima_acao?: string | null
+          proximo_prazo?: string | null
+          responsavel?: string | null
+          revisado_em?: string | null
+          revisado_por?: string | null
+          servico_demanda?: string | null
+          situacao_validacao?: string
+          status_origem?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "migracao_clientes_processos_cliente_criado_id_fkey"
+            columns: ["cliente_criado_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "migracao_clientes_processos_cliente_criado_id_fkey"
+            columns: ["cliente_criado_id"]
+            isOneToOne: false
+            referencedRelation: "v_clientes_duplicados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "migracao_clientes_processos_cliente_existente_id_fkey"
+            columns: ["cliente_existente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "migracao_clientes_processos_cliente_existente_id_fkey"
+            columns: ["cliente_existente_id"]
+            isOneToOne: false
+            referencedRelation: "v_clientes_duplicados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "migracao_clientes_processos_processo_criado_id_fkey"
+            columns: ["processo_criado_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "migracao_clientes_processos_processo_existente_id_fkey"
+            columns: ["processo_existente_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mkt_campanhas: {
         Row: {
@@ -8457,6 +8852,7 @@ export type Database = {
       }
       aprovar_submissao_parceiro: { Args: { _id: string }; Returns: string }
       atualizar_parcelas_atrasadas: { Args: never; Returns: number }
+      auditar_base_clientes_processos: { Args: never; Returns: Json }
       calcular_rbt12: { Args: { _ano: number; _mes: number }; Returns: number }
       can_manage_controladoria_responsaveis: {
         Args: { _item_id: string; _user_id: string }
@@ -8474,6 +8870,10 @@ export type Database = {
       catalogo_norm: { Args: { _t: string }; Returns: string }
       catalogo_seed_levantamento: { Args: never; Returns: Json }
       catalogo_sugerir_homologacao: { Args: never; Returns: Json }
+      classificar_migracao_clientes_processos: {
+        Args: never
+        Returns: undefined
+      }
       cliente_completude: { Args: { _id: string }; Returns: number }
       cliente_id_do_usuario: { Args: { _user_id: string }; Returns: string }
       cliente_id_por_cpf: { Args: { _cpf: string }; Returns: string }
@@ -8601,7 +9001,6 @@ export type Database = {
         Args: { _expira_em?: string; _nome: string }
         Returns: Json
       }
-      disparar_email_evento: { Args: { _payload: Json }; Returns: undefined }
       gerar_parcelas_contrato: {
         Args: { _contrato_id: string }
         Returns: number
@@ -8629,6 +9028,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      importar_registro_migracao: {
+        Args: { p_registro_id: string }
+        Returns: Json
       }
       iniciar_producao_juridica: {
         Args: { _atendimento_id: string; _processo_id?: string }
@@ -8915,6 +9318,11 @@ export type Database = {
         Args: { _processo_id: string; _user_id: string }
         Returns: boolean
       }
+      validar_datajud_cron_secret: {
+        Args: { _secret: string }
+        Returns: boolean
+      }
+      validar_djen_cron_secret: { Args: { _secret: string }; Returns: boolean }
     }
     Enums: {
       acao_permissao: "visualizar" | "criar" | "editar" | "excluir" | "exportar"
@@ -9340,4 +9748,3 @@ export const Constants = {
     },
   },
 } as const
-
