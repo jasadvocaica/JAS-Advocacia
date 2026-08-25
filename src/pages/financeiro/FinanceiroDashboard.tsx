@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Wallet, TrendingUp, AlertCircle, Clock, CheckCircle2, Plus,
   FileText, ArrowUpRight, Loader2, Users, HandCoins, Settings, Calculator,
-  TrendingDown, Package, GitCompare,
+  TrendingDown, Package, GitCompare, ReceiptText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +26,15 @@ interface KPIs {
   diligenciasAReceber: number;
   diligenciasCustos: number;
   diligenciasLucro: number;
+  despesasMes: number;
+  saldoRealizado: number;
+  previsto30: number;
+  inadimplenciaPercentual: number;
+  atraso1a7: number;
+  atraso8a30: number;
+  atrasoMais30: number;
+  asaasPendentes: number;
+  asaasErros: number;
 }
 
 interface ParcelaProx {
@@ -47,6 +56,8 @@ export default function FinanceiroDashboard() {
     contratosAtivos: 0, parcelasAtrasadas: 0, repassesPendentes: 0,
     diligenciasContratado: 0, diligenciasRecebido: 0, diligenciasAReceber: 0,
     diligenciasCustos: 0, diligenciasLucro: 0,
+    despesasMes: 0, saldoRealizado: 0, previsto30: 0, inadimplenciaPercentual: 0,
+    atraso1a7: 0, atraso8a30: 0, atrasoMais30: 0, asaasPendentes: 0, asaasErros: 0,
   });
   const [proximas, setProximas] = useState<ParcelaProx[]>([]);
 
@@ -60,7 +71,7 @@ export default function FinanceiroDashboard() {
       const fim30 = new Date(hoje.getTime() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
       const hojeIso = hoje.toISOString().slice(0, 10);
 
-      const [pagsMes, parc30, parcAtraso, contAtivos, exitoEst, repPend, proximasRes, diligenciasMes] = await Promise.all([
+      const [pagsMes, parc30, parcAtraso, contAtivos, exitoEst, repPend, proximasRes, diligenciasMes, saidasMes, todasAbertas, diligenciasAbertas, asaasParcelas, asaasDiligencias] = await Promise.all([
         supabase.from("honorarios_pagamentos").select("valor_recebido").gte("data_pagamento", inicioMes),
         supabase.from("honorarios_parcelas").select("valor").eq("status", "pendente").lte("data_vencimento", fim30).gte("data_vencimento", hojeIso),
         supabase.from("honorarios_parcelas").select("valor, id").in("status", ["pendente", "atrasado"]).lt("data_vencimento", hojeIso),
@@ -76,6 +87,21 @@ export default function FinanceiroDashboard() {
           .select("valor_contratado,valor_recebido,custo_total,pagamento_status")
           .gte("data_hora", inicioMes + "T00:00:00-04:00")
           .lt("data_hora", inicioProximoMes + "T00:00:00-04:00"),
+        (supabase as any).from("financeiro_saidas")
+          .select("valor,status,data_pagamento,data_competencia")
+          .gte("data_competencia", inicioMes).lt("data_competencia", inicioProximoMes),
+        supabase.from("honorarios_parcelas")
+          .select("valor,data_vencimento,status")
+          .in("status", ["pendente", "atrasado"]),
+        (supabase as any).from("diligencias")
+          .select("valor_contratado,valor_recebido,data_vencimento_cobranca,pagamento_status")
+          .in("pagamento_status", ["a_receber", "parcial"]),
+        supabase.from("honorarios_parcelas")
+          .select("asaas_status,asaas_ultimo_erro")
+          .not("asaas_payment_id", "is", null),
+        (supabase as any).from("diligencias")
+          .select("asaas_status,asaas_ultimo_erro")
+          .not("asaas_payment_id", "is", null),
       ]);
 
       if (!alive) return;
@@ -94,6 +120,27 @@ export default function FinanceiroDashboard() {
         .filter(d => ["a_receber", "parcial"].includes(d.pagamento_status))
         .reduce((s, d) => s + Math.max(0, Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0)), 0);
       const diligenciasLucro = diligenciasRecebido - diligenciasCustos;
+      const despesasMes = ((saidasMes.data ?? []) as any[])
+        .filter(s => s.status === "pago" || Boolean(s.data_pagamento))
+        .reduce((sum, s) => sum + Number(s.valor ?? 0), 0);
+      const recebimentosTotais = recebidoMes + diligenciasRecebido;
+      const saldoRealizado = recebimentosTotais - despesasMes - repassesPendentes;
+      const abertas = (todasAbertas.data ?? []) as any[];
+      const diligAbertas = (diligenciasAbertas.data ?? []) as any[];
+      const valorAbertoHonorarios = abertas.reduce((s, p) => s + Number(p.valor ?? 0), 0);
+      const valorAbertoDiligencias = diligAbertas.reduce((s, d) => s + Math.max(0, Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0)), 0);
+      const totalCarteiraAberta = valorAbertoHonorarios + valorAbertoDiligencias;
+      const emAtrasoGeral = abertas.filter(p => p.data_vencimento < hojeIso)
+        .reduce((s, p) => s + Number(p.valor ?? 0), 0)
+        + diligAbertas.filter(d => d.data_vencimento_cobranca && d.data_vencimento_cobranca < hojeIso)
+          .reduce((s, d) => s + Math.max(0, Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0)), 0);
+      const diasAtraso = (data: string) => Math.floor((hoje.getTime() - new Date(data + "T00:00:00").getTime()) / 86400000);
+      const atraso1a7 = abertas.filter(p => diasAtraso(p.data_vencimento) >= 1 && diasAtraso(p.data_vencimento) <= 7).reduce((s, p) => s + Number(p.valor ?? 0), 0);
+      const atraso8a30 = abertas.filter(p => diasAtraso(p.data_vencimento) >= 8 && diasAtraso(p.data_vencimento) <= 30).reduce((s, p) => s + Number(p.valor ?? 0), 0);
+      const atrasoMais30 = abertas.filter(p => diasAtraso(p.data_vencimento) > 30).reduce((s, p) => s + Number(p.valor ?? 0), 0);
+      const asaasTodos = [...((asaasParcelas.data ?? []) as any[]), ...((asaasDiligencias.data ?? []) as any[])];
+      const asaasPendentes = asaasTodos.filter(a => !["RECEIVED", "CONFIRMED", "REFUNDED", "DELETED"].includes(String(a.asaas_status ?? ""))).length;
+      const asaasErros = asaasTodos.filter(a => Boolean(a.asaas_ultimo_erro)).length;
 
       // Buscar nomes de clientes para próximas parcelas
       const proxList = (proximasRes.data as any[]) ?? [];
@@ -108,8 +155,8 @@ export default function FinanceiroDashboard() {
       }
 
       setKpis({
-        recebidoMes: recebidoMes + diligenciasRecebido,
-        aReceber30,
+        recebidoMes: recebimentosTotais,
+        aReceber30: aReceber30 + diligAbertas.filter(d => d.data_vencimento_cobranca && d.data_vencimento_cobranca >= hojeIso && d.data_vencimento_cobranca <= fim30).reduce((s, d) => s + Math.max(0, Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0)), 0),
         atrasado,
         exitoEstimado,
         contratosAtivos: contAtivos.count ?? 0,
@@ -120,6 +167,15 @@ export default function FinanceiroDashboard() {
         diligenciasAReceber,
         diligenciasCustos,
         diligenciasLucro,
+        despesasMes,
+        saldoRealizado,
+        previsto30: aReceber30 - repassesPendentes,
+        inadimplenciaPercentual: totalCarteiraAberta > 0 ? (emAtrasoGeral / totalCarteiraAberta) * 100 : 0,
+        atraso1a7,
+        atraso8a30,
+        atrasoMais30,
+        asaasPendentes,
+        asaasErros,
       });
       setProximas(proxList.map(p => ({ ...p, cliente_nome: nomeMap[p.contrato_id] })));
       setLoading(false);
@@ -180,6 +236,42 @@ export default function FinanceiroDashboard() {
               sub="alta probabilidade"
             />
           </div>
+
+          <Card className="p-5 border-primary/20">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-display text-lg">Fluxo de caixa do mês</h3>
+                <p className="text-xs text-muted-foreground">Entradas, saídas, compromissos e saldo efetivo</p>
+              </div>
+              <Button asChild variant="outline" size="sm"><Link to="/financeiro/dashboard">Análise executiva <ArrowUpRight className="w-3.5 h-3.5" /></Link></Button>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <KpiCard icon={<TrendingUp className="w-3.5 h-3.5 text-success" />} label="Entradas realizadas" value={formatBRL(kpis.recebidoMes)} />
+              <KpiCard icon={<TrendingDown className="w-3.5 h-3.5 text-destructive" />} label="Despesas pagas" value={formatBRL(kpis.despesasMes)} />
+              <KpiCard icon={<Wallet className="w-3.5 h-3.5 text-primary" />} label="Saldo realizado" value={formatBRL(kpis.saldoRealizado)} />
+              <KpiCard icon={<Clock className="w-3.5 h-3.5 text-amber-600" />} label="Previsão líquida 30d" value={formatBRL(kpis.previsto30)} />
+            </div>
+          </Card>
+
+          <Card className={`p-5 ${kpis.inadimplenciaPercentual > 0 ? "border-destructive/30" : "border-success/30"}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-display text-lg">Inadimplência e cobrança</h3>
+                <p className="text-xs text-muted-foreground">Atrasos por faixa e saúde da integração Asaas</p>
+              </div>
+              <div className="flex gap-2">
+                <Badge variant="outline">{kpis.inadimplenciaPercentual.toFixed(1)}% inadimplência</Badge>
+                {kpis.asaasErros > 0 && <Badge variant="destructive">{kpis.asaasErros} erro(s) Asaas</Badge>}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <KpiCard icon={<AlertCircle className="w-3.5 h-3.5 text-amber-600" />} label="Atraso 1–7 dias" value={formatBRL(kpis.atraso1a7)} />
+              <KpiCard icon={<AlertCircle className="w-3.5 h-3.5 text-orange-600" />} label="Atraso 8–30 dias" value={formatBRL(kpis.atraso8a30)} />
+              <KpiCard icon={<AlertCircle className="w-3.5 h-3.5 text-destructive" />} label="Atraso +30 dias" value={formatBRL(kpis.atrasoMais30)} />
+              <KpiCard icon={<ReceiptText className="w-3.5 h-3.5 text-primary" />} label="Cobranças Asaas abertas" value={String(kpis.asaasPendentes)} />
+              <Button asChild variant="outline" className="h-auto min-h-[84px]"><Link to="/financeiro/conciliacao">Conciliar cobranças <ArrowUpRight className="w-4 h-4" /></Link></Button>
+            </div>
+          </Card>
 
           <Card className="p-5 border-primary/20">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
