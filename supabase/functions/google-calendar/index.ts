@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
     if (payload.action === "delete") {
       await callGoogle(
         `/calendars/${calId}/events/${encodeURIComponent(payload.eventId)}`,
-        { method: "DELETE", ...gatewayCommon },
+        { method: "DELETE" },
       );
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
