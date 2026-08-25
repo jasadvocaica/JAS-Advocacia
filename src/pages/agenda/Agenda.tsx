@@ -81,7 +81,10 @@ export default function Agenda() {
     }
   };
 
-  useEffect(() => { carregar(); /* eslint-disable-next-line */ }, [mesRef]);
+  useEffect(() => {
+    if (visualizacao === "sistema") carregar();
+    /* eslint-disable-next-line */
+  }, [mesRef, visualizacao]);
 
   const dias = useMemo(() => {
     const inicio = startOfWeek(startOfMonth(mesRef), { weekStartsOn: 0 });
@@ -143,14 +146,24 @@ export default function Agenda() {
         title="Agenda"
         description="Compromissos do escritório sincronizados com Google Calendar"
       >
-        <Button variant="outline" onClick={carregar} disabled={loading}>
-          {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
-          Atualizar
-        </Button>
-        {podeCriar && (
-          <Button onClick={novoEvento}>
-            <Plus className="w-4 h-4 mr-2" /> Novo evento
+        {visualizacao === "google" ? (
+          <Button asChild variant="outline">
+            <a href={GOOGLE_CALENDAR_EMBED_URL} target="_blank" rel="noreferrer">
+              <ExternalLink className="w-4 h-4 mr-2" /> Abrir no Google Agenda
+            </a>
           </Button>
+        ) : (
+          <>
+            <Button variant="outline" onClick={carregar} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
+              Atualizar
+            </Button>
+            {podeCriar && (
+              <Button onClick={novoEvento}>
+                <Plus className="w-4 h-4 mr-2" /> Novo evento
+              </Button>
+            )}
+          </>
         )}
       </PageHeader>
 
