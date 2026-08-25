@@ -7,7 +7,10 @@
 // Body: { numero_cnj: string }
 // Resposta: { encontrado: boolean, fonte: "pje_comunica", dados?: DataJudPreviewLike, error?: string }
 
-const corsHeaders = {\n  "Access-Control-Allow-Origin": "*",\n  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",\n};
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 const PJE_BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 
