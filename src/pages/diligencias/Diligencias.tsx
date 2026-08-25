@@ -28,6 +28,8 @@ type Diligencia = {
   local: string | null;
   status: string;
   pagamento_status: string;
+  natureza_receita: "escritorio" | "pessoal";
+  incluir_relatorio_contabil: boolean;
   valor_contratado: number | null;
   valor_recebido: number;
   paginas_impressas: number;
@@ -61,6 +63,7 @@ const FORM_INICIAL = {
   local: "",
   status: "agendada",
   pagamento_status: "a_receber",
+  natureza_receita: "escritorio",
   valor_contratado: "",
   valor_recebido: "",
   data_vencimento_cobranca: "",
@@ -68,7 +71,7 @@ const FORM_INICIAL = {
   km_rodado: "0",
   outras_despesas: "0",
   observacoes: "",
-  sincronizar_google: true,
+  sincronizar_google: false,
 };
 
 const statusLabel: Record<string, string> = {
@@ -102,6 +105,7 @@ export default function Diligencias() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mes, setMes] = useState(format(new Date(), "yyyy-MM"));
   const [filtroPagamento, setFiltroPagamento] = useState("todos");
+  const [filtroNatureza, setFiltroNatureza] = useState("todos");
   const [form, setForm] = useState(FORM_INICIAL);
 
   async function carregar() {
@@ -118,6 +122,7 @@ export default function Diligencias() {
       .lt("data_hora", fim)
       .order("data_hora", { ascending: true });
     if (filtroPagamento !== "todos") query = query.eq("pagamento_status", filtroPagamento);
+    if (filtroNatureza !== "todos") query = query.eq("natureza_receita", filtroNatureza);
 
     const [{ data, error }, clientesResp, processosResp] = await Promise.all([
       query,
@@ -132,13 +137,17 @@ export default function Diligencias() {
     setLoading(false);
   }
 
-  useEffect(() => { carregar(); }, [mes, filtroPagamento]);
+  useEffect(() => { carregar(); }, [mes, filtroPagamento, filtroNatureza]);
 
   const totais = useMemo(() => {
     const contratados = itens.reduce((s, i) => s + Number(i.valor_contratado ?? 0), 0);
     const recebidos = itens.reduce((s, i) => s + Number(i.valor_recebido ?? 0), 0);
     const custos = itens.reduce((s, i) => s + Number(i.custo_total ?? 0), 0);
-    return { contratados, recebidos, custos, aReceber: Math.max(0, contratados - recebidos), lucro: recebidos - custos };
+    const escritorio = itens.filter(i => i.natureza_receita === "escritorio")
+      .reduce((s, i) => s + Number(i.valor_recebido ?? 0), 0);
+    const pessoal = itens.filter(i => i.natureza_receita === "pessoal")
+      .reduce((s, i) => s + Number(i.valor_recebido ?? 0), 0);
+    return { contratados, recebidos, escritorio, pessoal, custos, aReceber: Math.max(0, contratados - recebidos), lucro: recebidos - custos };
   }, [itens]);
 
   async function salvar() {
@@ -161,6 +170,7 @@ export default function Diligencias() {
       local: form.local.trim() || null,
       status: form.status,
       pagamento_status: form.pagamento_status,
+      natureza_receita: form.natureza_receita,
       valor_contratado: form.valor_contratado === "" ? null : Number(form.valor_contratado),
       valor_recebido: valorRecebido,
       data_vencimento_cobranca: form.data_vencimento_cobranca || null,
@@ -172,7 +182,7 @@ export default function Diligencias() {
       custo_combustivel: Number((km * 0.8767).toFixed(2)),
       outras_despesas: Number(form.outras_despesas || 0),
       observacoes: form.observacoes.trim() || null,
-      sincronizar_google: form.sincronizar_google,
+      sincronizar_google: false,
     };
 
     setSalvando(true);
@@ -186,10 +196,6 @@ export default function Diligencias() {
       return;
     }
 
-    const diligenciaId = salvo?.id ?? editandoId;
-    if (diligenciaId) {
-      await sincronizarGoogle(diligenciaId, payload);
-    }
     toast.success(editandoId ? "Diligência atualizada" : "Diligência cadastrada");
     setForm({ ...FORM_INICIAL, data_hora: hojeLocal() });
     setEditandoId(null);
@@ -198,53 +204,10 @@ export default function Diligencias() {
     carregar();
   }
 
-  async function sincronizarGoogle(id: string, payload: any) {
-    const anterior = itens.find(i => i.id === id);
-    try {
-      if (!payload.sincronizar_google || payload.status === "cancelada") {
-        if (anterior?.google_event_id) {
-          const { data, error } = await supabase.functions.invoke("google-calendar", {
-            body: { action: "delete", eventId: anterior.google_event_id },
-          });
-          if (error || data?.error) throw new Error(data?.error || error?.message);
-        }
-        await (supabase as any).from("diligencias").update({
-          google_event_id: null, google_ultimo_sync: new Date().toISOString(), google_ultimo_erro: null,
-        }).eq("id", id);
-        return;
-      }
-
-      const inicio = new Date(payload.data_hora);
-      const fim = new Date(inicio.getTime() + 60 * 60 * 1000);
-      const event = {
-        summary: `⚖️ Diligência — ${payload.descricao}`,
-        description: `Contratante: ${payload.contratante_nome}\n${payload.observacoes || ""}\n\nSincronizado pelo sistema JAS Advocacia.`,
-        location: payload.local || undefined,
-        start: { dateTime: inicio.toISOString(), timeZone: "America/Cuiaba" },
-        end: { dateTime: fim.toISOString(), timeZone: "America/Cuiaba" },
-      };
-      const body = anterior?.google_event_id
-        ? { action: "update", eventId: anterior.google_event_id, event }
-        : { action: "create", event };
-      const { data, error } = await supabase.functions.invoke("google-calendar", { body });
-      if (error || data?.error) throw new Error(data?.error || error?.message);
-      await (supabase as any).from("diligencias").update({
-        google_event_id: data.id ?? anterior?.google_event_id ?? null,
-        google_calendar_id: "juridico@julianaaraujoadvocacia.com",
-        google_ultimo_sync: new Date().toISOString(),
-        google_ultimo_erro: null,
-      }).eq("id", id);
-      toast.success(anterior?.google_event_id ? "Google Agenda atualizada" : "Adicionada ao Google Agenda");
-    } catch (error) {
-      const mensagem = error instanceof Error ? error.message : "Falha na sincronização";
-      await (supabase as any).from("diligencias").update({
-        google_ultimo_sync: new Date().toISOString(), google_ultimo_erro: mensagem,
-      }).eq("id", id);
-      toast.error("Diligência salva, mas a Agenda não sincronizou", { description: mensagem });
-    }
-  }
-
   async function gerarCobranca(item: Diligencia) {
+    if (item.natureza_receita !== "escritorio") {
+      return toast.error("Recebimentos pessoais não são enviados ao Asaas nem à contabilidade");
+    }
     if (!item.cliente_id) return toast.error("Vincule a diligência a um cliente antes de cobrar");
     if (!item.valor_contratado || item.valor_contratado <= item.valor_recebido) return toast.error("Não existe saldo para cobrar");
     const vencimento = item.data_vencimento_cobranca || window.prompt("Data de vencimento (AAAA-MM-DD)", new Date().toISOString().slice(0, 10));
@@ -286,6 +249,7 @@ export default function Diligencias() {
       local: item.local || "",
       status: item.status,
       pagamento_status: item.pagamento_status,
+      natureza_receita: item.natureza_receita ?? "escritorio",
       valor_contratado: item.valor_contratado == null ? "" : String(item.valor_contratado),
       valor_recebido: String(item.valor_recebido || 0),
       data_vencimento_cobranca: item.data_vencimento_cobranca || "",
@@ -316,15 +280,6 @@ export default function Diligencias() {
 
   async function excluir(id: string) {
     if (!confirm("Excluir esta diligência?")) return;
-    const item = itens.find(i => i.id === id);
-    if (item?.google_event_id) {
-      const { data, error: calendarError } = await supabase.functions.invoke("google-calendar", {
-        body: { action: "delete", eventId: item.google_event_id },
-      });
-      if (calendarError || data?.error) {
-        return toast.error("Não foi possível remover o evento do Google Agenda", { description: data?.error || calendarError?.message });
-      }
-    }
     const { error } = await (supabase as any).from("diligencias").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Diligência excluída");
@@ -380,6 +335,19 @@ export default function Diligencias() {
               </div>
               <div><Label>Valor contratado (R$)</Label><Input type="number" step="0.01" value={form.valor_contratado} onChange={e => setForm({ ...form, valor_contratado: e.target.value })} /></div>
               <div>
+                <Label>Destino do recebimento *</Label>
+                <Select value={form.natureza_receita} onValueChange={v => setForm({ ...form, natureza_receita: v as "escritorio" | "pessoal" })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="escritorio">Faturar pelo escritório</SelectItem>
+                    <SelectItem value="pessoal">Recebimento pessoal — fora da contabilidade</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Receitas pessoais ficam no controle gerencial, mas não entram no relatório contábil nem no Asaas.
+                </p>
+              </div>
+              <div>
                 <Label>Pagamento</Label>
                 <Select value={form.pagamento_status} onValueChange={v => setForm({ ...form, pagamento_status: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -392,16 +360,20 @@ export default function Diligencias() {
               <div><Label>Km rodado (ida e volta)</Label><Input type="number" step="0.1" value={form.km_rodado} onChange={e => setForm({ ...form, km_rodado: e.target.value })} /></div>
               <div><Label>Outras despesas (R$)</Label><Input type="number" step="0.01" value={form.outras_despesas} onChange={e => setForm({ ...form, outras_despesas: e.target.value })} /></div>
               <div className="sm:col-span-2"><Label>Observações</Label><Textarea value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} /></div>
-              <label className="sm:col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={form.sincronizar_google} onChange={e => setForm({ ...form, sincronizar_google: e.target.checked })} /> Sincronizar com o Google Agenda</label>
+              <div className="sm:col-span-2 rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+                A agenda é adicionada manualmente pelo botão “Agenda” após salvar a diligência.
+              </div>
             </div>
             <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button variant="gold" disabled={salvando} onClick={salvar}>{salvando && <Loader2 className="w-4 h-4 animate-spin" />} Salvar</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       </PageHeader>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         <Kpi icon={<Receipt className="w-4 h-4" />} label="Contratado" value={formatBRL(totais.contratados)} />
-        <Kpi icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />} label="Recebido" value={formatBRL(totais.recebidos)} />
+        <Kpi icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />} label="Recebido total" value={formatBRL(totais.recebidos)} />
+        <Kpi icon={<Receipt className="w-4 h-4 text-primary" />} label="Escritório · contábil" value={formatBRL(totais.escritorio)} />
+        <Kpi icon={<Wallet className="w-4 h-4 text-violet-600" />} label="Pessoal · fora contábil" value={formatBRL(totais.pessoal)} />
         <Kpi icon={<Wallet className="w-4 h-4 text-amber-600" />} label="A receber" value={formatBRL(totais.aReceber)} />
         <Kpi icon={<DollarSign className="w-4 h-4 text-destructive" />} label="Custos" value={formatBRL(totais.custos)} />
         <Kpi icon={<DollarSign className="w-4 h-4 text-primary" />} label="Lucro realizado" value={formatBRL(totais.lucro)} />
@@ -417,6 +389,17 @@ export default function Diligencias() {
               <SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="a_receber">A receber</SelectItem><SelectItem value="parcial">Parcial</SelectItem><SelectItem value="recebido">Recebido</SelectItem></SelectContent>
             </Select>
           </div>
+          <div>
+            <Label className="text-xs">Destino da receita</Label>
+            <Select value={filtroNatureza} onValueChange={setFiltroNatureza}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="escritorio">Escritório · contabilidade</SelectItem>
+                <SelectItem value="pessoal">Pessoal · fora da contabilidade</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {loading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div> : itens.length === 0 ? (
@@ -424,7 +407,7 @@ export default function Diligencias() {
         ) : (
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Diligência</TableHead><TableHead>Contratante</TableHead><TableHead>Valor</TableHead><TableHead>Custos</TableHead><TableHead>Pagamento</TableHead><TableHead>Agenda</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Diligência</TableHead><TableHead>Contratante</TableHead><TableHead>Valor</TableHead><TableHead>Custos</TableHead><TableHead>Destino</TableHead><TableHead>Pagamento</TableHead><TableHead>Agenda</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>{itens.map(item => (
                 <TableRow key={item.id}>
                   <TableCell className="whitespace-nowrap"><div className="font-medium">{format(new Date(item.data_hora), "dd/MM/yyyy", { locale: ptBR })}</div><div className="text-xs text-muted-foreground">{format(new Date(item.data_hora), "HH:mm")}</div></TableCell>
@@ -432,11 +415,16 @@ export default function Diligencias() {
                   <TableCell>{item.contratante_nome}</TableCell>
                   <TableCell className="font-mono">{formatBRL(item.valor_contratado)}</TableCell>
                   <TableCell className="font-mono">{formatBRL(item.custo_total)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={item.natureza_receita === "pessoal" ? "border-violet-300 text-violet-700" : "border-primary/30 text-primary"}>
+                      {item.natureza_receita === "pessoal" ? "Pessoal · fora contábil" : "Escritório · contábil"}
+                    </Badge>
+                  </TableCell>
                   <TableCell><Badge className={item.pagamento_status === "recebido" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{pagamentoLabel[item.pagamento_status] ?? item.pagamento_status}</Badge></TableCell>
-                  <TableCell>{item.google_event_id ? <Badge variant="outline" className="text-emerald-700"><CalendarDays className="w-3 h-3 mr-1" />Sincronizada</Badge> : item.sincronizar_google ? <span className="text-xs text-muted-foreground">Pendente</span> : "—"}</TableCell>
+                  <TableCell><span className="text-xs text-muted-foreground">Adição manual</span></TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     {!item.google_event_id && item.status !== "cancelada" && <Button size="sm" variant="ghost" onClick={() => abrirGoogleAgenda(item)}><CalendarDays className="w-4 h-4" /> Agenda</Button>}
-                    {item.asaas_invoice_url ? <Button size="sm" variant="ghost" onClick={() => window.open(item.asaas_invoice_url!, "_blank", "noopener,noreferrer")}>Fatura</Button> : item.pagamento_status !== "recebido" && item.valor_contratado !== null && <Button size="sm" variant="ghost" disabled={cobrandoId === item.id} onClick={() => gerarCobranca(item)}>{cobrandoId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />} Cobrar</Button>}
+                    {item.asaas_invoice_url ? <Button size="sm" variant="ghost" onClick={() => window.open(item.asaas_invoice_url!, "_blank", "noopener,noreferrer")}>Fatura</Button> : item.natureza_receita === "escritorio" && item.pagamento_status !== "recebido" && item.valor_contratado !== null && <Button size="sm" variant="ghost" disabled={cobrandoId === item.id} onClick={() => gerarCobranca(item)}>{cobrandoId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />} Cobrar</Button>}
                     {item.pagamento_status !== "recebido" && item.valor_contratado !== null && <Button size="sm" variant="ghost" onClick={() => marcarRecebido(item)}>Recebi</Button>}
                     <Button size="sm" variant="ghost" onClick={() => editar(item)}>Editar</Button>
                     {isGestor && <Button size="icon" variant="ghost" onClick={() => excluir(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>}
