@@ -6,7 +6,8 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -25,78 +26,134 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "Não autenticado" }, 401);
 
     const admin = createClient(url, service);
-    const { data: role } = await admin.from("user_roles").select("user_id").eq("user_id", user.id).eq("role", "gestor").maybeSingle();
+    const { data: role } = await admin.from("user_roles")
+      .select("user_id").eq("user_id", user.id).eq("role", "gestor").maybeSingle();
     if (!role) return json({ error: "Apenas gestores podem gerar cobranças" }, 403);
 
-    const { action, diligencia_id, billing_type = "UNDEFINED", due_date } = await req.json();
-    if (action !== "criar_cobranca_diligencia" || !diligencia_id) return json({ error: "Ação inválida" }, 400);
-    if (!["UNDEFINED", "PIX", "BOLETO"].includes(billing_type)) return json({ error: "Forma de cobrança inválida" }, 400);
-
-    const { data: d, error: de } = await admin
-      .from("diligencias")
-      .select("*, cliente:clientes(id,nome,cpf_cnpj,email,whatsapp,telefones,asaas_customer_id)")
-      .eq("id", diligencia_id).maybeSingle();
-    if (de || !d) return json({ error: "Diligência não encontrada" }, 404);
-    if (d.asaas_payment_id) return json({ ok: true, ja_existente: true, payment_id: d.asaas_payment_id, invoice_url: d.asaas_invoice_url });
-    if (!d.cliente) return json({ error: "Vincule a diligência a um cliente antes de gerar a cobrança" }, 422);
-
-    const cpfCnpj = String(d.cliente.cpf_cnpj ?? "").replace(/\D/g, "");
-    if (![11, 14].includes(cpfCnpj.length)) return json({ error: "O cliente precisa ter CPF ou CNPJ válido" }, 422);
-    const value = Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0);
-    if (!(value > 0)) return json({ error: "Não existe saldo positivo para cobrar" }, 422);
+    const input = await req.json();
+    const billingType = input.billing_type ?? "UNDEFINED";
+    if (!["UNDEFINED", "PIX", "BOLETO"].includes(billingType)) {
+      return json({ error: "Forma de cobrança inválida" }, 400);
+    }
 
     const base = "https://api-sandbox.asaas.com/v3";
-    const headers = { "Content-Type": "application/json", "User-Agent": "JAS-Advocacia/1.0 (Supabase; sandbox)", "access_token": apiKey };
+    const headers = {
+      "Content-Type": "application/json",
+      "User-Agent": "JAS-Advocacia/1.0 (Supabase; sandbox)",
+      "access_token": apiKey,
+    };
     async function asaas(path: string, init: RequestInit = {}) {
       const res = await fetch(base + path, { ...init, headers: { ...headers, ...(init.headers ?? {}) } });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.errors?.[0]?.description ?? `Asaas HTTP ${res.status}`);
       return payload;
     }
-
-    let customerId = d.cliente.asaas_customer_id;
-    if (!customerId) {
+    async function ensureCustomer(cliente: any) {
+      if (!cliente) throw new Error("Cliente não encontrado");
+      if (cliente.asaas_customer_id) return cliente.asaas_customer_id;
+      const cpfCnpj = String(cliente.cpf_cnpj ?? "").replace(/\D/g, "");
+      if (![11, 14].includes(cpfCnpj.length)) throw new Error("O cliente precisa ter CPF ou CNPJ válido");
       const found = await asaas(`/customers?cpfCnpj=${cpfCnpj}&limit=1`);
-      customerId = found?.data?.[0]?.id;
+      let customerId = found?.data?.[0]?.id;
       if (!customerId) {
-        const phone = String(d.cliente.whatsapp ?? d.cliente.telefones?.[0] ?? "").replace(/\D/g, "");
+        const phone = String(cliente.whatsapp ?? cliente.telefones?.[0] ?? "").replace(/\D/g, "");
         const created = await asaas("/customers", {
           method: "POST",
           body: JSON.stringify({
-            name: d.cliente.nome, cpfCnpj,
-            email: d.cliente.email || undefined,
+            name: cliente.nome,
+            cpfCnpj,
+            email: cliente.email || undefined,
             mobilePhone: phone || undefined,
-            externalReference: d.cliente.id,
+            externalReference: cliente.id,
             notificationDisabled: true,
           }),
         });
         customerId = created.id;
       }
-      await admin.from("clientes").update({ asaas_customer_id: customerId }).eq("id", d.cliente.id);
+      await admin.from("clientes").update({ asaas_customer_id: customerId }).eq("id", cliente.id);
+      return customerId;
     }
 
-    const dueDate = due_date ?? d.data_vencimento_cobranca ?? String(d.data_hora).slice(0, 10);
-    const payment = await asaas("/payments", {
-      method: "POST",
-      body: JSON.stringify({
-        customer: customerId, billingType: billing_type, value, dueDate,
-        description: `Diligência: ${d.descricao}`.slice(0, 500),
-        externalReference: `diligencia:${d.id}`,
-      }),
-    });
+    if (input.action === "criar_cobranca_diligencia" && input.diligencia_id) {
+      const { data: d, error } = await admin.from("diligencias")
+        .select("*, cliente:clientes(id,nome,cpf_cnpj,email,whatsapp,telefones,asaas_customer_id)")
+        .eq("id", input.diligencia_id).maybeSingle();
+      if (error || !d) return json({ error: "Diligência não encontrada" }, 404);
+      if (d.asaas_payment_id) {
+        return json({ ok: true, ja_existente: true, payment_id: d.asaas_payment_id, invoice_url: d.asaas_invoice_url });
+      }
+      if (!d.cliente) return json({ error: "Vincule a diligência a um cliente antes de gerar a cobrança" }, 422);
+      const value = Number(d.valor_contratado ?? 0) - Number(d.valor_recebido ?? 0);
+      if (!(value > 0)) return json({ error: "Não existe saldo positivo para cobrar" }, 422);
+      const customerId = await ensureCustomer(d.cliente);
+      const dueDate = input.due_date ?? d.data_vencimento_cobranca ?? String(d.data_hora).slice(0, 10);
+      const payment = await asaas("/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          customer: customerId, billingType, value, dueDate,
+          description: `Diligência: ${d.descricao}`.slice(0, 500),
+          externalReference: `diligencia:${d.id}`,
+        }),
+      });
+      await admin.from("diligencias").update({
+        data_vencimento_cobranca: dueDate,
+        asaas_payment_id: payment.id,
+        asaas_status: payment.status,
+        asaas_billing_type: payment.billingType,
+        asaas_invoice_url: payment.invoiceUrl ?? null,
+        asaas_bank_slip_url: payment.bankSlipUrl ?? null,
+        asaas_ultimo_sync: new Date().toISOString(),
+        asaas_ultimo_erro: null,
+      }).eq("id", d.id);
+      await admin.from("asaas_integracao_log").insert({
+        acao: "criar_cobranca", entidade_tipo: "diligencia", entidade_id: d.id,
+        asaas_id: payment.id, sucesso: true, criado_por: user.id,
+      });
+      return json({ ok: true, payment_id: payment.id, status: payment.status, invoice_url: payment.invoiceUrl, bank_slip_url: payment.bankSlipUrl });
+    }
 
-    await admin.from("diligencias").update({
-      data_vencimento_cobranca: dueDate, asaas_payment_id: payment.id,
-      asaas_status: payment.status, asaas_billing_type: payment.billingType,
-      asaas_invoice_url: payment.invoiceUrl ?? null,
-      asaas_bank_slip_url: payment.bankSlipUrl ?? null,
-      asaas_ultimo_sync: new Date().toISOString(), asaas_ultimo_erro: null,
-    }).eq("id", d.id);
-    await admin.from("asaas_integracao_log").insert({
-      acao: "criar_cobranca", entidade_tipo: "diligencia", entidade_id: d.id,
-      asaas_id: payment.id, sucesso: true, criado_por: user.id,
-    });
-    return json({ ok: true, payment_id: payment.id, status: payment.status, invoice_url: payment.invoiceUrl, bank_slip_url: payment.bankSlipUrl });
+    if (input.action === "criar_cobranca_parcela" && input.parcela_id) {
+      const { data: p, error } = await admin.from("honorarios_parcelas")
+        .select("id,contrato_id,numero_parcela,valor,data_vencimento,status,asaas_payment_id,asaas_invoice_url,contrato:honorarios_contratos!inner(cliente_id,cliente:clientes!inner(id,nome,cpf_cnpj,email,whatsapp,telefones,asaas_customer_id))")
+        .eq("id", input.parcela_id).maybeSingle();
+      if (error || !p) return json({ error: "Parcela não encontrada" }, 404);
+      if (p.status === "pago") return json({ error: "A parcela já está paga" }, 422);
+      if (p.asaas_payment_id) {
+        return json({ ok: true, ja_existente: true, payment_id: p.asaas_payment_id, invoice_url: p.asaas_invoice_url });
+      }
+      const contrato = Array.isArray(p.contrato) ? p.contrato[0] : p.contrato;
+      const cliente = Array.isArray(contrato?.cliente) ? contrato.cliente[0] : contrato?.cliente;
+      const value = Number(p.valor ?? 0);
+      if (!(value > 0)) return json({ error: "A parcela precisa ter valor positivo" }, 422);
+      const customerId = await ensureCustomer(cliente);
+      const payment = await asaas("/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          customer: customerId,
+          billingType,
+          value,
+          dueDate: input.due_date ?? p.data_vencimento,
+          description: `Honorários jurídicos - parcela ${p.numero_parcela}`.slice(0, 500),
+          externalReference: `honorario_parcela:${p.id}`,
+        }),
+      });
+      await admin.from("honorarios_parcelas").update({
+        asaas_payment_id: payment.id,
+        asaas_status: payment.status,
+        asaas_billing_type: payment.billingType,
+        asaas_invoice_url: payment.invoiceUrl ?? null,
+        asaas_bank_slip_url: payment.bankSlipUrl ?? null,
+        asaas_ultimo_sync: new Date().toISOString(),
+        asaas_ultimo_erro: null,
+      }).eq("id", p.id);
+      await admin.from("asaas_integracao_log").insert({
+        acao: "criar_cobranca", entidade_tipo: "honorario_parcela", entidade_id: p.id,
+        asaas_id: payment.id, sucesso: true, criado_por: user.id,
+      });
+      return json({ ok: true, payment_id: payment.id, status: payment.status, invoice_url: payment.invoiceUrl, bank_slip_url: payment.bankSlipUrl });
+    }
+
+    return json({ error: "Ação inválida" }, 400);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "Erro inesperado" }, 500);
   }
