@@ -17,6 +17,8 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { AcaoSugerida, BiaSugestoes } from "./BiaAcoesButton";
 
+const BIA_HABILITADA = import.meta.env.VITE_BIA_ENABLED === "true";
+
 const URGENCIA_CLASS: Record<string, string> = {
   urgente: "bg-destructive/10 text-destructive border-destructive/30",
   alta: "bg-warning/10 text-warning border-warning/30",
@@ -66,9 +68,11 @@ export function BiaCentralInline({ alvo, id, autoLoad = true, onAcaoExecutada }:
   }
 
   useEffect(() => {
-    if (autoLoad && id) void analisar();
+    if (BIA_HABILITADA && autoLoad && id) void analisar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, alvo]);
+
+  if (!BIA_HABILITADA) return null;
 
   async function aplicar(idx: number, acao: AcaoSugerida) {
     if (!sugestoes) return;
