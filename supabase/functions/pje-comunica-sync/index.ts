@@ -299,7 +299,7 @@ async function sincronizarMonitoramento(
               data_intimacao: dataDisp,
               prioridade: "alta",
               status: "pendente",
-              origem: "djen",
+              origem: "pje_publicacao",
             })
             .select("id")
             .single();
