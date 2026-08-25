@@ -17,6 +17,9 @@ import {
 import { toast } from "sonner";
 import { EventoFormDialog } from "./EventoFormDialog";
 
+const GOOGLE_CALENDAR_EMBED_URL =
+  "https://calendar.google.com/calendar/embed?height=600&wkst=1&ctz=America%2FCampo_Grande&showPrint=0&src=anVyaWRpY29AanVsaWFuYWFyYXVqb2Fkdm9jYWNpYS5jb20&src=Zjc5ZTAzNjcxNTAwZTBkMTY3NTA1YTZiYTgzOTE4ODU3ZTdkNzc5YjczZTM2ODYyMGJkNDhiZWFjZmUyOGM2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&src=ZWE2YjM4Yjg4YTdjMTU4MzJkOWM1YWY4NDFmMGQ5ZmYxNjMwMzFjMTNmMjkwNzI2MGEzYjExNjYwNjdiZjJkNkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&src=ODU3ZmM3NjQzNjY5Y2QwNzE1NTk2N2RkZGUyMmM4ZGY3NDMxOGQ5NjJlZWM3M2RhZGRlNDM2NDc3MzNhM2JlM0Bncm91cC5jYWxlbmRhci5nb29nbGUuY29t&src=Y2xpZW50ZXNqdWxpYW5hYXJhdWpvQGdtYWlsLmNvbQ&color=%23039be5&color=%23f4511e&color=%23e4c441&color=%23e4c441&color=%23f6bf26";
+
 export interface GcalEvent {
   id: string;
   status?: string;
@@ -52,6 +55,7 @@ export default function Agenda() {
   const [diaSelecionado, setDiaSelecionado] = useState<Date>(new Date());
   const [formAberto, setFormAberto] = useState(false);
   const [eventoEdit, setEventoEdit] = useState<GcalEvent | null>(null);
+  const [visualizacao, setVisualizacao] = useState<"sistema" | "google">("google");
 
   const carregar = async () => {
     setLoading(true);
@@ -150,6 +154,46 @@ export default function Agenda() {
         )}
       </PageHeader>
 
+      <div className="flex w-fit rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="Visualização da agenda">
+        <Button
+          type="button"
+          size="sm"
+          variant={visualizacao === "google" ? "default" : "ghost"}
+          onClick={() => setVisualizacao("google")}
+          role="tab"
+          aria-selected={visualizacao === "google"}
+        >
+          Visão Google
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={visualizacao === "sistema" ? "default" : "ghost"}
+          onClick={() => setVisualizacao("sistema")}
+          role="tab"
+          aria-selected={visualizacao === "sistema"}
+        >
+          Agenda do sistema
+        </Button>
+      </div>
+
+      {visualizacao === "google" ? (
+        <Card className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3 sm:px-6">
+            <h2 className="font-display text-base">Agenda Google consolidada</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Visualização conjunta das agendas do escritório. Para incluir ou alterar um compromisso, use “Novo evento” ou a Agenda do sistema.
+            </p>
+          </div>
+          <iframe
+            title="Agenda Google consolidada do escritório"
+            src={GOOGLE_CALENDAR_EMBED_URL}
+            className="block h-[70vh] min-h-[600px] w-full border-0 bg-background"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </Card>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6">
         {/* Calendário mensal */}
         <Card className="p-4 sm:p-6">
@@ -261,6 +305,7 @@ export default function Agenda() {
           </Card>
         </div>
       </div>
+      )}
 
       {formAberto && (
         <EventoFormDialog
