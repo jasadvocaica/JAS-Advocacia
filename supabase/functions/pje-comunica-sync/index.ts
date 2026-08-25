@@ -201,14 +201,16 @@ async function sincronizarMonitoramento(
         // Tenta achar processo existente
         let processoId: string | null = null;
         let processoResponsavelId: string | null = null;
+        let processoClienteId: string | null = null;
         if (cnjLimpo) {
           const { data: proc } = await supabase
             .from("processos")
-            .select("id, responsavel_id")
+            .select("id, responsavel_id, cliente_id")
             .eq("numero_cnj_limpo", cnjLimpo)
             .maybeSingle();
           processoId = (proc?.id as string) ?? null;
           processoResponsavelId = (proc?.responsavel_id as string) ?? null;
+          processoClienteId = (proc?.cliente_id as string) ?? null;
         }
 
         if (dryRun) continue;
@@ -248,14 +250,72 @@ async function sincronizarMonitoramento(
 
         r.novas += 1;
 
-        // NÃO cria item de controladoria automaticamente — apenas vincula ao processo
-        // se reconhecido. A criação de tarefa fica para o tratamento manual na aba.
+        // Publicação reconhecida: vincula ao processo, registra o andamento e cria
+        // uma TRIAGEM na Controladoria. O prazo jurídico definitivo permanece humano.
         if (processoId && inserted?.id) {
+          let andamentoId: string | null = null;
+          let itemControladoriaId: string | null = null;
+
+          const { data: andamento, error: andamentoErr } = await supabase
+            .from("andamentos")
+            .insert({
+              processo_id: processoId,
+              data: dataDisp ?? new Date().toISOString().slice(0, 10),
+              descricao: `DJEN — ${item.tipoComunicacao ?? "Publicação"}: ${(item.texto ?? "").slice(0, 1000)}`,
+              fonte: "djen",
+              datajud_id: `djen_${inserted.id}`,
+            })
+            .select("id")
+            .single();
+          if (!andamentoErr) andamentoId = andamento?.id ?? null;
+
+          let vencimento = new Date(Date.now() + 24 * 60 * 60 * 1000)
+            .toISOString().slice(0, 10);
+          const { data: proximoDiaUtil } = await supabase.rpc("adicionar_dias_uteis", {
+            _data_inicio: dataDisp ?? new Date().toISOString().slice(0, 10),
+            _dias: 1,
+          });
+          if (proximoDiaUtil) vencimento = String(proximoDiaUtil);
+
+          const numeroExibicao = cnjMascara || cnjLimpo;
+          const { data: itemCtrl, error: ctrlErr } = await supabase
+            .from("controladoria_itens")
+            .insert({
+              tipo: "intimacao",
+              titulo: `Triar publicação DJEN — ${numeroExibicao}`,
+              descricao: [
+                `Tipo: ${item.tipoComunicacao ?? "Publicação"}`,
+                `Órgão: ${item.nomeOrgao ?? item.siglaTribunal ?? "Não informado"}`,
+                "",
+                (item.texto ?? "").slice(0, 3000),
+                item.link ? `\\nCertidão: ${item.link}` : "",
+                "",
+                "ATENÇÃO: vencimento de triagem. O prazo jurídico deve ser conferido e cadastrado pela responsável.",
+              ].filter(Boolean).join("\\n"),
+              processo_id: processoId,
+              cliente_id: processoClienteId,
+              responsavel_id: processoResponsavelId,
+              data_vencimento: `${vencimento}T18:00:00-04:00`,
+              data_intimacao: dataDisp,
+              prioridade: "alta",
+              status: "pendente",
+              origem: "djen",
+            })
+            .select("id")
+            .single();
+          if (!ctrlErr) itemControladoriaId = itemCtrl?.id ?? null;
+
           const { error: updErr } = await supabase
             .from("pje_publicacoes")
-            .update({ processo_id: processoId })
+            .update({
+              processo_id: processoId,
+              andamento_id: andamentoId,
+              item_controladoria_id: itemControladoriaId,
+            })
             .eq("id", inserted.id);
           if (!updErr) r.vinculadas += 1;
+          if (andamentoErr) console.error("Falha ao criar andamento DJEN:", andamentoErr);
+          if (ctrlErr) console.error("Falha ao criar triagem DJEN:", ctrlErr);
         }
 
         if (inserted?.id) {
