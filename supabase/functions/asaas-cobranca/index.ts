@@ -79,6 +79,7 @@ Deno.serve(async (req) => {
         .select("*, cliente:clientes(id,nome,cpf_cnpj,email,whatsapp,telefones,asaas_customer_id)")
         .eq("id", input.diligencia_id).maybeSingle();
       if (error || !d) return json({ error: "Diligência não encontrada" }, 404);
+      if (d.natureza_receita !== "escritorio") return json({ error: "Recebimentos pessoais não podem ser enviados ao Asaas nem à contabilidade" }, 422);
       if (d.asaas_payment_id) {
         return json({ ok: true, ja_existente: true, payment_id: d.asaas_payment_id, invoice_url: d.asaas_invoice_url });
       }
