@@ -203,8 +203,8 @@ export default function ClienteForm() {
   }
 
   function validarCpf(v: string) {
-    if (!v || form.tipo_pessoa !== "fisica") { setCpfErro(null); return; }
-    if (!isValidCpfCnpj(v)) setCpfErro("CPF inválido");
+    if (!v) { setCpfErro(null); return; }
+    if (!isValidCpfCnpj(v)) setCpfErro(form.tipo_pessoa === "fisica" ? "CPF inválido" : "CNPJ inválido");
     else setCpfErro(null);
   }
 
@@ -288,6 +288,10 @@ export default function ClienteForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (cpfErro) { toast.error(cpfErro); return; }
+    if (duplicados.length > 0) {
+      toast.error("Este CPF/CNPJ já está cadastrado", { description: "Abra o cadastro existente para atualizar os dados." });
+      return;
+    }
     setSaving(true);
 
     const payload: any = {
@@ -346,7 +350,10 @@ export default function ClienteForm() {
 
     setSaving(false);
     if (error) {
-      toast.error("Erro ao salvar", { description: error.message });
+      const duplicado = error.code === "23505";
+      toast.error(duplicado ? "CPF/CNPJ já cadastrado" : "Erro ao salvar", {
+        description: duplicado ? "Use o cadastro existente para evitar duplicidade." : error.message,
+      });
       return;
     }
     // Limpa o rascunho local ao salvar com sucesso
@@ -450,7 +457,7 @@ export default function ClienteForm() {
                     <a href={`/clientes/${d.id}`} target="_blank" rel="noreferrer" className="text-primary underline shrink-0">abrir</a>
                   </div>
                 ))}
-                <p className="text-muted-foreground">Você pode salvar mesmo assim — depois é possível unificar em Clientes → Duplicados.</p>
+                <p className="text-destructive">O salvamento está bloqueado. Abra o cadastro existente e atualize os dados nele.</p>
               </div>
             )}
           </div>
