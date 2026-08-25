@@ -35,6 +35,10 @@ interface Parcela {
   valor: number;
   data_vencimento: string;
   status: string;
+  asaas_payment_id?: string | null;
+  asaas_status?: string | null;
+  asaas_invoice_url?: string | null;
+  asaas_ultimo_erro?: string | null;
   contrato?: { id: string; cliente_id: string; cliente?: { nome: string } | null } | null;
 }
 
@@ -65,7 +69,7 @@ export default function Conciliacao() {
           .gte("data_pagamento", inicio).lte("data_pagamento", fim)
           .order("data_pagamento", { ascending: true }),
         supabase.from("honorarios_parcelas")
-          .select("id, contrato_id, numero_parcela, valor, data_vencimento, status, contrato:contrato_id(id, cliente_id, cliente:cliente_id(nome))")
+          .select("id, contrato_id, numero_parcela, valor, data_vencimento, status, asaas_payment_id, asaas_status, asaas_invoice_url, asaas_ultimo_erro, contrato:honorarios_contratos!inner(id, cliente_id, cliente:clientes!inner(nome))")
           .gte("data_vencimento", inicio).lte("data_vencimento", fim)
           .order("data_vencimento", { ascending: true }),
       ]);
@@ -113,9 +117,9 @@ export default function Conciliacao() {
       const diff = totalPago - valor;
       const item: Inconsistencia = { parcela: par, pagamentos: pags, totalPago, diff };
 
-      if (par.status === "paga" && pags.length === 0) {
+      if (par.status === "pago" && pags.length === 0) {
         baixadasSemPagamento.push(item);
-      } else if (par.status !== "paga" && totalPago >= valor && valor > 0) {
+      } else if (par.status !== "pago" && totalPago >= valor && valor > 0) {
         pagasNaoBaixadas.push(item);
       } else if (pags.length > 0 && Math.abs(diff) > 0.01) {
         divergenciaValor.push(item);
@@ -159,10 +163,17 @@ export default function Conciliacao() {
     }
   }
 
+  const asaasParcelas = parcelas.filter(p => p.asaas_payment_id);
+  const asaasComErro = asaasParcelas.filter(p => p.asaas_ultimo_erro);
+  const asaasRecebidasSemBaixa = asaasParcelas.filter(p =>
+    ["RECEIVED", "CONFIRMED"].includes(String(p.asaas_status ?? "")) && p.status !== "pago"
+  );
   const totalInconsist =
     analise.baixadasSemPagamento.length +
     analise.pagasNaoBaixadas.length +
-    analise.divergenciaValor.length;
+    analise.divergenciaValor.length +
+    asaasComErro.length +
+    asaasRecebidasSemBaixa.length;
 
   return (
     <div className="space-y-6">
@@ -206,11 +217,12 @@ export default function Conciliacao() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <Kpi label="Parcelas no período" value={String(parcelas.length)} />
             <Kpi label="Pagamentos no período" value={String(pagamentos.length)} />
             <Kpi label="Pagamentos órfãos" value={String(analise.pagamentosOrfaos.length)} sub="sem parcela vinculada" />
             <Kpi label="Inconsistências" value={String(totalInconsist)} highlight={totalInconsist > 0} />
+            <Kpi label="Cobranças Asaas" value={String(asaasParcelas.length)} sub={`${asaasComErro.length} com erro`} highlight={asaasComErro.length > 0} />
           </div>
 
           <Tabs defaultValue="pagas-nao-baixadas">
@@ -226,6 +238,9 @@ export default function Conciliacao() {
               </TabsTrigger>
               <TabsTrigger value="orfaos">
                 Pagamentos órfãos ({analise.pagamentosOrfaos.length})
+              </TabsTrigger>
+              <TabsTrigger value="asaas">
+                Asaas ({asaasParcelas.length})
               </TabsTrigger>
             </TabsList>
 
@@ -257,6 +272,40 @@ export default function Conciliacao() {
                 onAcao={() => {}}
                 corrigindo={corrigindo}
               />
+            </TabsContent>
+
+            <TabsContent value="asaas" className="mt-4">
+              <Card className="p-4">
+                {asaasParcelas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma cobrança Asaas no período.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Vencimento</TableHead><TableHead>Cliente</TableHead>
+                        <TableHead>Parcela</TableHead><TableHead>Status Asaas</TableHead>
+                        <TableHead>Status interno</TableHead><TableHead className="text-right">Valor</TableHead><TableHead></TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {asaasParcelas.map(p => (
+                          <TableRow key={p.id} className={p.asaas_ultimo_erro ? "bg-destructive/5" : ""}>
+                            <TableCell>{formatDate(p.data_vencimento)}</TableCell>
+                            <TableCell>{p.contrato?.cliente?.nome ?? "—"}</TableCell>
+                            <TableCell>#{p.numero_parcela}</TableCell>
+                            <TableCell><Badge variant="outline">{p.asaas_status ?? "aguardando"}</Badge></TableCell>
+                            <TableCell><Badge variant="outline">{p.status}</Badge></TableCell>
+                            <TableCell className="text-right font-mono">{formatBRL(Number(p.valor))}</TableCell>
+                            <TableCell className="text-right">
+                              {p.asaas_invoice_url && <Button asChild variant="ghost" size="sm"><a href={p.asaas_invoice_url} target="_blank" rel="noreferrer">Fatura</a></Button>}
+                              {p.asaas_ultimo_erro && <span className="text-xs text-destructive ml-2">{p.asaas_ultimo_erro}</span>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="orfaos" className="mt-4">
