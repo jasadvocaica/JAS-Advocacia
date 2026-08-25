@@ -37,6 +37,10 @@ type Diligencia = {
   lucro_previsto: number;
   sincronizar_google: boolean;
   google_event_id: string | null;
+  data_vencimento_cobranca: string | null;
+  asaas_payment_id: string | null;
+  asaas_status: string | null;
+  asaas_invoice_url: string | null;
   observacoes: string | null;
 };
 
@@ -59,6 +63,7 @@ const FORM_INICIAL = {
   pagamento_status: "a_receber",
   valor_contratado: "",
   valor_recebido: "",
+  data_vencimento_cobranca: "",
   paginas_impressas: "0",
   km_rodado: "0",
   outras_despesas: "0",
@@ -92,6 +97,7 @@ export default function Diligencias() {
   const [processos, setProcessos] = useState<Array<{ id: string; numero_cnj: string | null; tipo_acao: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [cobrandoId, setCobrandoId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mes, setMes] = useState(format(new Date(), "yyyy-MM"));
@@ -157,6 +163,7 @@ export default function Diligencias() {
       pagamento_status: form.pagamento_status,
       valor_contratado: form.valor_contratado === "" ? null : Number(form.valor_contratado),
       valor_recebido: valorRecebido,
+      data_vencimento_cobranca: form.data_vencimento_cobranca || null,
       data_recebimento: form.pagamento_status === "recebido" ? new Date().toISOString().slice(0, 10) : null,
       paginas_impressas: paginas,
       custo_papel: Number((paginas * 0.078).toFixed(2)),
@@ -184,6 +191,22 @@ export default function Diligencias() {
     setEditandoId(null);
     setOpen(false);
     setSalvando(false);
+    carregar();
+  }
+
+  async function gerarCobranca(item: Diligencia) {
+    if (!item.cliente_id) return toast.error("Vincule a diligência a um cliente antes de cobrar");
+    if (!item.valor_contratado || item.valor_contratado <= item.valor_recebido) return toast.error("Não existe saldo para cobrar");
+    const vencimento = item.data_vencimento_cobranca || window.prompt("Data de vencimento (AAAA-MM-DD)", new Date().toISOString().slice(0, 10));
+    if (!vencimento) return;
+    setCobrandoId(item.id);
+    const { data, error } = await supabase.functions.invoke("asaas-cobranca", {
+      body: { action: "criar_cobranca_diligencia", diligencia_id: item.id, billing_type: "UNDEFINED", due_date: vencimento },
+    });
+    setCobrandoId(null);
+    if (error || data?.error) return toast.error(data?.error || error?.message || "Erro ao gerar cobrança");
+    toast.success(data?.ja_existente ? "Cobrança já existente" : "Cobrança criada no Asaas Sandbox");
+    if (data?.invoice_url) window.open(data.invoice_url, "_blank", "noopener,noreferrer");
     carregar();
   }
 
@@ -215,6 +238,7 @@ export default function Diligencias() {
       pagamento_status: item.pagamento_status,
       valor_contratado: item.valor_contratado == null ? "" : String(item.valor_contratado),
       valor_recebido: String(item.valor_recebido || 0),
+      data_vencimento_cobranca: item.data_vencimento_cobranca || "",
       paginas_impressas: String(item.paginas_impressas || 0),
       km_rodado: String(item.km_rodado || 0),
       outras_despesas: String(item.outras_despesas || 0),
@@ -304,6 +328,7 @@ export default function Diligencias() {
                 </Select>
               </div>
               <div><Label>Valor já recebido (R$)</Label><Input type="number" step="0.01" value={form.valor_recebido} onChange={e => setForm({ ...form, valor_recebido: e.target.value })} /></div>
+              <div><Label>Vencimento da cobrança</Label><Input type="date" value={form.data_vencimento_cobranca} onChange={e => setForm({ ...form, data_vencimento_cobranca: e.target.value })} /></div>
               <div><Label>Páginas impressas</Label><Input type="number" value={form.paginas_impressas} onChange={e => setForm({ ...form, paginas_impressas: e.target.value })} /></div>
               <div><Label>Km rodado (ida e volta)</Label><Input type="number" step="0.1" value={form.km_rodado} onChange={e => setForm({ ...form, km_rodado: e.target.value })} /></div>
               <div><Label>Outras despesas (R$)</Label><Input type="number" step="0.01" value={form.outras_despesas} onChange={e => setForm({ ...form, outras_despesas: e.target.value })} /></div>
@@ -352,6 +377,7 @@ export default function Diligencias() {
                   <TableCell>{item.google_event_id ? <Badge variant="outline" className="text-emerald-700"><CalendarDays className="w-3 h-3 mr-1" />Sincronizada</Badge> : item.sincronizar_google ? <span className="text-xs text-muted-foreground">Pendente</span> : "—"}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     {!item.google_event_id && item.status !== "cancelada" && <Button size="sm" variant="ghost" onClick={() => abrirGoogleAgenda(item)}><CalendarDays className="w-4 h-4" /> Agenda</Button>}
+                    {item.asaas_invoice_url ? <Button size="sm" variant="ghost" onClick={() => window.open(item.asaas_invoice_url!, "_blank", "noopener,noreferrer")}>Fatura</Button> : item.pagamento_status !== "recebido" && item.valor_contratado !== null && <Button size="sm" variant="ghost" disabled={cobrandoId === item.id} onClick={() => gerarCobranca(item)}>{cobrandoId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />} Cobrar</Button>}
                     {item.pagamento_status !== "recebido" && item.valor_contratado !== null && <Button size="sm" variant="ghost" onClick={() => marcarRecebido(item)}>Recebi</Button>}
                     <Button size="sm" variant="ghost" onClick={() => editar(item)}>Editar</Button>
                     {isGestor && <Button size="icon" variant="ghost" onClick={() => excluir(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>}
