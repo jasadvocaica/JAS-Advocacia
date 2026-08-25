@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
+const BIA_HABILITADA = import.meta.env.VITE_BIA_ENABLED === "true";
+
 type Alvo = "publicacao" | "item_controladoria";
 
 export interface AcaoSugerida {
@@ -75,6 +77,8 @@ export function BiaAcoesButton({ alvo, id, size = "sm", rotulo = "Bia", onAcaoEx
   const [aplicadas, setAplicadas] = useState<Set<number>>(new Set());
   const [aplicandoTodas, setAplicandoTodas] = useState(false);
   const [confirmTodas, setConfirmTodas] = useState(false);
+
+  if (!BIA_HABILITADA) return null;
 
   async function analisar(e: React.MouseEvent) {
     e.stopPropagation();
