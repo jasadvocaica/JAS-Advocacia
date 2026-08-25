@@ -7,7 +7,7 @@
 // Body: { numero_cnj: string }
 // Resposta: { encontrado: boolean, fonte: "pje_comunica", dados?: DataJudPreviewLike, error?: string }
 
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+const corsHeaders = {\n  "Access-Control-Allow-Origin": "*",\n  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",\n};
 
 const PJE_BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 
