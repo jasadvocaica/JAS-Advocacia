@@ -15,6 +15,8 @@ const corsHeaders = {
 interface Payload {
   action: "upsert" | "delete";
   item_id: string;
+  event_id?: string | null;
+  calendar_id?: string | null;
 }
 
 // Visual mapping por tipo
@@ -125,10 +127,12 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (payload.action === "delete") {
-      if (mapping?.google_event_id) {
+      const eventIdDelete = payload.event_id ?? mapping?.google_event_id;
+      const calendarIdDelete = payload.calendar_id ?? mapping?.google_calendar_id ?? CALENDAR_ID;
+      if (eventIdDelete) {
         try {
           await gateway(
-            `/calendars/${encodeURIComponent(mapping.google_calendar_id)}/events/${encodeURIComponent(mapping.google_event_id)}`,
+            `/calendars/${encodeURIComponent(calendarIdDelete)}/events/${encodeURIComponent(eventIdDelete)}`,
             { method: "DELETE", ...common },
           );
         } catch (e) {
