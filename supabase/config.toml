@@ -52,3 +52,90 @@ verify_jwt = true
 
 [functions.pje-comunica-consulta]
 verify_jwt = true
+
+[functions.assistente-chat]
+verify_jwt = true
+
+[functions.ativar-portal-cliente]
+verify_jwt = true
+
+[functions.bia-acoes]
+verify_jwt = true
+
+[functions.cadastros-pendentes-diagnostico]
+verify_jwt = true
+
+[functions.checklist-diligencias-ia]
+verify_jwt = true
+
+[functions.clientes-triagem-ia]
+verify_jwt = true
+
+[functions.cofre-credencial]
+verify_jwt = true
+
+[functions.dje-analisar]
+verify_jwt = true
+
+[functions.equipe-job-mensal]
+verify_jwt = true
+
+[functions.ferramentas-analisar-caso]
+verify_jwt = true
+
+[functions.ferramentas-cnis-extrair]
+verify_jwt = true
+
+[functions.ferramentas-gerar-proposta]
+verify_jwt = true
+
+[functions.ferramentas-notificacao-extrair]
+verify_jwt = true
+
+[functions.ferramentas-parse-tabela-oab]
+verify_jwt = true
+
+[functions.ficha-atendimento-ia]
+verify_jwt = true
+
+[functions.fluxos-importar-md]
+verify_jwt = true
+
+[functions.ie-exportar]
+verify_jwt = true
+
+[functions.ie-importar]
+verify_jwt = true
+
+[functions.inss-importar-pdf]
+verify_jwt = true
+
+[functions.parceiro-portal]
+verify_jwt = true
+
+[functions.parceiros-distribuicao-ia]
+verify_jwt = true
+
+[functions.pdpj-importar-pdf]
+verify_jwt = true
+
+[functions.pje-comunica-buscar]
+verify_jwt = true
+
+[functions.prazos-alertas]
+verify_jwt = true
+
+[functions.publijus-testar]
+verify_jwt = true
+
+[functions.relatorio-horas-estagio]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.tarefa-sugerir-ia]
+verify_jwt = true
+
+[functions.admin-usuarios]
+verify_jwt = true
