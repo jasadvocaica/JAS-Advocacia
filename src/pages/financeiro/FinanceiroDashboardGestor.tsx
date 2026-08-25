@@ -130,6 +130,7 @@ export default function FinanceiroDashboardGestor() {
             .select("valor").eq("mes", mes).eq("ano", ano),
           (supabase as any).from("diligencias")
             .select("valor_recebido")
+            .eq("natureza_receita", "escritorio")
             .gte("data_recebimento", inicio).lte("data_recebimento", fim)
             .eq("pagamento_status", "recebido"),
           (supabase as any).from("financeiro_saidas")
