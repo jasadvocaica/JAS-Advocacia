@@ -19,6 +19,8 @@ import {
   MessageSquare,
 } from "lucide-react";
 
+const BIA_HABILITADA = import.meta.env.VITE_BIA_ENABLED === "true";
+
 const SUGESTOES = [
   "Quais prazos vencem nos próximos 7 dias?",
   "Quanto temos em honorários em aberto hoje?",
@@ -48,6 +50,30 @@ export default function AssistenteIA() {
 
   if (loading) return null;
   if (!podeAcessar) return <Navigate to="/sem-permissao" replace />;
+
+  if (!BIA_HABILITADA) {
+    return (
+      <div className="space-y-4">
+        <PageHeader
+          title="Assistente Bia"
+          description="Integração de inteligência artificial preparada para ativação futura."
+        />
+        <Card className="p-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Sparkles className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h2 className="font-semibold">Bia temporariamente desativada</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+            O sistema jurídico continua funcionando normalmente. A assistente será ativada
+            futuramente, quando uma API de inteligência artificial for contratada.
+          </p>
+          <Button asChild variant="outline" className="mt-5">
+            <Link to="/">Voltar ao início</Link>
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   const submit = () => {
     if (!input.trim() || enviando) return;
