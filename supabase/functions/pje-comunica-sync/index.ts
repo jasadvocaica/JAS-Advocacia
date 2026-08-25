@@ -262,7 +262,7 @@ async function sincronizarMonitoramento(
               processo_id: processoId,
               data: dataDisp ?? new Date().toISOString().slice(0, 10),
               descricao: `DJEN — ${item.tipoComunicacao ?? "Publicação"}: ${(item.texto ?? "").slice(0, 1000)}`,
-              fonte: "djen",
+              fonte: "pje_comunica",
               datajud_id: `djen_${inserted.id}`,
             })
             .select("id")
