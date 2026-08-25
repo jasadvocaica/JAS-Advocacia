@@ -179,19 +179,69 @@ export default function Diligencias() {
     const operacao = editandoId
       ? (supabase as any).from("diligencias").update(payload).eq("id", editandoId).select("id").single()
       : (supabase as any).from("diligencias").insert(payload).select("id").single();
-    const { error } = await operacao;
+    const { data: salvo, error } = await operacao;
     if (error) {
       toast.error(error.message);
       setSalvando(false);
       return;
     }
 
+    const diligenciaId = salvo?.id ?? editandoId;
+    if (diligenciaId) {
+      await sincronizarGoogle(diligenciaId, payload);
+    }
     toast.success(editandoId ? "Diligência atualizada" : "Diligência cadastrada");
     setForm({ ...FORM_INICIAL, data_hora: hojeLocal() });
     setEditandoId(null);
     setOpen(false);
     setSalvando(false);
     carregar();
+  }
+
+  async function sincronizarGoogle(id: string, payload: any) {
+    const anterior = itens.find(i => i.id === id);
+    try {
+      if (!payload.sincronizar_google || payload.status === "cancelada") {
+        if (anterior?.google_event_id) {
+          const { data, error } = await supabase.functions.invoke("google-calendar", {
+            body: { action: "delete", eventId: anterior.google_event_id },
+          });
+          if (error || data?.error) throw new Error(data?.error || error?.message);
+        }
+        await (supabase as any).from("diligencias").update({
+          google_event_id: null, google_ultimo_sync: new Date().toISOString(), google_ultimo_erro: null,
+        }).eq("id", id);
+        return;
+      }
+
+      const inicio = new Date(payload.data_hora);
+      const fim = new Date(inicio.getTime() + 60 * 60 * 1000);
+      const event = {
+        summary: `⚖️ Diligência — ${payload.descricao}`,
+        description: `Contratante: ${payload.contratante_nome}\n${payload.observacoes || ""}\n\nSincronizado pelo sistema JAS Advocacia.`,
+        location: payload.local || undefined,
+        start: { dateTime: inicio.toISOString(), timeZone: "America/Cuiaba" },
+        end: { dateTime: fim.toISOString(), timeZone: "America/Cuiaba" },
+      };
+      const body = anterior?.google_event_id
+        ? { action: "update", eventId: anterior.google_event_id, event }
+        : { action: "create", event };
+      const { data, error } = await supabase.functions.invoke("google-calendar", { body });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      await (supabase as any).from("diligencias").update({
+        google_event_id: data.id ?? anterior?.google_event_id ?? null,
+        google_calendar_id: "primary",
+        google_ultimo_sync: new Date().toISOString(),
+        google_ultimo_erro: null,
+      }).eq("id", id);
+      toast.success(anterior?.google_event_id ? "Google Agenda atualizada" : "Adicionada ao Google Agenda");
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Falha na sincronização";
+      await (supabase as any).from("diligencias").update({
+        google_ultimo_sync: new Date().toISOString(), google_ultimo_erro: mensagem,
+      }).eq("id", id);
+      toast.error("Diligência salva, mas a Agenda não sincronizou", { description: mensagem });
+    }
   }
 
   async function gerarCobranca(item: Diligencia) {
@@ -266,6 +316,15 @@ export default function Diligencias() {
 
   async function excluir(id: string) {
     if (!confirm("Excluir esta diligência?")) return;
+    const item = itens.find(i => i.id === id);
+    if (item?.google_event_id) {
+      const { data, error: calendarError } = await supabase.functions.invoke("google-calendar", {
+        body: { action: "delete", eventId: item.google_event_id },
+      });
+      if (calendarError || data?.error) {
+        return toast.error("Não foi possível remover o evento do Google Agenda", { description: data?.error || calendarError?.message });
+      }
+    }
     const { error } = await (supabase as any).from("diligencias").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Diligência excluída");
