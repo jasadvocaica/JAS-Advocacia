@@ -40,7 +40,8 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },\n  { to: "/comercial", label: "Comercial", icon: MessageCircle, modulo: "marketing" },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/comercial", label: "Comercial", icon: MessageCircle, modulo: "marketing" },
   { to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
   { to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
