@@ -6,7 +6,7 @@ import { usePreviewMode } from "@/contexts/PreviewModeContext";
 import { toast } from "sonner";
 
 export type AppRole = "gestor" | "advogado" | "controladoria" | "administrativo" | "estagiario";
-export type Modulo = "clientes" | "processos" | "controladoria" | "financeiro" | "documentos" | "relatorios" | "usuarios" | "parceiros" | "equipe";
+export type Modulo = "clientes" | "processos" | "controladoria" | "financeiro" | "documentos" | "relatorios" | "usuarios" | "parceiros" | "equipe" | "marketing";
 export type Acao = "visualizar" | "criar" | "editar" | "excluir" | "exportar";
 
 export interface Profile {
