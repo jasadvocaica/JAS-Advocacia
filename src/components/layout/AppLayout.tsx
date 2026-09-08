@@ -37,23 +37,30 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   modulo?: Modulo;
   badge?: string;
+  grupo: "Início" | "Produção jurídica" | "Comercial" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
 }
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/comercial", label: "Comercial", icon: MessageCircle, modulo: "marketing" },
-  { to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
-  { to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
-  { to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
-  { to: "/agenda", label: "Agenda", icon: Calendar },
-  { to: "/diligencias", label: "Diligências", icon: Scale },
-  { to: "/fluxos", label: "Fluxos", icon: Workflow, modulo: "controladoria" },
-  { to: "/financeiro", label: "Financeiro", icon: DollarSign, modulo: "financeiro" },
-  { to: "/documentos", label: "Documentos", icon: FileText, modulo: "documentos" },
-  { to: "/parceiros", label: "Parceiros", icon: Handshake, modulo: "parceiros" },
-  { to: "/equipe", label: "Gestão de Pessoas", icon: UserCog, modulo: "equipe" },
-  { to: "/ferramentas", label: "Ferramentas", icon: Wrench },
+  { grupo: "Início", to: "/", label: "Visão geral", icon: LayoutDashboard },
+  { grupo: "Produção jurídica", to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
+  { grupo: "Produção jurídica", to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
+  { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
+  { grupo: "Produção jurídica", to: "/diligencias", label: "Diligências", icon: Scale },
+  { grupo: "Produção jurídica", to: "/fluxos", label: "Fluxos e POPs", icon: Workflow, modulo: "controladoria" },
+  { grupo: "Produção jurídica", to: "/documentos", label: "Peças e documentos", icon: FileText, modulo: "documentos" },
+  { grupo: "Produção jurídica", to: "/parceiros", label: "Parceiros", icon: Handshake, modulo: "parceiros" },
+  { grupo: "Comercial", to: "/comercial", label: "Conversas", icon: MessageCircle, modulo: "marketing" },
+  { grupo: "Comercial", to: "/comercial/crm", label: "CRM", icon: Users, modulo: "marketing" },
+  { grupo: "Comercial", to: "/comercial/automacoes", label: "Automações", icon: Workflow, modulo: "marketing" },
+  { grupo: "Comercial", to: "/comercial/campanhas", label: "Campanhas", icon: Megaphone, modulo: "marketing" },
+  { grupo: "Comercial", to: "/comercial/conexoes", label: "Conexões", icon: RefreshCw, modulo: "marketing" },
+  { grupo: "Comercial", to: "/atendimentos", label: "Fichas de atendimento", icon: ClipboardCheck, modulo: "clientes" },
+  { grupo: "Comercial", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
+  { grupo: "Financeiro", to: "/financeiro", label: "Visão financeira", icon: DollarSign, modulo: "financeiro" },
+  { grupo: "Gestão de pessoas / RH", to: "/equipe", label: "Equipe e RH", icon: UserCog, modulo: "equipe" },
+  { grupo: "Sistema", to: "/ferramentas", label: "Ferramentas", icon: Wrench },
 ];
+const GRUPOS = ["Início", "Produção jurídica", "Comercial", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
 
 /**
  * Item de menu adaptado a estado recolhido/expandido.
@@ -179,25 +186,22 @@ function SidebarContent({
         )}
 
         <nav className={cn("flex-1 overflow-y-auto scrollbar-thin py-4 space-y-1", collapsed ? "px-1" : "px-3")}>
-          {NAV.map((item) => {
-            if (isEstagiaria && item.to === "/") return null;
-            if (item.modulo && !hasPermission(item.modulo, "visualizar")) return null;
-            const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
+          {GRUPOS.map((grupo) => {
+            const itens = NAV.filter((item) => item.grupo === grupo).filter((item) => {
+              if (isEstagiaria && item.to === "/") return false;
+              return !item.modulo || hasPermission(item.modulo, "visualizar");
+            });
+            if (itens.length === 0) return null;
             return (
-              <SidebarItem
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                icon={item.icon}
-                collapsed={collapsed}
-                isActive={isActive}
-                onNavigate={onNavigate}
-                rightSlot={
-                  item.badge ? (
-                    <Badge variant="secondary" className="bg-primary text-primary-foreground h-5 px-1.5">{item.badge}</Badge>
-                  ) : null
-                }
-              />
+              <div key={grupo} className="space-y-1">
+                <div className={cn("pt-4 pb-1", collapsed ? "px-2" : "px-3")}>
+                  {collapsed ? <div className="h-px bg-sidebar-border" /> : <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/55">{grupo}</p>}
+                </div>
+                {itens.map((item) => {
+                  const isActive = item.to === "/" ? location.pathname === "/" : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+                  return <SidebarItem key={item.to} to={item.to} label={item.label} icon={item.icon} collapsed={collapsed} isActive={isActive} onNavigate={onNavigate} />;
+                })}
+              </div>
             );
           })}
 
