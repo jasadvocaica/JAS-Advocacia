@@ -22,7 +22,8 @@ export function useUserPortais() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading) return;
+    let cancelado = false;
+    if (authLoading) return () => { cancelado = true; };
     if (!user) {
       setPortais([]);
       setMotivo("");
@@ -60,10 +61,15 @@ export function useUserPortais() {
       };
 
       const lista = resolverPortaisDisponiveis(ctx);
+      if (cancelado) return;
       setPortais(lista);
       setMotivo(descreverMotivoIdentificacao(ctx, lista));
       setLoading(false);
     })();
+
+    return () => {
+      cancelado = true;
+    };
   }, [user, profile, roles, authLoading]);
 
   return { portais, motivo, loading: loading || authLoading };
