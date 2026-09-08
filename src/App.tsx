@@ -26,6 +26,10 @@ const PainelOperacional = lazy(() => import("@/pages/painel-operacional/PainelOp
 const PainelJuliana = lazy(() => import("@/pages/painel-juliana/PainelJuliana"));
 const PainelValeska = lazy(() => import("@/pages/painel-valeska/PainelValeska"));
 const ComercialWhatsApp = lazy(() => import("@/pages/comercial/ComercialWhatsApp"));
+const ComercialCRM = lazy(() => import("@/pages/comercial/ComercialCRM"));
+const ComercialAutomacoes = lazy(() => import("@/pages/comercial/ComercialAutomacoes"));
+const ComercialCampanhas = lazy(() => import("@/pages/comercial/ComercialCampanhas"));
+const ComercialConexoes = lazy(() => import("@/pages/comercial/ComercialConexoes"));
 const PainelProducao = lazy(() => import("@/pages/painel-producao/PainelProducao"));
 const MuralAvisos = lazy(() => import("@/pages/mural/MuralAvisos"));
 const MeuPonto = lazy(() => import("@/pages/ponto/MeuPonto"));
@@ -283,6 +287,10 @@ const AppRoutes = () => {
         {/* Painel comercial: autorização por configuração explícita + gestor (checada no componente) */}
         <Route path="/painel-comercial" element={<ProtectedRoute><PainelValeska /></ProtectedRoute>} />
         <Route path="/comercial" element={<ProtectedRoute requireModulo="marketing"><ComercialWhatsApp /></ProtectedRoute>} />
+        <Route path="/comercial/crm" element={<ProtectedRoute requireModulo="marketing"><ComercialCRM /></ProtectedRoute>} />
+        <Route path="/comercial/automacoes" element={<ProtectedRoute requireModulo="marketing"><ComercialAutomacoes /></ProtectedRoute>} />
+        <Route path="/comercial/campanhas" element={<ProtectedRoute requireModulo="marketing"><ComercialCampanhas /></ProtectedRoute>} />
+        <Route path="/comercial/conexoes" element={<ProtectedRoute requireModulo="marketing"><ComercialConexoes /></ProtectedRoute>} />
         <Route path="/painel-producao" element={<ProtectedRoute><PainelProducao /></ProtectedRoute>} />
         <Route path="/mural-avisos" element={<ProtectedRoute><MuralAvisos /></ProtectedRoute>} />
         <Route path="/ponto" element={<ProtectedRoute><MeuPonto /></ProtectedRoute>} />
