@@ -201,111 +201,21 @@ function SidebarContent({
                   const isActive = item.to === "/" ? location.pathname === "/" : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
                   return <SidebarItem key={item.to} to={item.to} label={item.label} icon={item.icon} collapsed={collapsed} isActive={isActive} onNavigate={onNavigate} />;
                 })}
+                {grupo === "Início" && isEstagiaria && <SidebarItem to="/painel-operacional" label="Visão operacional" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-operacional") || location.pathname === "/"} onNavigate={onNavigate} />}
+                {grupo === "Início" && <MuralNavItem collapsed={collapsed} onNavigate={onNavigate} />}
+                {grupo === "Início" && isGestor && <SidebarItem to="/painel-juliana" label="Painel da Juliana" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-juliana")} onNavigate={onNavigate} />}
+                {grupo === "Início" && isGestor && <SidebarItem to="/dashboard-gestor" label="Painel executivo" icon={BarChart3} collapsed={collapsed} isActive={location.pathname.startsWith("/dashboard-gestor")} onNavigate={onNavigate} />}
+                {grupo === "Produção jurídica" && hasPermission("controladoria", "visualizar") && <SidebarItem to="/painel-producao" label="Minha produção" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-producao")} onNavigate={onNavigate} />}
+                {grupo === "Comercial" && podeVerComercial && <SidebarItem to="/painel-comercial" label="Painel comercial" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-comercial")} onNavigate={onNavigate} />}
+                {grupo === "Gestão de pessoas / RH" && isEstagiaria && <SidebarItem to="/ponto" label="Meu ponto" icon={Clock} collapsed={collapsed} isActive={location.pathname.startsWith("/ponto")} onNavigate={onNavigate} />}
+                {grupo === "Sistema" && isGestor && <>
+                  <SidebarItem to="/usuarios" label="Usuários e permissões" icon={Users} collapsed={collapsed} isActive={location.pathname.startsWith("/usuarios")} onNavigate={onNavigate} />
+                  <SidebarItem to="/importacao-exportacao" label="Importar / Exportar" icon={Database} collapsed={collapsed} isActive={location.pathname.startsWith("/importacao-exportacao")} onNavigate={onNavigate} />
+                  <SidebarItem to="/configuracoes" label="Configurações" icon={Settings} collapsed={collapsed} isActive={location.pathname.startsWith("/configuracoes")} onNavigate={onNavigate} />
+                </>}
               </div>
             );
           })}
-
-          {isEstagiaria && (
-            <SidebarItem
-              to="/painel-operacional"
-              label="Dashboard"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-operacional") || location.pathname === "/"}
-              onNavigate={onNavigate}
-            />
-          )}
-          <MuralNavItem collapsed={collapsed} onNavigate={onNavigate} />
-          {isEstagiaria && (
-            <SidebarItem
-              to="/ponto"
-              label="Meu ponto"
-              icon={Clock}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/ponto")}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {isGestor && (
-            <SidebarItem
-              to="/painel-juliana"
-              label="Meu painel"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-juliana")}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {podeVerComercial && (
-            <SidebarItem
-              to="/painel-comercial"
-              label="Painel comercial"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-comercial")}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {hasPermission("controladoria", "visualizar") && (
-            <SidebarItem
-              to="/painel-producao"
-              label="Minha produção"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-producao")}
-              onNavigate={onNavigate}
-            />
-          )}
-          {isGestor && (
-            <SidebarItem
-              to="/dashboard-gestor"
-              label="Painel executivo"
-              icon={BarChart3}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/dashboard-gestor")}
-              onNavigate={onNavigate}
-            />
-          )}
-          {isGestor && (
-            <>
-              <div className={cn("pt-4 pb-2", collapsed ? "px-0" : "px-3")}>
-                {collapsed ? (
-                  <div className="h-px bg-sidebar-border mx-2" />
-                ) : (
-                  <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60 font-semibold">
-                    Administração
-                  </div>
-                )}
-              </div>
-              <SidebarItem
-                to="/usuarios"
-                label="Usuários"
-                icon={Users}
-                collapsed={collapsed}
-                isActive={location.pathname.startsWith("/usuarios")}
-                onNavigate={onNavigate}
-              />
-              <SidebarItem
-                to="/importacao-exportacao"
-                label="Importar / Exportar"
-                icon={Database}
-                collapsed={collapsed}
-                isActive={location.pathname.startsWith("/importacao-exportacao")}
-                onNavigate={onNavigate}
-              />
-              <SidebarItem
-                to="/configuracoes"
-                label="Configurações"
-                icon={Settings}
-                collapsed={collapsed}
-                isActive={location.pathname.startsWith("/configuracoes")}
-                onNavigate={onNavigate}
-              />
-            </>
-          )}
         </nav>
 
         <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-3")}>
