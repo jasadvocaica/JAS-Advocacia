@@ -198,7 +198,9 @@ function SidebarContent({
                   {collapsed ? <div className="h-px bg-sidebar-border" /> : <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/55">{grupo}</p>}
                 </div>
                 {itens.map((item) => {
-                  const isActive = item.to === "/" ? location.pathname === "/" : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+                  const isActive = item.to === "/" || item.to === "/comercial"
+                    ? location.pathname === item.to
+                    : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
                   return <SidebarItem key={item.to} to={item.to} label={item.label} icon={item.icon} collapsed={collapsed} isActive={isActive} onNavigate={onNavigate} />;
                 })}
                 {grupo === "Início" && isEstagiaria && <SidebarItem to="/painel-operacional" label="Visão operacional" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-operacional") || location.pathname === "/"} onNavigate={onNavigate} />}
