@@ -257,6 +257,19 @@ export default function ComercialWhatsApp() {
     },
     onError: () => toast.error("Não foi possível atribuir o atendimento."),
   });
+  const ultimaEntradaEm = useMemo(() => {
+    const entradas = mensagens.filter((mensagem) => mensagem.direcao === "entrada");
+    if (entradas.length === 0) return null;
+    return entradas.reduce((maisRecente, mensagem) =>
+      new Date(mensagem.ocorrida_em).getTime() > new Date(maisRecente).getTime()
+        ? mensagem.ocorrida_em
+        : maisRecente,
+    entradas[0].ocorrida_em);
+  }, [mensagens]);
+  const janelaAtiva = !!ultimaEntradaEm &&
+    Date.now() - new Date(ultimaEntradaEm).getTime() <= 24 * 60 * 60 * 1000;
+  const envioDisponivel = conexao?.status === "conectado" && janelaAtiva;
+
   const { data: lead } = useQuery({
     queryKey: ["whatsapp-lead", conversa?.lead_id],
     enabled: !!conversa?.lead_id,
@@ -339,6 +352,11 @@ export default function ComercialWhatsApp() {
               ))}
             </div>
             <div className="border-t bg-background p-3">
+              {conexao?.status === "conectado" && !janelaAtiva && (
+                <p className="mb-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  A janela de 24 horas está encerrada. Para retomar o contato será necessário usar um template aprovado pela Meta.
+                </p>
+              )}
               <div className="flex items-end gap-2">
                 <Button variant="ghost" size="icon" disabled title="Anexos serão liberados após a homologação do canal">
                   <Paperclip className="h-4 w-4" />
@@ -352,14 +370,14 @@ export default function ComercialWhatsApp() {
                       if (!enviarMensagem.isPending && texto.trim()) enviarMensagem.mutate();
                     }
                   }}
-                  disabled={!conexao || conexao.status !== "conectado" || enviarMensagem.isPending}
+                  disabled={!envioDisponivel || enviarMensagem.isPending}
                   rows={2}
                   maxLength={4096}
-                  placeholder={conexao?.status === "conectado" ? "Digite uma mensagem… (Ctrl + Enter para enviar)" : "Envio bloqueado até conectar o provedor oficial"}
+                  placeholder={!conexao || conexao.status !== "conectado" ? "Envio bloqueado até conectar o provedor oficial" : janelaAtiva ? "Digite uma mensagem… (Ctrl + Enter para enviar)" : "Janela de 24 horas encerrada — use template aprovado"}
                   className="min-h-[44px] flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <Button
-                  disabled={!conexao || conexao.status !== "conectado" || !texto.trim() || enviarMensagem.isPending}
+                  disabled={!envioDisponivel || !texto.trim() || enviarMensagem.isPending}
                   className="gap-2"
                   onClick={() => enviarMensagem.mutate()}
                 >
