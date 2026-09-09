@@ -41,6 +41,7 @@ type Conexao = { id: string; nome: string; numero_exibicao: string | null; statu
 type Lead = { id: string; nome: string; email: string | null; area_direito: string | null; status: string; canal: string | null; valor_contrato: number | null };
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
+type TemplateWhatsApp = { id: string; nome: string; idioma: string; categoria: string | null };
 
 const hora = (data: string | null) => data ? new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(data)) : "";
 const iniciais = (nome?: string | null) => (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -60,6 +61,7 @@ export default function ComercialWhatsApp() {
   const [novaConversaAberta, setNovaConversaAberta] = useState(false);
   const [buscaContato, setBuscaContato] = useState("");
   const [texto, setTexto] = useState("");
+  const [templateSelecionado, setTemplateSelecionado] = useState("");
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -67,6 +69,21 @@ export default function ComercialWhatsApp() {
       const { data, error } = await (supabase as any).from("whatsapp_conexoes").select("id,nome,numero_exibicao,status,ativo").eq("ativo", true).maybeSingle();
       if (error) throw error;
       return data as Conexao | null;
+    },
+  });
+  const { data: templates = [] } = useQuery({
+    queryKey: ["whatsapp-templates-aprovados", conexao?.id],
+    enabled: !!conexao?.id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_templates")
+        .select("id,nome,idioma,categoria")
+        .eq("conexao_id", conexao!.id)
+        .eq("presente_meta", true)
+        .eq("status", "APPROVED")
+        .order("nome");
+      if (error) throw error;
+      return (data ?? []) as TemplateWhatsApp[];
     },
   });
   const { data: responsaveis = [] } = useQuery({
@@ -217,6 +234,26 @@ export default function ComercialWhatsApp() {
       toast.error(erro.message || "Não foi possível enviar a mensagem.");
     },
   });
+  const enviarTemplate = useMutation({
+    mutationFn: async () => {
+      if (!selecionada || !templateSelecionado) throw new Error("Selecione um template aprovado.");
+      const { data, error } = await supabase.functions.invoke("whatsapp-enviar", {
+        body: { conversa_id: selecionada, template_id: templateSelecionado },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: async () => {
+      setTemplateSelecionado("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", selecionada] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+      ]);
+      toast.success("Template enviado.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível enviar o template."),
+  });
   const alterarStatus = useMutation({
     mutationFn: async (status: string) => {
       if (!selecionada) throw new Error("Selecione uma conversa.");
@@ -353,9 +390,39 @@ export default function ComercialWhatsApp() {
             </div>
             <div className="border-t bg-background p-3">
               {conexao?.status === "conectado" && !janelaAtiva && (
-                <p className="mb-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  A janela de 24 horas está encerrada. Para retomar o contato será necessário usar um template aprovado pela Meta.
-                </p>
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs text-amber-950">
+                    A janela de 24 horas está encerrada. Retome o contato somente com um template aprovado pela Meta.
+                  </p>
+                  {templates.length > 0 ? (
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Select value={templateSelecionado} onValueChange={setTemplateSelecionado}>
+                        <SelectTrigger className="bg-background">
+                          <SelectValue placeholder="Selecionar template aprovado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.nome} · {template.idioma}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={() => enviarTemplate.mutate()}
+                        disabled={!templateSelecionado || enviarTemplate.isPending}
+                        className="shrink-0 gap-2"
+                      >
+                        <Send className="h-4 w-4" />
+                        {enviarTemplate.isPending ? "Enviando…" : "Enviar template"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs font-medium text-amber-950">
+                      Nenhum template aprovado está sincronizado para este canal.
+                    </p>
+                  )}
+                </div>
               )}
               <div className="flex items-end gap-2">
                 <Button variant="ghost" size="icon" disabled title="Anexos serão liberados após a homologação do canal">
