@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ExternalLink, Pencil, PlugZap, Shield } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Pencil, PlugZap, RefreshCw, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,15 @@ import {
 } from "@/components/ui/dialog";
 
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
+type WhatsAppTemplate = {
+  id: string;
+  conexao_id: string;
+  nome: string;
+  idioma: string;
+  categoria: string | null;
+  status: string;
+  sincronizado_em: string | null;
+};
 
 type Conexao = {
   id: string;
@@ -55,6 +64,19 @@ export default function ComercialConexoes() {
       const { data, error } = await (supabase as any).rpc("comercial_responsaveis_autorizados");
       if (error) throw error;
       return (data ?? []) as Responsavel[];
+    },
+  });
+
+  const { data: templates = [], isLoading: carregandoTemplates } = useQuery({
+    queryKey: ["whatsapp-templates"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_templates")
+        .select("id,conexao_id,nome,idioma,categoria,status,sincronizado_em")
+        .eq("presente_meta", true)
+        .order("nome");
+      if (error) throw error;
+      return (data ?? []) as WhatsAppTemplate[];
     },
   });
 
@@ -128,6 +150,30 @@ export default function ComercialConexoes() {
       toast.success("Canal salvo. Falta configurar os segredos e homologar a Meta.");
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível salvar o canal."),
+  });
+
+  const sincronizarTemplates = useMutation({
+    mutationFn: async () => {
+      if (!isGestor) throw new Error("Somente gestores podem sincronizar templates.");
+      const conexao = items.find((item) => item.ativo);
+      if (!conexao?.business_account_id) {
+        throw new Error("Informe o WhatsApp Business Account ID antes de sincronizar.");
+      }
+      const { data, error } = await supabase.functions.invoke("whatsapp-sincronizar-templates", {
+        body: {},
+      });
+      if (error) throw error;
+      return data as { sincronizados?: number };
+    },
+    onSuccess: async (data) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-templates"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conexoes"] }),
+      ]);
+      toast.success(`${data?.sincronizados ?? 0} template(s) sincronizado(s) com a Meta.`);
+    },
+    onError: (erro: Error) =>
+      toast.error(erro.message || "Não foi possível sincronizar os templates."),
   });
 
   const salvarResponsavel = useMutation({
@@ -262,6 +308,60 @@ export default function ComercialConexoes() {
           ))}
         </div>
       )}
+
+      <Card className="p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-display text-xl">Templates oficiais da Meta</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Apenas modelos realmente retornados pela WhatsApp Business Platform aparecem aqui.
+              Eles serão necessários para iniciar conversas fora da janela de 24 horas.
+            </p>
+          </div>
+          {isGestor && (
+            <Button
+              variant="outline"
+              className="shrink-0 gap-2"
+              onClick={() => sincronizarTemplates.mutate()}
+              disabled={
+                sincronizarTemplates.isPending ||
+                !items.some((item) => item.ativo && item.business_account_id)
+              }
+            >
+              <RefreshCw className={`h-4 w-4 ${sincronizarTemplates.isPending ? "animate-spin" : ""}`} />
+              Sincronizar com a Meta
+            </Button>
+          )}
+        </div>
+
+        <div className="mt-5">
+          {carregandoTemplates ? (
+            <p className="text-sm text-muted-foreground">Carregando templates…</p>
+          ) : templates.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+              Nenhum template foi sincronizado. O botão será liberado depois que o Business Account ID
+              estiver cadastrado; a sincronização também exige a credencial segura no servidor.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {templates.map((template) => {
+                const aprovado = template.status.toUpperCase() === "APPROVED";
+                return (
+                  <div key={template.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{template.nome}</p>
+                      <Badge variant={aprovado ? "default" : "secondary"}>{template.status}</Badge>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {template.idioma} · {template.categoria || "categoria não informada"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Card>
 
       <Card className="p-5">
         <div className="grid gap-4 md:grid-cols-[1fr_360px] md:items-center">
