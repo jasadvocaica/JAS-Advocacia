@@ -1,28 +1,18 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleDollarSign, Plus, Search, Users } from "lucide-react";
+import { CircleDollarSign, ExternalLink, Pencil, Plus, Search, UserX, Users } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-
-type Campanha = { id: string; nome: string; status: string };
 
 type Lead = {
   id: string;
@@ -34,297 +24,260 @@ type Lead = {
   campanha_id: string | null;
   status: string;
   valor_contrato: number | null;
+  responsavel_id: string | null;
+  motivo_perda: string | null;
+  observacao_perda: string | null;
   criado_em: string;
 };
+type Campanha = { id: string; nome: string; status: string };
+type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 
 const COLUNAS = [
-  { titulo: "Recepção", status: "novo" },
-  { titulo: "Em atendimento", status: "em_atendimento" },
-  { titulo: "Proposta enviada", status: "proposta_enviada" },
-  { titulo: "Convertido", status: "convertido" },
-  { titulo: "Perdido", status: "perdido" },
+  ["novo", "Recepção"], ["em_atendimento", "Em atendimento"],
+  ["proposta_enviada", "Proposta enviada"], ["convertido", "Convertido"], ["perdido", "Perdido"],
 ] as const;
-
 const AREAS = [
-  ["previdenciario", "Previdenciário"],
-  ["familia", "Família"],
-  ["civil", "Cível"],
-  ["trabalhista", "Trabalhista"],
-  ["tributario", "Tributário"],
-  ["consumidor", "Consumidor"],
-  ["saude", "Saúde"],
-  ["outro", "Outro / a confirmar"],
+  ["previdenciario", "Previdenciário"], ["familia", "Família"], ["civil", "Cível"],
+  ["trabalhista", "Trabalhista"], ["tributario", "Tributário"], ["consumidor", "Consumidor"],
+  ["saude", "Saúde"], ["outro", "Outro / a confirmar"],
 ] as const;
-
 const CANAIS = [
-  ["whatsapp_direto", "WhatsApp direto"],
-  ["indicacao_parceiro", "Indicação de parceiro"],
-  ["instagram_organico", "Instagram orgânico"],
-  ["meta_ads", "Meta Ads"],
-  ["site_seo", "Site / busca"],
-  ["tiktok", "TikTok"],
-  ["outro", "Outro"],
+  ["whatsapp_direto", "WhatsApp direto"], ["indicacao_parceiro", "Indicação de parceiro"],
+  ["instagram_organico", "Instagram orgânico"], ["meta_ads", "Meta Ads"],
+  ["site_seo", "Site / busca"], ["tiktok", "TikTok"], ["outro", "Outro"],
 ] as const;
-
-const moeda = (valor: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: 0,
-  }).format(valor);
+const MOTIVOS_PERDA = [
+  ["valor", "Valor"], ["concorrente", "Contratou concorrente"], ["caso_inviavel", "Caso inviável"],
+  ["sem_retorno", "Sem retorno"], ["nao_urgente", "Não é urgente"], ["outro", "Outro"],
+] as const;
+const formVazio = {
+  id: "", nome: "", whatsapp: "", email: "", area_direito: "", canal: "whatsapp_direto",
+  campanha_id: "", valor_contrato: "", responsavel_id: "",
+};
+const moeda = (valor: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(valor);
+const whatsappUrl = (telefone: string) => {
+  const digitos = telefone.replace(/\D/g, "");
+  return `https://web.whatsapp.com/send?phone=${digitos.startsWith("55") ? digitos : `55${digitos}`}`;
+};
 
 export default function ComercialCRM() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
-  const [novoAberto, setNovoAberto] = useState(false);
-  const [form, setForm] = useState({
-    nome: "",
-    whatsapp: "",
-    email: "",
-    area_direito: "",
-    canal: "whatsapp_direto",
-    campanha_id: "",
-    valor_contrato: "",
-  });
+  const [formAberto, setFormAberto] = useState(false);
+  const [form, setForm] = useState(formVazio);
+  const [leadPerda, setLeadPerda] = useState<Lead | null>(null);
+  const [perda, setPerda] = useState({ motivo: "", observacao: "" });
 
   const { data: campanhas = [] } = useQuery({
     queryKey: ["crm-campanhas-selecao"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("mkt_campanhas")
-        .select("id,nome,status")
-        .in("status", ["planejada", "ativa", "pausada"])
-        .order("nome");
+      const { data, error } = await (supabase as any).from("mkt_campanhas")
+        .select("id,nome,status").in("status", ["planejada", "ativa", "pausada"]).order("nome");
       if (error) throw error;
       return (data ?? []) as Campanha[];
     },
   });
-
-  const { data: leads = [], isLoading } = useQuery({
+  const { data: responsaveis = [] } = useQuery({
+    queryKey: ["comercial-responsaveis-autorizados"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("comercial_responsaveis_autorizados");
+      if (error) throw error;
+      return (data ?? []) as Responsavel[];
+    },
+  });
+  const { data: leads = [], isLoading, error } = useQuery({
     queryKey: ["crm-leads"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("mkt_leads")
-        .select("id,nome,whatsapp,email,area_direito,canal,campanha_id,status,valor_contrato,criado_em")
+      const { data, error: erro } = await (supabase as any).from("mkt_leads")
+        .select("id,nome,whatsapp,email,area_direito,canal,campanha_id,status,valor_contrato,responsavel_id,motivo_perda,observacao_perda,criado_em")
         .order("criado_em", { ascending: false });
-      if (error) throw error;
+      if (erro) throw erro;
       return (data ?? []) as Lead[];
     },
   });
 
-  const criarLead = useMutation({
+  const salvarLead = useMutation({
     mutationFn: async () => {
       const nome = form.nome.trim();
       if (!nome) throw new Error("Informe o nome do contato.");
-      const valor = form.valor_contrato.trim()
-        ? Number(form.valor_contrato.replace(/\./g, "").replace(",", "."))
-        : null;
-      if (valor !== null && (!Number.isFinite(valor) || valor < 0)) {
-        throw new Error("Informe um valor válido.");
+      const valor = form.valor_contrato.trim() ? Number(form.valor_contrato.replace(/\./g, "").replace(",", ".")) : null;
+      if (valor !== null && (!Number.isFinite(valor) || valor < 0)) throw new Error("Informe um valor válido.");
+      const payload = {
+        nome, whatsapp: form.whatsapp.trim() || null, email: form.email.trim() || null,
+        area_direito: form.area_direito || null, canal: form.canal,
+        campanha_id: form.campanha_id || null, valor_contrato: valor,
+        responsavel_id: form.responsavel_id || null, atualizado_em: new Date().toISOString(),
+      };
+      if (form.id) {
+        const { error: erro } = await (supabase as any).from("mkt_leads").update(payload).eq("id", form.id);
+        if (erro) throw erro;
+      } else {
+        const { error: erro } = await (supabase as any).from("mkt_leads")
+          .insert({ ...payload, status: "novo", registrado_por: user?.id || null });
+        if (erro) throw erro;
       }
-
-      const { error } = await (supabase as any).from("mkt_leads").insert({
-        nome,
-        whatsapp: form.whatsapp.trim() || null,
-        email: form.email.trim() || null,
-        area_direito: form.area_direito || null,
-        canal: form.canal,
-        campanha_id: form.campanha_id || null,
-        status: "novo",
-        valor_contrato: valor,
-      });
-      if (error) throw error;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["crm-leads"] });
-      await queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] });
-      setNovoAberto(false);
-      setForm({ nome: "", whatsapp: "", email: "", area_direito: "", canal: "whatsapp_direto", campanha_id: "", valor_contrato: "" });
-      toast.success("Atendimento incluído no CRM.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["crm-leads"] }),
+        queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] }),
+        queryClient.invalidateQueries({ queryKey: ["mkt-campanhas"] }),
+      ]);
+      setFormAberto(false); setForm(formVazio);
+      toast.success(form.id ? "Atendimento atualizado." : "Atendimento incluído no CRM.");
     },
-    onError: (erro: Error) => toast.error(erro.message || "Não foi possível cadastrar o atendimento."),
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível salvar o atendimento."),
   });
 
   const alterarEtapa = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await (supabase as any)
-        .from("mkt_leads")
-        .update({ status, atualizado_em: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
+      const alteracoes: Record<string, unknown> = { status, atualizado_em: new Date().toISOString() };
+      if (status === "convertido") alteracoes.data_conversao = new Date().toISOString().slice(0, 10);
+      const { error: erro } = await (supabase as any).from("mkt_leads").update(alteracoes).eq("id", id);
+      if (erro) throw erro;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["crm-leads"] });
-      await queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["crm-leads"] }),
+        queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] }),
+        queryClient.invalidateQueries({ queryKey: ["mkt-campanhas"] }),
+      ]);
       toast.success("Etapa atualizada.");
     },
     onError: () => toast.error("Não foi possível alterar a etapa."),
   });
 
+  const registrarPerda = useMutation({
+    mutationFn: async () => {
+      if (!leadPerda || !perda.motivo) throw new Error("Selecione o motivo da perda.");
+      const { error: erro } = await (supabase as any).from("mkt_leads").update({
+        status: "perdido", motivo_perda: perda.motivo,
+        observacao_perda: perda.observacao.trim() || null, atualizado_em: new Date().toISOString(),
+      }).eq("id", leadPerda.id);
+      if (erro) throw erro;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["crm-leads"] }),
+        queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] }),
+      ]);
+      setLeadPerda(null); setPerda({ motivo: "", observacao: "" });
+      toast.success("Perda registrada com o motivo.");
+    },
+    onError: (erro: Error) => toast.error(erro.message),
+  });
+
+  const mudarEtapa = (lead: Lead, status: string) => {
+    if (status === "perdido" && lead.status !== "perdido") {
+      setLeadPerda(lead); setPerda({ motivo: lead.motivo_perda || "", observacao: lead.observacao_perda || "" });
+      return;
+    }
+    alterarEtapa.mutate({ id: lead.id, status });
+  };
+  const abrirNovo = () => { setForm(formVazio); setFormAberto(true); };
+  const editar = (lead: Lead) => {
+    setForm({
+      id: lead.id, nome: lead.nome, whatsapp: lead.whatsapp || "", email: lead.email || "",
+      area_direito: lead.area_direito || "", canal: lead.canal, campanha_id: lead.campanha_id || "",
+      valor_contrato: lead.valor_contrato == null ? "" : String(lead.valor_contrato).replace(".", ","),
+      responsavel_id: lead.responsavel_id || "",
+    });
+    setFormAberto(true);
+  };
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     if (!termo) return leads;
-    return leads.filter((lead) =>
-      [lead.nome, lead.whatsapp, lead.email, lead.area_direito, lead.canal]
-        .some((valor) => (valor || "").toLowerCase().includes(termo)),
-    );
+    return leads.filter((lead) => [lead.nome, lead.whatsapp, lead.email, lead.area_direito, lead.canal].some((v) => (v || "").toLowerCase().includes(termo)));
   }, [busca, leads]);
-
-  const total = useMemo(
-    () => leads.reduce((soma, lead) => soma + Number(lead.valor_contrato || 0), 0),
-    [leads],
-  );
-
-  const submit = (evento: FormEvent) => {
-    evento.preventDefault();
-    criarLead.mutate();
-  };
+  const total = useMemo(() => leads.reduce((s, lead) => s + Number(lead.valor_contrato || 0), 0), [leads]);
+  const submit = (evento: FormEvent) => { evento.preventDefault(); salvarLead.mutate(); };
 
   return (
     <div className="space-y-5">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[.18em] text-primary">Comercial</p>
-          <h1 className="font-display text-3xl">CRM</h1>
-          <p className="text-sm text-muted-foreground">Negociações e contratos registrados no sistema.</p>
-        </div>
-        <Button className="gap-2" onClick={() => setNovoAberto(true)}>
-          <Plus className="h-4 w-4" />Novo atendimento
-        </Button>
+        <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-primary">Comercial</p><h1 className="font-display text-3xl">CRM</h1><p className="text-sm text-muted-foreground">Negociações e contratos registrados no sistema.</p></div>
+        <Button className="gap-2" onClick={abrirNovo}><Plus className="h-4 w-4" />Novo atendimento</Button>
       </header>
-
+      {error && <Card className="border-destructive/40 p-4 text-sm text-destructive">Não foi possível carregar o CRM.</Card>}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card className="flex items-center gap-3 p-4">
-          <Users className="h-5 w-5 text-primary" />
-          <div><p className="text-2xl font-semibold">{leads.length}</p><p className="text-xs text-muted-foreground">Negociações reais</p></div>
-        </Card>
-        <Card className="flex items-center gap-3 p-4">
-          <CircleDollarSign className="h-5 w-5 text-primary" />
-          <div><p className="text-2xl font-semibold">{moeda(total)}</p><p className="text-xs text-muted-foreground">Valor informado</p></div>
-        </Card>
+        <Card className="flex items-center gap-3 p-4"><Users className="h-5 w-5 text-primary" /><div><p className="text-2xl font-semibold">{leads.length}</p><p className="text-xs text-muted-foreground">Negociações reais</p></div></Card>
+        <Card className="flex items-center gap-3 p-4"><CircleDollarSign className="h-5 w-5 text-primary" /><div><p className="text-2xl font-semibold">{moeda(total)}</p><p className="text-xs text-muted-foreground">Valor informado</p></div></Card>
       </div>
-
-      <div className="relative max-w-xl">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={busca}
-          onChange={(evento) => setBusca(evento.target.value)}
-          placeholder="Buscar por nome, telefone, e-mail, área ou origem"
-          className="pl-9"
-        />
-      </div>
+      <div className="relative max-w-xl"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone, e-mail, área ou origem" className="pl-9" /></div>
 
       <div className="grid gap-4 overflow-x-auto pb-2 xl:grid-cols-5">
-        {COLUNAS.map((coluna) => {
-          const itens = filtrados.filter((lead) => lead.status === coluna.status);
+        {COLUNAS.map(([status, titulo]) => {
+          const itens = filtrados.filter((lead) => lead.status === status);
           return (
-            <section key={coluna.status} className="min-w-[270px] rounded-xl border bg-muted/25 p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-display text-lg">{coluna.titulo}</h2>
-                <span className="rounded-full bg-background px-2 py-0.5 text-xs">{itens.length}</span>
-              </div>
+            <section key={status} className="min-w-[270px] rounded-xl border bg-muted/25 p-3">
+              <div className="mb-3 flex items-center justify-between"><h2 className="font-display text-lg">{titulo}</h2><span className="rounded-full bg-background px-2 py-0.5 text-xs">{itens.length}</span></div>
               <div className="space-y-3">
-                {isLoading ? (
-                  <p className="text-sm text-muted-foreground">Carregando…</p>
-                ) : itens.length === 0 ? (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                    Nenhuma negociação
-                  </p>
-                ) : (
-                  itens.map((lead) => (
-                    <Card key={lead.id} className="space-y-3 p-4">
-                      <div>
-                        <p className="font-semibold">{lead.nome}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{lead.area_direito || "Área não informada"}</p>
-                        <p className="mt-2 text-xs text-muted-foreground">Origem: {lead.canal}</p>
-                        {lead.whatsapp && <p className="mt-1 text-xs text-muted-foreground">{lead.whatsapp}</p>}
-                        {lead.valor_contrato != null && (
-                          <p className="mt-2 font-medium text-primary">{moeda(Number(lead.valor_contrato))}</p>
-                        )}
-                      </div>
-                      <Select
-                        value={lead.status}
-                        onValueChange={(status) => alterarEtapa.mutate({ id: lead.id, status })}
-                        disabled={alterarEtapa.isPending}
-                      >
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {COLUNAS.map((opcao) => (
-                            <SelectItem key={opcao.status} value={opcao.status}>{opcao.titulo}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Card>
-                  ))
-                )}
+                {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : itens.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">Nenhuma negociação</p> : itens.map((lead) => (
+                  <Card key={lead.id} className="space-y-3 p-4">
+                    <div>
+                      <div className="flex items-start justify-between gap-2"><p className="font-semibold">{lead.nome}</p><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => editar(lead)} aria-label="Editar atendimento"><Pencil className="h-3.5 w-3.5" /></Button></div>
+                      <p className="mt-1 text-sm text-muted-foreground">{lead.area_direito || "Área não informada"}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Origem: {lead.canal}</p>
+                      {lead.whatsapp && <a className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline" href={whatsappUrl(lead.whatsapp)} target="_blank" rel="noreferrer">{lead.whatsapp}<ExternalLink className="h-3 w-3" /></a>}
+                      {lead.valor_contrato != null && <p className="mt-2 font-medium text-primary">{moeda(Number(lead.valor_contrato))}</p>}
+                      {lead.status === "perdido" && lead.motivo_perda && <p className="mt-2 text-xs text-destructive">Motivo: {MOTIVOS_PERDA.find(([id]) => id === lead.motivo_perda)?.[1] || lead.motivo_perda}</p>}
+                    </div>
+                    <Select value={lead.status} onValueChange={(novoStatus) => mudarEtapa(lead, novoStatus)} disabled={alterarEtapa.isPending}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>{COLUNAS.map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </Card>
+                ))}
               </div>
             </section>
           );
         })}
       </div>
 
-      <Dialog open={novoAberto} onOpenChange={setNovoAberto}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={formAberto} onOpenChange={setFormAberto}>
+        <DialogContent className="sm:max-w-2xl">
           <form onSubmit={submit}>
-            <DialogHeader>
-              <DialogTitle>Novo atendimento comercial</DialogTitle>
-              <DialogDescription>
-                O contato será gravado na recepção do CRM. Nenhuma mensagem será enviada automaticamente.
-              </DialogDescription>
-            </DialogHeader>
-
+            <DialogHeader><DialogTitle>{form.id ? "Editar atendimento" : "Novo atendimento comercial"}</DialogTitle><DialogDescription>O cadastro alimenta o CRM e não envia mensagens automaticamente.</DialogDescription></DialogHeader>
             <div className="grid gap-4 py-5 sm:grid-cols-2">
-              <label className="space-y-1.5 sm:col-span-2">
-                <span className="text-sm font-medium">Nome *</span>
-                <Input value={form.nome} onChange={(e) => setForm((atual) => ({ ...atual, nome: e.target.value }))} required />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium">WhatsApp</span>
-                <Input value={form.whatsapp} onChange={(e) => setForm((atual) => ({ ...atual, whatsapp: e.target.value }))} placeholder="(65) 99999-9999" />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium">E-mail</span>
-                <Input type="email" value={form.email} onChange={(e) => setForm((atual) => ({ ...atual, email: e.target.value }))} />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium">Área jurídica</span>
-                <Select value={form.area_direito} onValueChange={(valor) => setForm((atual) => ({ ...atual, area_direito: valor }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                  <SelectContent>{AREAS.map(([valor, label]) => <SelectItem key={valor} value={valor}>{label}</SelectItem>)}</SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium">Origem *</span>
-                <Select value={form.canal} onValueChange={(valor) => setForm((atual) => ({ ...atual, canal: valor }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{CANAIS.map(([valor, label]) => <SelectItem key={valor} value={valor}>{label}</SelectItem>)}</SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5 sm:col-span-2">
-                <span className="text-sm font-medium">Campanha de origem</span>
-                <Select value={form.campanha_id || "sem_campanha"} onValueChange={(valor) => setForm((atual) => ({ ...atual, campanha_id: valor === "sem_campanha" ? "" : valor }))}>
-                  <SelectTrigger><SelectValue placeholder="Sem campanha vinculada" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sem_campanha">Sem campanha vinculada</SelectItem>
-                    {campanhas.map((campanha) => <SelectItem key={campanha.id} value={campanha.id}>{campanha.nome} · {campanha.status}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5 sm:col-span-2">
-                <span className="text-sm font-medium">Valor estimado</span>
-                <Input value={form.valor_contrato} onChange={(e) => setForm((atual) => ({ ...atual, valor_contrato: e.target.value }))} placeholder="0,00" inputMode="decimal" />
-              </label>
+              <Campo label="Nome *" classe="sm:col-span-2"><Input required value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} /></Campo>
+              <Campo label="WhatsApp"><Input value={form.whatsapp} onChange={(e) => setForm((f) => ({ ...f, whatsapp: e.target.value }))} placeholder="(65) 99999-9999" /></Campo>
+              <Campo label="E-mail"><Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></Campo>
+              <Campo label="Área jurídica"><SeletorComVazio valor={form.area_direito} vazio="nao_informada" labelVazio="Não informada" opcoes={AREAS} onChange={(area_direito) => setForm((f) => ({ ...f, area_direito }))} /></Campo>
+              <Campo label="Origem *"><Seletor valor={form.canal} opcoes={CANAIS} onChange={(canal) => setForm((f) => ({ ...f, canal }))} /></Campo>
+              <Campo label="Campanha" classe="sm:col-span-2">
+                <Select value={form.campanha_id || "sem_campanha"} onValueChange={(v) => setForm((f) => ({ ...f, campanha_id: v === "sem_campanha" ? "" : v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sem_campanha">Sem campanha vinculada</SelectItem>{campanhas.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome} · {c.status}</SelectItem>)}</SelectContent></Select>
+              </Campo>
+              <Campo label="Responsável">
+                <Select value={form.responsavel_id || "sem_responsavel"} onValueChange={(v) => setForm((f) => ({ ...f, responsavel_id: v === "sem_responsavel" ? "" : v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sem_responsavel">Sem responsável</SelectItem>{responsaveis.map((r) => <SelectItem key={r.user_id} value={r.user_id}>{r.nome}{r.gestor ? " · Gestora" : ""}</SelectItem>)}</SelectContent></Select>
+              </Campo>
+              <Campo label="Valor estimado"><Input value={form.valor_contrato} onChange={(e) => setForm((f) => ({ ...f, valor_contrato: e.target.value }))} placeholder="0,00" inputMode="decimal" /></Campo>
             </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setNovoAberto(false)}>Cancelar</Button>
-              <Button type="submit" disabled={criarLead.isPending}>
-                {criarLead.isPending ? "Salvando…" : "Criar atendimento"}
-              </Button>
-            </DialogFooter>
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setFormAberto(false)}>Cancelar</Button><Button type="submit" disabled={salvarLead.isPending}>{salvarLead.isPending ? "Salvando…" : "Salvar atendimento"}</Button></DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!leadPerda} onOpenChange={(aberto) => !aberto && setLeadPerda(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><UserX className="h-5 w-5 text-destructive" />Registrar perda</DialogTitle><DialogDescription>Informe por que {leadPerda?.nome} não avançou. O registro poderá ser consultado depois.</DialogDescription></DialogHeader>
+          <div className="space-y-4 py-4">
+            <Campo label="Motivo *"><SeletorComVazio valor={perda.motivo} vazio="selecione" labelVazio="Selecione" opcoes={MOTIVOS_PERDA} onChange={(motivo) => setPerda((p) => ({ ...p, motivo }))} /></Campo>
+            <Campo label="Observação"><textarea rows={4} maxLength={1000} value={perda.observacao} onChange={(e) => setPerda((p) => ({ ...p, observacao: e.target.value }))} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></Campo>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setLeadPerda(null)}>Cancelar</Button><Button variant="destructive" disabled={!perda.motivo || registrarPerda.isPending} onClick={() => registrarPerda.mutate()}>{registrarPerda.isPending ? "Registrando…" : "Confirmar perda"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+function Campo({ label, classe = "", children }: { label: string; classe?: string; children: React.ReactNode }) {
+  return <label className={`space-y-1.5 ${classe}`}><span className="text-sm font-medium">{label}</span>{children}</label>;
+}
+function Seletor({ valor, opcoes, onChange }: { valor: string; opcoes: readonly (readonly [string, string])[]; onChange: (valor: string) => void }) {
+  return <Select value={valor} onValueChange={onChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{opcoes.map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}</SelectContent></Select>;
+}
+function SeletorComVazio({ valor, vazio, labelVazio, opcoes, onChange }: { valor: string; vazio: string; labelVazio: string; opcoes: readonly (readonly [string, string])[]; onChange: (valor: string) => void }) {
+  return <Select value={valor || vazio} onValueChange={(v) => onChange(v === vazio ? "" : v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={vazio}>{labelVazio}</SelectItem>{opcoes.map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}</SelectContent></Select>;
 }
