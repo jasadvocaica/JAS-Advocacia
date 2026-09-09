@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleDollarSign, ExternalLink, Pencil, Plus, Search, UserX, Users } from "lucide-react";
+import { CircleDollarSign, ExternalLink, History, Pencil, Plus, Search, UserX, Users } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +31,7 @@ type Lead = {
 };
 type Campanha = { id: string; nome: string; status: string };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
+type Historico = { id: string; evento: string; estado_anterior: Record<string, unknown> | null; estado_novo: Record<string, unknown>; alterado_por: string | null; criado_em: string };
 
 const COLUNAS = [
   ["novo", "Recepção"], ["em_atendimento", "Em atendimento"],
@@ -67,6 +68,7 @@ export default function ComercialCRM() {
   const [formAberto, setFormAberto] = useState(false);
   const [form, setForm] = useState(formVazio);
   const [leadPerda, setLeadPerda] = useState<Lead | null>(null);
+  const [leadHistorico, setLeadHistorico] = useState<Lead | null>(null);
   const [perda, setPerda] = useState({ motivo: "", observacao: "" });
 
   const { data: campanhas = [] } = useQuery({
@@ -86,6 +88,18 @@ export default function ComercialCRM() {
       return (data ?? []) as Responsavel[];
     },
   });
+  const { data: historico = [], isLoading: carregandoHistorico } = useQuery({
+    queryKey: ["mkt-lead-historico", leadHistorico?.id],
+    enabled: !!leadHistorico,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("mkt_lead_historico")
+        .select("id,evento,estado_anterior,estado_novo,alterado_por,criado_em")
+        .eq("lead_id", leadHistorico!.id).order("criado_em", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Historico[];
+    },
+  });
+
   const { data: leads = [], isLoading, error } = useQuery({
     queryKey: ["crm-leads"],
     queryFn: async () => {
@@ -216,7 +230,10 @@ export default function ComercialCRM() {
                 {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : itens.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">Nenhuma negociação</p> : itens.map((lead) => (
                   <Card key={lead.id} className="space-y-3 p-4">
                     <div>
-                      <div className="flex items-start justify-between gap-2"><p className="font-semibold">{lead.nome}</p><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => editar(lead)} aria-label="Editar atendimento"><Pencil className="h-3.5 w-3.5" /></Button></div>
+                      <div className="flex items-start justify-between gap-2"><p className="font-semibold">{lead.nome}</p><div className="flex">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setLeadHistorico(lead)} aria-label="Ver histórico"><History className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => editar(lead)} aria-label="Editar atendimento"><Pencil className="h-3.5 w-3.5" /></Button>
+                      </div></div>
                       <p className="mt-1 text-sm text-muted-foreground">{lead.area_direito || "Área não informada"}</p>
                       <p className="mt-2 text-xs text-muted-foreground">Origem: {lead.canal}</p>
                       {lead.whatsapp && <a className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline" href={whatsappUrl(lead.whatsapp)} target="_blank" rel="noreferrer">{lead.whatsapp}<ExternalLink className="h-3 w-3" /></a>}
@@ -255,6 +272,26 @@ export default function ComercialCRM() {
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setFormAberto(false)}>Cancelar</Button><Button type="submit" disabled={salvarLead.isPending}>{salvarLead.isPending ? "Salvando…" : "Salvar atendimento"}</Button></DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!leadHistorico} onOpenChange={(aberto) => !aberto && setLeadHistorico(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader><DialogTitle>Histórico comercial</DialogTitle><DialogDescription>{leadHistorico?.nome} · alterações registradas a partir da ativação da auditoria.</DialogDescription></DialogHeader>
+          <div className="max-h-[480px] space-y-3 overflow-y-auto py-2">
+            {carregandoHistorico ? <p className="text-sm text-muted-foreground">Carregando…</p> : historico.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhuma alteração registrada após a ativação do histórico.</p>
+            ) : historico.map((item) => {
+              const antes = item.estado_anterior || {};
+              const mudancas = Object.entries(item.estado_novo).filter(([chave, valor]) => antes[chave] !== valor);
+              const autor = responsaveis.find((r) => r.user_id === item.alterado_por)?.nome || (item.alterado_por ? "Usuário autorizado" : "Sistema");
+              return <Card key={item.id} className="p-4">
+                <div className="flex items-center justify-between gap-3"><p className="font-medium">{item.evento === "criado" ? "Atendimento criado" : "Cadastro atualizado"}</p><span className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(item.criado_em))}</span></div>
+                <p className="mt-1 text-xs text-muted-foreground">Por {autor}</p>
+                <div className="mt-3 space-y-1 text-xs">{mudancas.map(([chave, valor]) => <p key={chave}><span className="text-muted-foreground">{chave.replace(/_/g, " ")}:</span> {String(valor ?? "não informado")}</p>)}</div>
+              </Card>;
+            })}
+          </div>
         </DialogContent>
       </Dialog>
 
