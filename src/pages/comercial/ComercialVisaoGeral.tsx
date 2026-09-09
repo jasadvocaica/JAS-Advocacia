@@ -49,7 +49,7 @@ export default function ComercialVisaoGeral() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["comercial-visao-geral"],
     queryFn: async () => {
-      const [leadsResult, conversasResult] = await Promise.all([
+      const [leadsResult, conversasResult, clientesResult, fichasResult] = await Promise.all([
         (supabase as any)
           .from("mkt_leads")
           .select("id,nome,status,canal,valor_contrato,criado_em")
@@ -57,20 +57,37 @@ export default function ComercialVisaoGeral() {
         (supabase as any)
           .from("whatsapp_conversas")
           .select("id,status,nao_lidas"),
+        (supabase as any)
+          .from("clientes")
+          .select("id,estado", { count: "exact" })
+          .eq("ativo", true),
+        (supabase as any)
+          .from("cliente_atendimentos")
+          .select("id,convertido_em", { count: "exact" }),
       ]);
 
       if (leadsResult.error) throw leadsResult.error;
       if (conversasResult.error) throw conversasResult.error;
+      if (clientesResult.error) throw clientesResult.error;
+      if (fichasResult.error) throw fichasResult.error;
 
       return {
         leads: (leadsResult.data ?? []) as Lead[],
         conversas: (conversasResult.data ?? []) as Conversa[],
+        clientesAtivos: clientesResult.count ?? (clientesResult.data ?? []).length,
+        clientesComUf: (clientesResult.data ?? []).filter((cliente: any) => !!cliente.estado?.trim()).length,
+        fichasTotal: fichasResult.count ?? (fichasResult.data ?? []).length,
+        fichasAbertas: (fichasResult.data ?? []).filter((ficha: any) => !ficha.convertido_em).length,
       };
     },
   });
 
   const leads = data?.leads ?? [];
   const conversas = data?.conversas ?? [];
+  const clientesAtivos = data?.clientesAtivos ?? 0;
+  const clientesComUf = data?.clientesComUf ?? 0;
+  const fichasTotal = data?.fichasTotal ?? 0;
+  const fichasAbertas = data?.fichasAbertas ?? 0;
 
   const resumo = useMemo(() => {
     const totalValor = leads.reduce((soma, lead) => soma + Number(lead.valor_contrato || 0), 0);
@@ -129,7 +146,11 @@ export default function ComercialVisaoGeral() {
         </Card>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+        <Metrica icon={Users} label="Clientes ativos" value={isLoading ? "…" : String(clientesAtivos)} />
+        <Metrica icon={Users} label="Clientes com UF" value={isLoading ? "…" : String(clientesComUf)} />
+        <Metrica icon={FileCheck2} label="Fichas registradas" value={isLoading ? "…" : String(fichasTotal)} />
+        <Metrica icon={Target} label="Fichas em aberto" value={isLoading ? "…" : String(fichasAbertas)} />
         <Metrica icon={Users} label="Leads registrados" value={isLoading ? "…" : String(leads.length)} />
         <Metrica icon={MessageCircle} label="Em atendimento" value={isLoading ? "…" : String(resumo.emAtendimento)} />
         <Metrica icon={Target} label="Propostas" value={isLoading ? "…" : String(resumo.propostas)} />
