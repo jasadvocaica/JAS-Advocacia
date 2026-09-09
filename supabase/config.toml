@@ -139,3 +139,7 @@ verify_jwt = true
 
 [functions.admin-usuarios]
 verify_jwt = true
+
+# Endpoint público da Meta; valida token de verificação e assinatura HMAC no corpo.
+[functions.whatsapp-webhook]
+verify_jwt = false
