@@ -51,7 +51,7 @@ const linkWhatsApp = (telefone?: string | null) => {
 export default function ComercialWhatsApp() {
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<"todas" | "nao_lidas" | "encerradas">("todas");
+  const [filtro, setFiltro] = useState<"todas" | "fila" | "nao_lidas" | "encerradas">("todas");
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [novaConversaAberta, setNovaConversaAberta] = useState(false);
   const [buscaContato, setBuscaContato] = useState("");
@@ -239,7 +239,10 @@ export default function ComercialWhatsApp() {
 
   const filtradas = useMemo(() => conversas.filter((item) => {
     const bateBusca = [item.nome_contato, item.telefone, item.ultima_mensagem_resumo].some((v) => (v || "").toLowerCase().includes(busca.toLowerCase()));
-    const bateFiltro = filtro === "todas" || (filtro === "nao_lidas" ? item.nao_lidas > 0 : item.status === "encerrada");
+    const bateFiltro = filtro === "todas" ||
+      (filtro === "fila" && ["aberta", "aguardando_escritorio"].includes(item.status)) ||
+      (filtro === "nao_lidas" && item.nao_lidas > 0) ||
+      (filtro === "encerradas" && item.status === "encerrada");
     return bateBusca && bateFiltro;
   }), [conversas, busca, filtro]);
 
@@ -280,7 +283,7 @@ export default function ComercialWhatsApp() {
           <div className="space-y-3 border-b p-4">
             <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conversa ou contato" className="pl-9" /></div>
             <div className="flex gap-1">
-              {([["todas","Todas"],["nao_lidas","Não lidas"],["encerradas","Fechadas"]] as const).map(([valor, rotulo]) => <Button key={valor} size="sm" variant={filtro === valor ? "secondary" : "ghost"} onClick={() => setFiltro(valor)}>{rotulo}</Button>)}
+              {([["todas","Todas"],["fila","Fila"],["nao_lidas","Não lidas"],["encerradas","Fechadas"]] as const).map(([valor, rotulo]) => <Button key={valor} size="sm" variant={filtro === valor ? "secondary" : "ghost"} onClick={() => setFiltro(valor)}>{rotulo}</Button>)}
             </div>
           </div>
           <div className="max-h-[590px] overflow-y-auto">
