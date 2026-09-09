@@ -151,7 +151,24 @@ function SidebarContent({
   const podeVerComercial =
     isGestor || (!!user?.id && respComunicacao?.user_id === user.id);
   const location = useLocation();
+  const grupoDaRota = GRUPOS.find((grupo) =>
+    NAV.some((item) => item.grupo === grupo && (
+      item.to === "/" ? location.pathname === "/" :
+      location.pathname === item.to || location.pathname.startsWith(item.to + "/")
+    )),
+  ) ?? (
+    location.pathname.startsWith("/painel-producao") ? "Produção jurídica" :
+    location.pathname.startsWith("/painel-comercial") ? "Comercial" :
+    location.pathname.startsWith("/equipe") || location.pathname.startsWith("/ponto") ? "Gestão de pessoas / RH" :
+    location.pathname.startsWith("/configuracoes") || location.pathname.startsWith("/usuarios") || location.pathname.startsWith("/importacao-exportacao") ? "Sistema" :
+    "Início"
+  );
+  const [grupoAberto, setGrupoAberto] = useState<string>(grupoDaRota);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  useEffect(() => {
+    setGrupoAberto(grupoDaRota);
+  }, [grupoDaRota]);
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -191,30 +208,49 @@ function SidebarContent({
               return !item.modulo || hasPermission(item.modulo, "visualizar");
             });
             if (itens.length === 0) return null;
+            const aberto = collapsed || grupoAberto === grupo;
             return (
-              <div key={grupo} className="space-y-1">
-                <div className={cn("pt-4 pb-1", collapsed ? "px-2" : "px-3")}>
-                  {collapsed ? <div className="h-px bg-sidebar-border" /> : <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/55">{grupo}</p>}
-                </div>
-                {itens.map((item) => {
-                  const isActive = item.to === "/" || item.to === "/comercial"
-                    ? location.pathname === item.to
-                    : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
-                  return <SidebarItem key={item.to} to={item.to} label={item.label} icon={item.icon} collapsed={collapsed} isActive={isActive} onNavigate={onNavigate} />;
-                })}
-                {grupo === "Início" && isEstagiaria && <SidebarItem to="/painel-operacional" label="Visão operacional" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-operacional") || location.pathname === "/"} onNavigate={onNavigate} />}
-                {grupo === "Início" && <MuralNavItem collapsed={collapsed} onNavigate={onNavigate} />}
-                {grupo === "Início" && isGestor && <SidebarItem to="/painel-juliana" label="Painel da Juliana" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-juliana")} onNavigate={onNavigate} />}
-                {grupo === "Início" && isGestor && <SidebarItem to="/dashboard-gestor" label="Painel executivo" icon={BarChart3} collapsed={collapsed} isActive={location.pathname.startsWith("/dashboard-gestor")} onNavigate={onNavigate} />}
-                {grupo === "Produção jurídica" && hasPermission("controladoria", "visualizar") && <SidebarItem to="/painel-producao" label="Minha produção" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-producao")} onNavigate={onNavigate} />}
-                {grupo === "Comercial" && podeVerComercial && <SidebarItem to="/painel-comercial" label="Painel comercial" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-comercial")} onNavigate={onNavigate} />}
-                {grupo === "Gestão de pessoas / RH" && isEstagiaria && <SidebarItem to="/ponto" label="Meu ponto" icon={Clock} collapsed={collapsed} isActive={location.pathname.startsWith("/ponto")} onNavigate={onNavigate} />}
-                {grupo === "Sistema" && isGestor && <>
-                  <SidebarItem to="/usuarios" label="Usuários e permissões" icon={Users} collapsed={collapsed} isActive={location.pathname.startsWith("/usuarios")} onNavigate={onNavigate} />
-                  <SidebarItem to="/importacao-exportacao" label="Importar / Exportar" icon={Database} collapsed={collapsed} isActive={location.pathname.startsWith("/importacao-exportacao")} onNavigate={onNavigate} />
-                  <SidebarItem to="/configuracoes" label="Configurações" icon={Settings} collapsed={collapsed} isActive={location.pathname.startsWith("/configuracoes")} onNavigate={onNavigate} />
-                </>}
-              </div>
+              <section key={grupo} className="space-y-1">
+                {collapsed ? (
+                  <div className="px-2 pt-3 pb-1"><div className="h-px bg-sidebar-border" /></div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setGrupoAberto((atual) => atual === grupo ? "" : grupo)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.12em] transition-colors",
+                      aberto ? "bg-sidebar-accent/70 text-sidebar-primary" : "text-sidebar-foreground/60 hover:bg-sidebar-accent",
+                    )}
+                    aria-expanded={aberto}
+                  >
+                    <span>{grupo}</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", aberto && "rotate-180")} />
+                  </button>
+                )}
+
+                {aberto && (
+                  <div className="space-y-1">
+                    {itens.map((item) => {
+                      const isActive = item.to === "/" || item.to === "/comercial"
+                        ? location.pathname === item.to
+                        : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+                      return <SidebarItem key={item.to} to={item.to} label={item.label} icon={item.icon} collapsed={collapsed} isActive={isActive} onNavigate={onNavigate} />;
+                    })}
+                    {grupo === "Início" && isEstagiaria && <SidebarItem to="/painel-operacional" label="Visão operacional" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-operacional") || location.pathname === "/"} onNavigate={onNavigate} />}
+                    {grupo === "Início" && <MuralNavItem collapsed={collapsed} onNavigate={onNavigate} />}
+                    {grupo === "Início" && isGestor && <SidebarItem to="/painel-juliana" label="Painel da Juliana" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-juliana")} onNavigate={onNavigate} />}
+                    {grupo === "Início" && isGestor && <SidebarItem to="/dashboard-gestor" label="Painel executivo" icon={BarChart3} collapsed={collapsed} isActive={location.pathname.startsWith("/dashboard-gestor")} onNavigate={onNavigate} />}
+                    {grupo === "Produção jurídica" && hasPermission("controladoria", "visualizar") && <SidebarItem to="/painel-producao" label="Minha produção" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-producao")} onNavigate={onNavigate} />}
+                    {grupo === "Comercial" && podeVerComercial && <SidebarItem to="/painel-comercial" label="Painel comercial" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-comercial")} onNavigate={onNavigate} />}
+                    {grupo === "Gestão de pessoas / RH" && isEstagiaria && <SidebarItem to="/ponto" label="Meu ponto" icon={Clock} collapsed={collapsed} isActive={location.pathname.startsWith("/ponto")} onNavigate={onNavigate} />}
+                    {grupo === "Sistema" && isGestor && <>
+                      <SidebarItem to="/usuarios" label="Usuários e permissões" icon={Users} collapsed={collapsed} isActive={location.pathname.startsWith("/usuarios")} onNavigate={onNavigate} />
+                      <SidebarItem to="/importacao-exportacao" label="Importar / Exportar" icon={Database} collapsed={collapsed} isActive={location.pathname.startsWith("/importacao-exportacao")} onNavigate={onNavigate} />
+                      <SidebarItem to="/configuracoes" label="Configurações" icon={Settings} collapsed={collapsed} isActive={location.pathname.startsWith("/configuracoes")} onNavigate={onNavigate} />
+                    </>}
+                  </div>
+                )}
+              </section>
             );
           })}
         </nav>
