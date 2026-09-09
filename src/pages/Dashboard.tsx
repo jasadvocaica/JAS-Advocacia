@@ -148,6 +148,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
   const [aniversariantes, setAniversariantes] = useState<any[]>([]);
   const [repasses, setRepasses] = useState<{ parceiro: string; total: number }[]>([]);
   const [estadoData, setEstadoData] = useState<{ estado: string; total: number }[]>([]);
+  const [clientesSemUf, setClientesSemUf] = useState(0);
 
   useEffect(() => {
     let ativo = true;
@@ -376,6 +377,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
       setEstadoData(Array.from(estadoMap.entries())
         .map(([estado, total]) => ({ estado, total }))
         .sort((a, b) => b.total - a.total));
+      setClientesSemUf((rClientes.data ?? []).filter((cliente: any) => !(cliente.estado || "").trim()).length);
 
       // Repasses agrupados por parceiro
       const grupos = new Map<string, number>();
@@ -600,6 +602,12 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
                 onSelectUf={(uf) => navigate(`/clientes?uf=${uf}`)}
                 className="mx-auto max-w-[320px]"
               />
+              {clientesSemUf > 0 && (
+                <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs">
+                  <span className="text-muted-foreground">Clientes ainda sem UF cadastrada</span>
+                  <strong>{clientesSemUf}</strong>
+                </div>
+              )}
               <div className="mt-4 space-y-2">
                 {estadoData.slice(0, 5).map((e) => {
                   const pct = totalClientesUf > 0 ? Math.round((e.total / totalClientesUf) * 100) : 0;
