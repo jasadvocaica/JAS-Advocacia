@@ -147,3 +147,6 @@ verify_jwt = false
 # Envio iniciado por usuário autenticado; as permissões de marketing são aplicadas por RLS.
 [functions.whatsapp-enviar]
 verify_jwt = true
+
+[functions.whatsapp-automacoes]
+verify_jwt = false
