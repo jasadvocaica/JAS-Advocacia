@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ const linkWhatsApp = (telefone?: string | null) => {
 export default function ComercialWhatsApp() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { data: responsavelPadrao } = useResponsavelComunicacao();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todas" | "minhas" | "fila" | "nao_lidas" | "encerradas">("todas");
   const [selecionada, setSelecionada] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export default function ComercialWhatsApp() {
   const [buscaContato, setBuscaContato] = useState("");
   const [texto, setTexto] = useState("");
   const [templateSelecionado, setTemplateSelecionado] = useState("");
+  const [contatoSelecionado, setContatoSelecionado] = useState<Contato | null>(null);
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -253,6 +256,70 @@ export default function ComercialWhatsApp() {
       toast.success("Template enviado.");
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível enviar o template."),
+  });
+  const iniciarConversa = useMutation({
+    mutationFn: async () => {
+      if (!conexao || conexao.status !== "conectado") throw new Error("O canal oficial não está conectado.");
+      if (!contatoSelecionado || !templateSelecionado) {
+        throw new Error("Selecione um contato real e um template aprovado.");
+      }
+      const telefone = contatoSelecionado.telefone.replace(/\D/g, "");
+      if (!telefone) throw new Error("O contato não possui telefone válido.");
+
+      const localizar = () => (supabase as any)
+        .from("whatsapp_conversas")
+        .select("id")
+        .eq("conexao_id", conexao.id)
+        .eq("telefone", telefone)
+        .neq("status", "encerrada")
+        .maybeSingle();
+
+      let { data: conversaExistente, error: erroBusca } = await localizar();
+      if (erroBusca) throw erroBusca;
+
+      if (!conversaExistente) {
+        const { data: criada, error: erroCriacao } = await (supabase as any)
+          .from("whatsapp_conversas")
+          .insert({
+            conexao_id: conexao.id,
+            lead_id: contatoSelecionado.origem === "lead" ? contatoSelecionado.id : null,
+            cliente_id: contatoSelecionado.origem === "cliente" ? contatoSelecionado.id : null,
+            telefone,
+            nome_contato: contatoSelecionado.nome,
+            status: "aberta",
+            responsavel_id: responsavelPadrao?.user_id || user?.id || null,
+          })
+          .select("id")
+          .single();
+
+        if (erroCriacao) {
+          const repetida = await localizar();
+          if (repetida.error || !repetida.data) throw erroCriacao;
+          conversaExistente = repetida.data;
+        } else {
+          conversaExistente = criada;
+        }
+      }
+
+      const { data, error } = await supabase.functions.invoke("whatsapp-enviar", {
+        body: { conversa_id: conversaExistente.id, template_id: templateSelecionado },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return conversaExistente.id as string;
+    },
+    onSuccess: async (conversaId) => {
+      setSelecionada(conversaId);
+      setContatoSelecionado(null);
+      setTemplateSelecionado("");
+      setNovaConversaAberta(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", conversaId] }),
+      ]);
+      toast.success("Conversa iniciada com template aprovado.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível iniciar a conversa."),
   });
   const alterarStatus = useMutation({
     mutationFn: async (status: string) => {
@@ -514,9 +581,44 @@ export default function ComercialWhatsApp() {
           <DialogHeader>
             <DialogTitle>Iniciar conversa</DialogTitle>
             <DialogDescription>
-              Escolha um lead ou cliente já cadastrado. O WhatsApp Web oficial será aberto no número selecionado.
+              Escolha um lead ou cliente já cadastrado. Com o canal conectado, a conversa começa por um template aprovado; o WhatsApp Web continua disponível como alternativa externa.
             </DialogDescription>
           </DialogHeader>
+
+          {contatoSelecionado && (
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="font-medium">{contatoSelecionado.nome}</p>
+              <p className="text-xs text-muted-foreground">{contatoSelecionado.telefone}</p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Select value={templateSelecionado} onValueChange={setTemplateSelecionado}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Template aprovado para iniciar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.nome} · {template.idioma}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={() => iniciarConversa.mutate()}
+                  disabled={!templateSelecionado || iniciarConversa.isPending || conexao?.status !== "conectado"}
+                  className="shrink-0 gap-2"
+                >
+                  <Send className="h-4 w-4" />
+                  {iniciarConversa.isPending ? "Iniciando…" : "Iniciar no sistema"}
+                </Button>
+              </div>
+              {conexao?.status !== "conectado" && (
+                <p className="mt-2 text-xs text-amber-700">Conecte o canal oficial para iniciar dentro do sistema.</p>
+              )}
+              {templates.length === 0 && (
+                <p className="mt-2 text-xs text-amber-700">Nenhum template aprovado foi sincronizado.</p>
+              )}
+            </div>
+          )}
 
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -541,26 +643,28 @@ export default function ComercialWhatsApp() {
               </div>
             ) : (
               contatosFiltrados.map((contato) => (
-                <a
+                <div
                   key={`${contato.origem}-${contato.id}`}
-                  href={linkWhatsApp(contato.telefone)}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => setNovaConversaAberta(false)}
-                  className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted"
+                  className={cn("flex items-center gap-3 rounded-lg border p-3", contatoSelecionado?.id === contato.id && contatoSelecionado.origem === contato.origem && "border-primary bg-primary/5")}
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                    {iniciais(contato.nome)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{contato.nome}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {contato.telefone}{contato.email ? ` · ${contato.email}` : ""}
-                    </p>
-                  </div>
-                  <Badge variant="secondary">{contato.origem === "lead" ? "Lead" : "Cliente"}</Badge>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                </a>
+                  <button type="button" onClick={() => setContatoSelecionado(contato)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                      {iniciais(contato.nome)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{contato.nome}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {contato.telefone}{contato.email ? ` · ${contato.email}` : ""}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{contato.origem === "lead" ? "Lead" : "Cliente"}</Badge>
+                  </button>
+                  <Button variant="ghost" size="icon" asChild title="Abrir no WhatsApp Web">
+                    <a href={linkWhatsApp(contato.telefone)} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
               ))
             )}
           </div>
