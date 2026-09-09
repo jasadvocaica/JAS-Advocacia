@@ -4,10 +4,12 @@ import { AlertTriangle, CheckCircle2, ExternalLink, Pencil, PlugZap, Shield } fr
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 
 type Conexao = {
   id: string;
@@ -43,6 +47,16 @@ export default function ComercialConexoes() {
   const queryClient = useQueryClient();
   const [dialogAberto, setDialogAberto] = useState(false);
   const [form, setForm] = useState(inicial);
+  const { data: responsavelAtual } = useResponsavelComunicacao();
+
+  const { data: responsaveis = [] } = useQuery({
+    queryKey: ["comercial-responsaveis-autorizados"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("comercial_responsaveis_autorizados");
+      if (error) throw error;
+      return (data ?? []) as Responsavel[];
+    },
+  });
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["whatsapp-conexoes"],
@@ -114,6 +128,30 @@ export default function ComercialConexoes() {
       toast.success("Canal salvo. Falta configurar os segredos e homologar a Meta.");
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível salvar o canal."),
+  });
+
+  const salvarResponsavel = useMutation({
+    mutationFn: async (responsavelId: string) => {
+      if (!isGestor) throw new Error("Somente gestores podem alterar a responsável comercial.");
+      const { error } = await (supabase as any)
+        .from("configuracoes_sistema")
+        .update({
+          valor: responsavelId === "sem_responsavel" ? null : responsavelId,
+          atualizado_por: user?.id || null,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("secao", "comercial")
+        .eq("chave", "responsavel_comunicacao_user_id");
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["comercial-responsavel-comunicacao"] }),
+        queryClient.invalidateQueries({ queryKey: ["comercial-responsaveis-autorizados"] }),
+      ]);
+      toast.success("Responsável comercial atualizada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível atualizar a responsável."),
   });
 
   const abrirNovo = () => {
@@ -224,6 +262,33 @@ export default function ComercialConexoes() {
           ))}
         </div>
       )}
+
+      <Card className="p-5">
+        <div className="grid gap-4 md:grid-cols-[1fr_360px] md:items-center">
+          <div>
+            <p className="font-medium">Responsável principal pelo Comercial</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Novos atendimentos recebidos pelo canal oficial entram na fila desta pessoa.
+              A seleção pode ser alterada sem mudança no código.
+            </p>
+          </div>
+          <Select
+            value={responsavelAtual?.user_id || "sem_responsavel"}
+            onValueChange={(valor) => salvarResponsavel.mutate(valor)}
+            disabled={!isGestor || salvarResponsavel.isPending || responsaveis.length === 0}
+          >
+            <SelectTrigger><SelectValue placeholder="Selecionar responsável" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sem_responsavel">Sem responsável</SelectItem>
+              {responsaveis.map((responsavel) => (
+                <SelectItem key={responsavel.user_id} value={responsavel.user_id}>
+                  {responsavel.nome}{responsavel.gestor ? " · Gestora" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
 
       <Card className="p-5">
         <div className="flex gap-3">
