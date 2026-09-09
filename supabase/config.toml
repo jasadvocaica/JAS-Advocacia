@@ -150,3 +150,6 @@ verify_jwt = true
 
 [functions.whatsapp-automacoes]
 verify_jwt = false
+
+[functions.whatsapp-sincronizar-templates]
+verify_jwt = true
