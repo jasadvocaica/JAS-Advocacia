@@ -180,10 +180,27 @@ Deno.serve(async (request: Request) => {
           };
           const novoStatus = mapaStatus[statusEvento.status];
           if (novoStatus) {
-            await db
+            const { data: mensagemAtual } = await db
               .from("whatsapp_mensagens")
-              .update({ status: novoStatus })
-              .eq("provider_message_id", statusEvento.id);
+              .select("id,status")
+              .eq("provider_message_id", statusEvento.id)
+              .maybeSingle();
+            const ordem: Record<string, number> = {
+              pendente: 0,
+              enviada: 1,
+              entregue: 2,
+              lida: 3,
+              falha: 4,
+            };
+            if (
+              mensagemAtual &&
+              (novoStatus === "falha" || (ordem[novoStatus] ?? 0) >= (ordem[mensagemAtual.status] ?? 0))
+            ) {
+              await db
+                .from("whatsapp_mensagens")
+                .update({ status: novoStatus })
+                .eq("id", mensagemAtual.id);
+            }
           }
           await db
             .from("whatsapp_webhook_eventos")
