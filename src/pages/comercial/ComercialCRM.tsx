@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type Campanha = { id: string; nome: string; status: string };
+
 type Lead = {
   id: string;
   nome: string;
@@ -29,6 +31,7 @@ type Lead = {
   email: string | null;
   area_direito: string | null;
   canal: string;
+  campanha_id: string | null;
   status: string;
   valor_contrato: number | null;
   criado_em: string;
@@ -80,7 +83,21 @@ export default function ComercialCRM() {
     email: "",
     area_direito: "",
     canal: "whatsapp_direto",
+    campanha_id: "",
     valor_contrato: "",
+  });
+
+  const { data: campanhas = [] } = useQuery({
+    queryKey: ["crm-campanhas-selecao"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("mkt_campanhas")
+        .select("id,nome,status")
+        .in("status", ["planejada", "ativa", "pausada"])
+        .order("nome");
+      if (error) throw error;
+      return (data ?? []) as Campanha[];
+    },
   });
 
   const { data: leads = [], isLoading } = useQuery({
@@ -88,7 +105,7 @@ export default function ComercialCRM() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("mkt_leads")
-        .select("id,nome,whatsapp,email,area_direito,canal,status,valor_contrato,criado_em")
+        .select("id,nome,whatsapp,email,area_direito,canal,campanha_id,status,valor_contrato,criado_em")
         .order("criado_em", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Lead[];
@@ -112,6 +129,7 @@ export default function ComercialCRM() {
         email: form.email.trim() || null,
         area_direito: form.area_direito || null,
         canal: form.canal,
+        campanha_id: form.campanha_id || null,
         status: "novo",
         valor_contrato: valor,
       });
@@ -121,7 +139,7 @@ export default function ComercialCRM() {
       await queryClient.invalidateQueries({ queryKey: ["crm-leads"] });
       await queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] });
       setNovoAberto(false);
-      setForm({ nome: "", whatsapp: "", email: "", area_direito: "", canal: "whatsapp_direto", valor_contrato: "" });
+      setForm({ nome: "", whatsapp: "", email: "", area_direito: "", canal: "whatsapp_direto", campanha_id: "", valor_contrato: "" });
       toast.success("Atendimento incluído no CRM.");
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível cadastrar o atendimento."),
@@ -280,6 +298,16 @@ export default function ComercialCRM() {
                 <Select value={form.canal} onValueChange={(valor) => setForm((atual) => ({ ...atual, canal: valor }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{CANAIS.map(([valor, label]) => <SelectItem key={valor} value={valor}>{label}</SelectItem>)}</SelectContent>
+                </Select>
+              </label>
+              <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-sm font-medium">Campanha de origem</span>
+                <Select value={form.campanha_id || "sem_campanha"} onValueChange={(valor) => setForm((atual) => ({ ...atual, campanha_id: valor === "sem_campanha" ? "" : valor }))}>
+                  <SelectTrigger><SelectValue placeholder="Sem campanha vinculada" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sem_campanha">Sem campanha vinculada</SelectItem>
+                    {campanhas.map((campanha) => <SelectItem key={campanha.id} value={campanha.id}>{campanha.nome} · {campanha.status}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </label>
               <label className="space-y-1.5 sm:col-span-2">
