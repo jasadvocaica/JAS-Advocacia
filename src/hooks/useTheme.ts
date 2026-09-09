@@ -1,23 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 
-export type Tema = "light" | "dark";
+export type Tema = "light";
 const KEY = "app:tema";
 
 function aplicar(t: Tema) {
   const root = document.documentElement;
-  root.classList.toggle("dark", t === "dark");
+  root.classList.remove("dark");
 }
 
-function inicial(): Tema {
-  try {
-    const salvo = localStorage.getItem(KEY) as Tema | null;
-    if (salvo === "light" || salvo === "dark") return salvo;
-  } catch {}
-  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  }
-  return "light";
-}
+function inicial(): Tema {\n  return "light";\n}
 
 /**
  * Gerencia o tema claro/escuro. Persiste em localStorage e respeita
