@@ -30,11 +30,10 @@ type Conversa = {
 };
 
 const ETAPAS = [
-  { label: "Recepção", statuses: ["novo", "recepcao"] },
-  { label: "Qualificação", statuses: ["qualificado", "qualificacao"] },
-  { label: "Análise", statuses: ["analise", "em_analise"] },
-  { label: "Proposta", statuses: ["proposta", "proposta_enviada"] },
-  { label: "Convertido", statuses: ["convertido", "contrato_assinado"] },
+  { label: "Recepção", status: "novo" },
+  { label: "Em atendimento", status: "em_atendimento" },
+  { label: "Proposta enviada", status: "proposta_enviada" },
+  { label: "Convertido", status: "convertido" },
 ] as const;
 
 const moeda = (valor: number) =>
@@ -75,9 +74,9 @@ export default function ComercialVisaoGeral() {
 
   const resumo = useMemo(() => {
     const totalValor = leads.reduce((soma, lead) => soma + Number(lead.valor_contrato || 0), 0);
-    const propostas = leads.filter((lead) => ["proposta", "proposta_enviada"].includes(normalizar(lead.status))).length;
-    const convertidos = leads.filter((lead) => ["convertido", "contrato_assinado"].includes(normalizar(lead.status))).length;
-    const emAtendimento = leads.filter((lead) => !["convertido", "contrato_assinado", "perdido", "descartado"].includes(normalizar(lead.status))).length;
+    const propostas = leads.filter((lead) => normalizar(lead.status) === "proposta_enviada").length;
+    const convertidos = leads.filter((lead) => normalizar(lead.status) === "convertido").length;
+    const emAtendimento = leads.filter((lead) => ["novo", "em_atendimento", "proposta_enviada"].includes(normalizar(lead.status))).length;
     const naoLidas = conversas.reduce((soma, conversa) => soma + Number(conversa.nao_lidas || 0), 0);
     const conversao = leads.length > 0 ? (convertidos / leads.length) * 100 : 0;
 
@@ -88,7 +87,7 @@ export default function ComercialVisaoGeral() {
     () =>
       ETAPAS.map((etapa) => ({
         ...etapa,
-        quantidade: leads.filter((lead) => etapa.statuses.includes(normalizar(lead.status) as never)).length,
+        quantidade: leads.filter((lead) => normalizar(lead.status) === etapa.status).length,
       })),
     [leads],
   );
@@ -158,7 +157,7 @@ export default function ComercialVisaoGeral() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-5">
+            <div className="grid gap-2 sm:grid-cols-4">
               {etapas.map((etapa, indice) => (
                 <div
                   key={etapa.label}
