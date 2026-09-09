@@ -36,7 +36,7 @@ Deno.serve(async (request: Request) => {
   const { data: usuario, error: erroUsuario } = await db.auth.getUser(tokenUsuario);
   if (erroUsuario || !usuario.user) return resposta({ error: "Sessão inválida." }, 401);
 
-  let body: { conversa_id?: string; texto?: string };
+  let body: { conversa_id?: string; texto?: string; template_id?: string };
   try {
     body = await request.json();
   } catch {
@@ -45,8 +45,11 @@ Deno.serve(async (request: Request) => {
 
   const conversaId = body.conversa_id?.trim();
   const texto = body.texto?.trim();
-  if (!conversaId || !texto) return resposta({ error: "Conversa e mensagem são obrigatórias." }, 400);
-  if (texto.length > 4096) return resposta({ error: "A mensagem ultrapassa 4.096 caracteres." }, 400);
+  const templateId = body.template_id?.trim();
+  if (!conversaId || (!texto && !templateId) || (texto && templateId)) {
+    return resposta({ error: "Informe a conversa e exatamente um conteúdo: texto ou template." }, 400);
+  }
+  if (texto && texto.length > 4096) return resposta({ error: "A mensagem ultrapassa 4.096 caracteres." }, 400);
 
   const { data: conversa, error: erroConversa } = await db
     .from("whatsapp_conversas")
@@ -64,6 +67,23 @@ Deno.serve(async (request: Request) => {
     return resposta({ error: "O canal oficial não está conectado." }, 409);
   }
 
+  let template: { nome: string; idioma: string; componentes: unknown } | null = null;
+  if (templateId) {
+    const { data, error } = await db
+      .from("whatsapp_templates")
+      .select("nome,idioma,componentes")
+      .eq("id", templateId)
+      .eq("conexao_id", conversa.conexao_id)
+      .eq("presente_meta", true)
+      .eq("status", "APPROVED")
+      .maybeSingle();
+    if (error || !data) return resposta({ error: "Template aprovado não encontrado para este canal." }, 404);
+    if (/{{\s*\d+\s*}}/.test(JSON.stringify(data.componentes ?? []))) {
+      return resposta({ error: "Este template exige parâmetros. Configure os campos antes de enviá-lo." }, 409);
+    }
+    template = data;
+  }
+
   const { data: ultimaEntrada, error: erroJanela } = await db
     .from("whatsapp_mensagens")
     .select("ocorrida_em")
@@ -75,7 +95,7 @@ Deno.serve(async (request: Request) => {
 
   if (erroJanela) return resposta({ error: "Não foi possível validar a janela de atendimento." }, 500);
   const entradaEm = ultimaEntrada?.ocorrida_em ? new Date(ultimaEntrada.ocorrida_em).getTime() : 0;
-  if (!entradaEm || Date.now() - entradaEm > 24 * 60 * 60 * 1000) {
+  if (!template && (!entradaEm || Date.now() - entradaEm > 24 * 60 * 60 * 1000)) {
     return resposta({
       error: "A janela de 24 horas está encerrada. Use um template aprovado pela Meta para retomar o contato.",
       codigo: "JANELA_24H_ENCERRADA",
@@ -93,8 +113,8 @@ Deno.serve(async (request: Request) => {
     .insert({
       conversa_id: conversa.id,
       direcao: "saida",
-      tipo: "texto",
-      conteudo: texto,
+      tipo: template ? "template" : "texto",
+      conteudo: template ? `[Template: ${template.nome}]` : texto,
       status: "pendente",
       enviada_por: usuario.user.id,
       ocorrida_em: new Date().toISOString(),
@@ -115,13 +135,23 @@ Deno.serve(async (request: Request) => {
           authorization: `Bearer ${accessToken}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: conversa.telefone.replace(/\D/g, ""),
-          type: "text",
-          text: { preview_url: false, body: texto },
-        }),
+        body: JSON.stringify(template
+          ? {
+              messaging_product: "whatsapp",
+              to: conversa.telefone.replace(/\D/g, ""),
+              type: "template",
+              template: {
+                name: template.nome,
+                language: { code: template.idioma },
+              },
+            }
+          : {
+              messaging_product: "whatsapp",
+              recipient_type: "individual",
+              to: conversa.telefone.replace(/\D/g, ""),
+              type: "text",
+              text: { preview_url: false, body: texto },
+            }),
       },
     );
 
