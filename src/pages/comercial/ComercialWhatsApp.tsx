@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type Conversa = {
   id: string;
@@ -41,11 +42,13 @@ const linkWhatsApp = (telefone?: string | null) => {
 };
 
 export default function ComercialWhatsApp() {
+  const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todas" | "nao_lidas" | "encerradas">("todas");
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [novaConversaAberta, setNovaConversaAberta] = useState(false);
   const [buscaContato, setBuscaContato] = useState("");
+  const [texto, setTexto] = useState("");
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -129,6 +132,28 @@ export default function ComercialWhatsApp() {
       return (data ?? []) as Mensagem[];
     },
   });
+  const enviarMensagem = useMutation({
+    mutationFn: async () => {
+      if (!selecionada || !texto.trim()) throw new Error("Digite uma mensagem.");
+      const { data, error } = await supabase.functions.invoke("whatsapp-enviar", {
+        body: { conversa_id: selecionada, texto: texto.trim() },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: async () => {
+      setTexto("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", selecionada] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+      ]);
+      toast.success("Mensagem enviada.");
+    },
+    onError: (erro: Error) => {
+      toast.error(erro.message || "Não foi possível enviar a mensagem.");
+    },
+  });
   const { data: lead } = useQuery({
     queryKey: ["whatsapp-lead", conversa?.lead_id],
     enabled: !!conversa?.lead_id,
@@ -206,7 +231,36 @@ export default function ComercialWhatsApp() {
                 <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p><p className="mt-1 text-right text-[10px] opacity-60">{hora(msg.ocorrida_em)}</p></div></div>
               ))}
             </div>
-            <div className="border-t bg-background p-3"><div className="flex items-end gap-2"><Button variant="ghost" size="icon" disabled={!conexao}><Paperclip className="h-4 w-4" /></Button><textarea disabled={!conexao || conexao.status !== "conectado"} rows={2} placeholder={conexao?.status === "conectado" ? "Digite uma mensagem…" : "Envio bloqueado até conectar o provedor oficial"} className="min-h-[44px] flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" /><Button disabled={!conexao || conexao.status !== "conectado"} className="gap-2"><Send className="h-4 w-4" />Enviar</Button></div></div>
+            <div className="border-t bg-background p-3">
+              <div className="flex items-end gap-2">
+                <Button variant="ghost" size="icon" disabled title="Anexos serão liberados após a homologação do canal">
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <textarea
+                  value={texto}
+                  onChange={(evento) => setTexto(evento.target.value)}
+                  onKeyDown={(evento) => {
+                    if (evento.key === "Enter" && (evento.ctrlKey || evento.metaKey)) {
+                      evento.preventDefault();
+                      if (!enviarMensagem.isPending && texto.trim()) enviarMensagem.mutate();
+                    }
+                  }}
+                  disabled={!conexao || conexao.status !== "conectado" || enviarMensagem.isPending}
+                  rows={2}
+                  maxLength={4096}
+                  placeholder={conexao?.status === "conectado" ? "Digite uma mensagem… (Ctrl + Enter para enviar)" : "Envio bloqueado até conectar o provedor oficial"}
+                  className="min-h-[44px] flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                <Button
+                  disabled={!conexao || conexao.status !== "conectado" || !texto.trim() || enviarMensagem.isPending}
+                  className="gap-2"
+                  onClick={() => enviarMensagem.mutate()}
+                >
+                  <Send className="h-4 w-4" />
+                  {enviarMensagem.isPending ? "Enviando…" : "Enviar"}
+                </Button>
+              </div>
+            </div>
           </> : <div className="flex flex-1 items-center justify-center p-8 text-center"><div><MessageCircle className="mx-auto mb-4 h-12 w-12 text-primary/25" /><h2 className="font-display text-2xl">Central de atendimento</h2><p className="mt-2 max-w-sm text-sm text-muted-foreground">Selecione uma conversa. A interface está pronta para operar no estilo WhatsApp Web sem inventar dados.</p></div></div>}
         </section>
 
