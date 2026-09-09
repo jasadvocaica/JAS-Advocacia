@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PreviewModeProvider } from "@/contexts/PreviewModeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ComercialRoute } from "@/components/ComercialRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import PortalParceiroLayout from "@/portal-parceiro/PortalParceiroLayout";
 import PortalClienteLayout from "@/portal-cliente/PortalClienteLayout";
@@ -287,12 +288,12 @@ const AppRoutes = () => {
         <Route path="/painel-juliana" element={<ProtectedRoute requireGestor><PainelJuliana /></ProtectedRoute>} />
         {/* Painel comercial: autorização por configuração explícita + gestor (checada no componente) */}
         <Route path="/painel-comercial" element={<ProtectedRoute><PainelValeska /></ProtectedRoute>} />
-        <Route path="/comercial" element={<ProtectedRoute requireModulo="marketing"><ComercialWhatsApp /></ProtectedRoute>} />
-        <Route path="/comercial/visao-geral" element={<ProtectedRoute requireModulo="marketing"><ComercialVisaoGeral /></ProtectedRoute>} />
-        <Route path="/comercial/crm" element={<ProtectedRoute requireModulo="marketing"><ComercialCRM /></ProtectedRoute>} />
-        <Route path="/comercial/automacoes" element={<ProtectedRoute requireModulo="marketing"><ComercialAutomacoes /></ProtectedRoute>} />
-        <Route path="/comercial/campanhas" element={<ProtectedRoute requireModulo="marketing"><ComercialCampanhas /></ProtectedRoute>} />
-        <Route path="/comercial/conexoes" element={<ProtectedRoute requireModulo="marketing"><ComercialConexoes /></ProtectedRoute>} />
+        <Route path="/comercial" element={<ComercialRoute><ComercialWhatsApp /></ComercialRoute>} />
+        <Route path="/comercial/visao-geral" element={<ComercialRoute><ComercialVisaoGeral /></ComercialRoute>} />
+        <Route path="/comercial/crm" element={<ComercialRoute><ComercialCRM /></ComercialRoute>} />
+        <Route path="/comercial/automacoes" element={<ComercialRoute><ComercialAutomacoes /></ComercialRoute>} />
+        <Route path="/comercial/campanhas" element={<ComercialRoute><ComercialCampanhas /></ComercialRoute>} />
+        <Route path="/comercial/conexoes" element={<ComercialRoute requireGestor><ComercialConexoes /></ComercialRoute>} />
         <Route path="/painel-producao" element={<ProtectedRoute><PainelProducao /></ProtectedRoute>} />
         <Route path="/mural-avisos" element={<ProtectedRoute><MuralAvisos /></ProtectedRoute>} />
         <Route path="/ponto" element={<ProtectedRoute><MeuPonto /></ProtectedRoute>} />
