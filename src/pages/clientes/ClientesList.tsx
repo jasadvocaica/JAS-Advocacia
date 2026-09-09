@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -14,7 +14,7 @@ import {
 import {
   Plus, Search, Eye, Pencil, Trash2, Cake, MessageCircle, Loader2,
   ArrowUpDown, ArrowUp, ArrowDown, Users, ListChecks, AlertTriangle,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowDownAZ, KeyRound, Merge, Sparkles,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowDownAZ, KeyRound, MapPin, Merge, Sparkles,
 } from "lucide-react";
 import AtivacaoPortalLoteDialog from "./AtivacaoPortalLoteDialog";
 import CadastrosPendentesDialog from "./CadastrosPendentesDialog";
@@ -40,6 +40,7 @@ interface Cliente {
   nascimento: string | null;
   criado_em: string;
   advogado_responsavel_id: string | null;
+  estado: string | null;
 }
 
 type SortKey = "nome" | "cpf_cnpj" | "processos" | "tarefas" | "status" | "criado_em" | "nascimento";
@@ -84,6 +85,8 @@ const diasAteAniversario = (nascimento: string | null): number => {
 export default function ClientesList() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ufFiltro = (searchParams.get("uf") || "").trim().toUpperCase();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [contagemProcessos, setContagemProcessos] = useState<Record<string, number>>({});
   const [tarefasPorCliente, setTarefasPorCliente] = useState<Record<string, { abertas: number; atrasadas: number }>>({});
@@ -102,7 +105,7 @@ export default function ClientesList() {
     setLoading(true);
     const { data, error } = await supabase
       .from("clientes")
-      .select("id, nome, cpf_cnpj, email, telefones, whatsapp, ativo, status, origem, nascimento, criado_em, advogado_responsavel_id")
+      .select("id, nome, cpf_cnpj, email, telefones, whatsapp, ativo, status, origem, nascimento, criado_em, advogado_responsavel_id, estado")
       .order("nome");
     if (error) toast.error("Erro ao carregar clientes");
     const list = (data ?? []) as Cliente[];
@@ -162,6 +165,7 @@ export default function ClientesList() {
     const list = clientes.filter((c) => {
       const status = c.status ?? (c.ativo ? "ativo" : "inativo");
       if (statusFiltro !== "todos" && status !== statusFiltro) return false;
+      if (ufFiltro && (c.estado || "").trim().toUpperCase() !== ufFiltro) return false;
       if (!q) return true;
       const matchTexto =
         normalize(c.nome).includes(q) ||
@@ -199,12 +203,12 @@ export default function ClientesList() {
       }
     });
     return sorted;
-  }, [clientes, search, statusFiltro, sortKey, sortDir, contagemProcessos, tarefasPorCliente]);
+  }, [clientes, search, statusFiltro, ufFiltro, sortKey, sortDir, contagemProcessos, tarefasPorCliente]);
 
   // Reset para a página 1 sempre que filtros, busca, ordenação ou tamanho mudarem
   useEffect(() => {
     setPage(1);
-  }, [search, statusFiltro, sortKey, sortDir, pageSize]);
+  }, [search, statusFiltro, ufFiltro, sortKey, sortDir, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -259,6 +263,25 @@ export default function ClientesList() {
       </PageHeader>
       <AtivacaoPortalLoteDialog open={ativacaoLoteOpen} onClose={() => setAtivacaoLoteOpen(false)} />
       <CadastrosPendentesDialog open={diagnosticoOpen} onOpenChange={setDiagnosticoOpen} />
+
+      {ufFiltro && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-primary/5 px-4 py-3 text-sm">
+          <MapPin className="h-4 w-4 text-primary" />
+          <span>Exibindo clientes de <strong>{ufFiltro}</strong>.</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => {
+              const proximos = new URLSearchParams(searchParams);
+              proximos.delete("uf");
+              setSearchParams(proximos);
+            }}
+          >
+            Limpar filtro
+          </Button>
+        </div>
+      )}
 
       <Card className="p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-3">
