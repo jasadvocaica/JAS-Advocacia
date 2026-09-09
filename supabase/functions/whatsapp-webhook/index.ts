@@ -135,6 +135,27 @@ Deno.serve(async (request: Request) => {
           .eq("ativo", true)
           .maybeSingle();
 
+        // A fila inicial usa somente a responsável explicitamente configurada.
+        // Não existe fallback por cargo, ordem de cadastro ou UUID no código.
+        const { data: configResponsavel } = await db
+          .from("configuracoes_sistema")
+          .select("valor")
+          .eq("secao", "comercial")
+          .eq("chave", "responsavel_comunicacao_user_id")
+          .maybeSingle();
+
+        let responsavelId: string | null = null;
+        if (configResponsavel?.valor) {
+          const { data: perfilResponsavel } = await db
+            .from("profiles")
+            .select("id")
+            .eq("id", configResponsavel.valor)
+            .eq("ativo", true)
+            .eq("tipo_portal", "interno")
+            .maybeSingle();
+          responsavelId = perfilResponsavel?.id || null;
+        }
+
         for (const statusEvento of value.statuses ?? []) {
           const eventoId = `${statusEvento.id}:status:${statusEvento.status}`;
           const { data: evento } = await db
@@ -242,6 +263,7 @@ Deno.serve(async (request: Request) => {
                 telefone,
                 nome_contato: cliente?.nome || lead?.nome || nomePerfil || telefone,
                 status: "aguardando_escritorio",
+                responsavel_id: responsavelId,
               })
               .select("id")
               .single();
