@@ -143,3 +143,7 @@ verify_jwt = true
 # Endpoint público da Meta; valida token de verificação e assinatura HMAC no corpo.
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+# Envio iniciado por usuário autenticado; as permissões de marketing são aplicadas por RLS.
+[functions.whatsapp-enviar]
+verify_jwt = true
