@@ -3,36 +3,37 @@ import { useEffect, useState, useCallback } from "react";
 export type Tema = "light";
 const KEY = "app:tema";
 
-function aplicar(t: Tema) {
-  const root = document.documentElement;
-  root.classList.remove("dark");
+function aplicar() {
+  document.documentElement.classList.remove("dark");
 }
 
-function inicial(): Tema {\n  return "light";\n}
+function inicial(): Tema {
+  return "light";
+}
 
 /**
- * Gerencia o tema claro/escuro. Persiste em localStorage e respeita
- * a preferência do sistema na primeira visita.
+ * Mantém a identidade visual oficial exclusivamente no modo claro.
+ * A API do hook é preservada para compatibilidade com componentes existentes.
  */
 export function useTheme() {
   const [tema, setTemaState] = useState<Tema>(() => {
-    if (typeof window === "undefined") return "light";
     const t = inicial();
-    aplicar(t);
+    if (typeof document !== "undefined") aplicar();
     return t;
   });
 
-  const setTema = useCallback((t: Tema) => {
-    setTemaState(t);
-    aplicar(t);
-    try { localStorage.setItem(KEY, t); } catch {}
+  const setTema = useCallback((_t: Tema) => {
+    setTemaState("light");
+    aplicar();
+    try { localStorage.setItem(KEY, "light"); } catch {}
   }, []);
 
-  const toggle = useCallback(() => {
-    setTema(tema === "dark" ? "light" : "dark");
-  }, [tema, setTema]);
+  const toggle = useCallback(() => setTema("light"), [setTema]);
 
-  useEffect(() => { aplicar(tema); }, [tema]);
+  useEffect(() => {
+    aplicar();
+    try { localStorage.setItem(KEY, "light"); } catch {}
+  }, [tema]);
 
   return { tema, setTema, toggle };
 }
