@@ -206,6 +206,10 @@ function SidebarContent({
           {GRUPOS.map((grupo) => {
             const itens = NAV.filter((item) => item.grupo === grupo).filter((item) => {
               if (isEstagiaria && item.to === "/") return false;
+              if (item.grupo === "Comercial" && item.modulo === "marketing") {
+                if (item.to === "/comercial/conexoes") return isGestor;
+                return podeVerComercial || hasPermission("marketing", "visualizar");
+              }
               return !item.modulo || hasPermission(item.modulo, "visualizar");
             });
             if (itens.length === 0) return null;
