@@ -64,6 +64,24 @@ Deno.serve(async (request: Request) => {
     return resposta({ error: "O canal oficial não está conectado." }, 409);
   }
 
+  const { data: ultimaEntrada, error: erroJanela } = await db
+    .from("whatsapp_mensagens")
+    .select("ocorrida_em")
+    .eq("conversa_id", conversa.id)
+    .eq("direcao", "entrada")
+    .order("ocorrida_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (erroJanela) return resposta({ error: "Não foi possível validar a janela de atendimento." }, 500);
+  const entradaEm = ultimaEntrada?.ocorrida_em ? new Date(ultimaEntrada.ocorrida_em).getTime() : 0;
+  if (!entradaEm || Date.now() - entradaEm > 24 * 60 * 60 * 1000) {
+    return resposta({
+      error: "A janela de 24 horas está encerrada. Use um template aprovado pela Meta para retomar o contato.",
+      codigo: "JANELA_24H_ENCERRADA",
+    }, 409);
+  }
+
   const accessToken = Deno.env.get("META_WHATSAPP_ACCESS_TOKEN") || "";
   const graphVersion = Deno.env.get("META_WHATSAPP_GRAPH_VERSION") || "";
   if (!accessToken || !graphVersion) {
