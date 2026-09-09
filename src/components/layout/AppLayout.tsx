@@ -18,7 +18,6 @@ import {
   FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock,
   PanelLeftClose, PanelLeftOpen, BarChart3, Scale, MessageCircle,
 } from "lucide-react";
-import { useTheme } from "@/hooks/useTheme";
 import { useMuralAvisos } from "@/hooks/useMuralAvisos";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Modulo } from "@/contexts/AuthContext";
