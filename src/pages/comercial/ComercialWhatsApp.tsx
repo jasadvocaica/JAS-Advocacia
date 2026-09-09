@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 type Conversa = {
@@ -22,6 +29,7 @@ type Conversa = {
 type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string };
 type Conexao = { id: string; nome: string; numero_exibicao: string | null; status: string; ativo: boolean };
 type Lead = { id: string; nome: string; email: string | null; area_direito: string | null; status: string; canal: string | null; valor_contrato: number | null };
+type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
 
 const hora = (data: string | null) => data ? new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(data)) : "";
 const iniciais = (nome?: string | null) => (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -36,6 +44,8 @@ export default function ComercialWhatsApp() {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todas" | "nao_lidas" | "encerradas">("todas");
   const [selecionada, setSelecionada] = useState<string | null>(null);
+  const [novaConversaAberta, setNovaConversaAberta] = useState(false);
+  const [buscaContato, setBuscaContato] = useState("");
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -43,6 +53,57 @@ export default function ComercialWhatsApp() {
       const { data, error } = await (supabase as any).from("whatsapp_conexoes").select("id,nome,numero_exibicao,status,ativo").eq("ativo", true).maybeSingle();
       if (error) throw error;
       return data as Conexao | null;
+    },
+  });
+  const { data: contatos = [], isLoading: carregandoContatos } = useQuery({
+    queryKey: ["whatsapp-contatos-reais"],
+    enabled: novaConversaAberta,
+    queryFn: async () => {
+      const [leadsResult, clientesResult] = await Promise.all([
+        (supabase as any)
+          .from("mkt_leads")
+          .select("id,nome,whatsapp,email")
+          .not("whatsapp", "is", null)
+          .order("nome")
+          .limit(250),
+        (supabase as any)
+          .from("clientes")
+          .select("id,nome,whatsapp,telefones,email")
+          .eq("ativo", true)
+          .order("nome")
+          .limit(250),
+      ]);
+
+      if (leadsResult.error) throw leadsResult.error;
+
+      const leads: Contato[] = (leadsResult.data ?? [])
+        .filter((item: any) => item.whatsapp)
+        .map((item: any) => ({
+          id: item.id,
+          nome: item.nome,
+          telefone: item.whatsapp,
+          email: item.email,
+          origem: "lead" as const,
+        }));
+
+      const clientes: Contato[] = clientesResult.error
+        ? []
+        : (clientesResult.data ?? [])
+            .map((item: any) => ({
+              id: item.id,
+              nome: item.nome,
+              telefone: item.whatsapp || item.telefones?.[0] || "",
+              email: item.email,
+              origem: "cliente" as const,
+            }))
+            .filter((item: Contato) => item.telefone);
+
+      const unicos = new Map<string, Contato>();
+      [...leads, ...clientes].forEach((item) => {
+        const chave = item.telefone.replace(/\D/g, "");
+        if (chave && !unicos.has(chave)) unicos.set(chave, item);
+      });
+      return Array.from(unicos.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     },
   });
   const { data: conversas = [], isLoading } = useQuery({
@@ -84,6 +145,14 @@ export default function ComercialWhatsApp() {
     return bateBusca && bateFiltro;
   }), [conversas, busca, filtro]);
 
+  const contatosFiltrados = useMemo(() => {
+    const termo = buscaContato.trim().toLowerCase();
+    if (!termo) return contatos;
+    return contatos.filter((item) =>
+      [item.nome, item.telefone, item.email].some((valor) => (valor || "").toLowerCase().includes(termo)),
+    );
+  }, [buscaContato, contatos]);
+
   return (
     <div className="space-y-4">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -93,11 +162,17 @@ export default function ComercialWhatsApp() {
             <span className={cn("h-2 w-2 rounded-full", conexao?.status === "conectado" ? "bg-emerald-300" : "bg-amber-500")} />
             {conexao?.status === "conectado" ? `${conexao.nome} conectado` : "WhatsApp aguardando conexão"}
           </Badge>
-          <Button variant="outline" className="gap-2" asChild>
-            <a href={linkWhatsApp(conversa?.telefone)} target="_blank" rel="noreferrer">
-              <ExternalLink className="h-4 w-4" />
-              {conversa ? "Conversar no WhatsApp" : "Abrir WhatsApp Web"}
-            </a>
+          {conversa && (
+            <Button variant="outline" className="gap-2" asChild>
+              <a href={linkWhatsApp(conversa.telefone)} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                Conversar no WhatsApp
+              </a>
+            </Button>
+          )}
+          <Button className="gap-2" onClick={() => setNovaConversaAberta(true)}>
+            <Plus className="h-4 w-4" />
+            Nova conversa
           </Button>
         </div>
       </header>
@@ -146,6 +221,64 @@ export default function ComercialWhatsApp() {
           {!conexao && <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950"><PlugZap className="mb-2 h-5 w-5" /><p className="font-medium">Canal não configurado</p><p className="mt-1 text-xs">Nenhuma mensagem será enviada até a conexão oficial.</p></div>}
         </aside>
       </Card>
+
+      <Dialog open={novaConversaAberta} onOpenChange={setNovaConversaAberta}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Iniciar conversa</DialogTitle>
+            <DialogDescription>
+              Escolha um lead ou cliente já cadastrado. O WhatsApp Web oficial será aberto no número selecionado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={buscaContato}
+              onChange={(evento) => setBuscaContato(evento.target.value)}
+              placeholder="Buscar por nome, telefone ou e-mail"
+              className="pl-9"
+            />
+          </div>
+
+          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+            {carregandoContatos ? (
+              <p className="p-5 text-center text-sm text-muted-foreground">Carregando contatos…</p>
+            ) : contatosFiltrados.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center">
+                <UserRound className="mx-auto h-8 w-8 text-muted-foreground/40" />
+                <p className="mt-3 font-medium">Nenhum contato com WhatsApp encontrado</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Cadastre o número no CRM ou no cadastro do cliente.
+                </p>
+              </div>
+            ) : (
+              contatosFiltrados.map((contato) => (
+                <a
+                  key={`${contato.origem}-${contato.id}`}
+                  href={linkWhatsApp(contato.telefone)}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setNovaConversaAberta(false)}
+                  className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                    {iniciais(contato.nome)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{contato.nome}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {contato.telefone}{contato.email ? ` · ${contato.email}` : ""}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{contato.origem === "lead" ? "Lead" : "Cliente"}</Badge>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                </a>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
