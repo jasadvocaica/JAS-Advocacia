@@ -32,9 +32,7 @@ const CATEGORIAS = [
 ] as const;
 const GATILHOS = [
   ["lead_criado", "Atendimento criado"],
-  ["lead_sem_resposta", "Contato sem resposta"],
   ["etapa_alterada", "Etapa do CRM alterada"],
-  ["consulta_agendada", "Consulta agendada"],
   ["contrato_assinado", "Contrato assinado"],
 ] as const;
 const vazio = { id: "", nome: "", categoria: "follow_up", gatilho: "lead_criado", atraso_minutos: "0", mensagem_template: "" };
@@ -188,7 +186,7 @@ export default function ComercialAutomacoes() {
         </div>
       )}
 
-      <Card className="p-5"><div className="flex gap-3"><ShieldCheck className="h-5 w-5 text-emerald-700" /><div><p className="font-medium">Proteções aplicadas</p><p className="mt-1 text-sm text-muted-foreground">Canal homologado obrigatório, rascunho por padrão, permissões, fila idempotente e histórico de execução. O motor jurídico de Fluxos permanece separado.</p></div></div></Card>
+      <Card className="p-5"><div className="flex gap-3"><ShieldCheck className="h-5 w-5 text-emerald-700" /><div><p className="font-medium">Proteções aplicadas</p><p className="mt-1 text-sm text-muted-foreground">Canal homologado obrigatório, rascunho por padrão, permissões, fila idempotente e histórico de execução. Os gatilhos usam eventos reais do CRM e dos contratos; o motor jurídico de Fluxos permanece separado.</p></div></div></Card>
 
       <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
         <DialogContent className="sm:max-w-2xl">
