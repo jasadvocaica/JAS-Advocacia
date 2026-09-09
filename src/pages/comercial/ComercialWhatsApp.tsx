@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,12 @@ type Lead = { id: string; nome: string; email: string | null; area_direito: stri
 
 const hora = (data: string | null) => data ? new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(data)) : "";
 const iniciais = (nome?: string | null) => (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+const linkWhatsApp = (telefone?: string | null) => {
+  const digitos = (telefone || "").replace(/\D/g, "");
+  if (!digitos) return "https://web.whatsapp.com/";
+  const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
+  return `https://web.whatsapp.com/send?phone=${numero}`;
+};
 
 export default function ComercialWhatsApp() {
   const [busca, setBusca] = useState("");
@@ -82,10 +88,18 @@ export default function ComercialWhatsApp() {
     <div className="space-y-4">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Comercial</p><h1 className="font-display text-3xl">Conversas</h1><p className="text-sm text-muted-foreground">Atendimento centralizado, vinculado aos cadastros reais do escritório.</p></div>
-        <Badge variant={conexao?.status === "conectado" ? "default" : "outline"} className="w-fit gap-2 py-2 px-3">
-          <span className={cn("h-2 w-2 rounded-full", conexao?.status === "conectado" ? "bg-emerald-300" : "bg-amber-500")} />
-          {conexao?.status === "conectado" ? `${conexao.nome} conectado` : "WhatsApp aguardando conexão"}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={conexao?.status === "conectado" ? "default" : "outline"} className="w-fit gap-2 py-2 px-3">
+            <span className={cn("h-2 w-2 rounded-full", conexao?.status === "conectado" ? "bg-emerald-300" : "bg-amber-500")} />
+            {conexao?.status === "conectado" ? `${conexao.nome} conectado` : "WhatsApp aguardando conexão"}
+          </Badge>
+          <Button variant="outline" className="gap-2" asChild>
+            <a href={linkWhatsApp(conversa?.telefone)} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" />
+              {conversa ? "Conversar no WhatsApp" : "Abrir WhatsApp Web"}
+            </a>
+          </Button>
+        </div>
       </header>
 
       <Card className="grid min-h-[680px] overflow-hidden border-border/80 lg:grid-cols-[330px_minmax(420px,1fr)_310px]">
