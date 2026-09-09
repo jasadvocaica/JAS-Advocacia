@@ -84,7 +84,16 @@ export default function ComercialConexoes() {
       }
 
       if (form.id) {
-        const { criado_por: _criadoPor, ...alteracoes } = payload;
+        const alteracoes = {
+          nome: payload.nome,
+          provedor: payload.provedor,
+          numero_exibicao: payload.numero_exibicao,
+          phone_number_id: payload.phone_number_id,
+          business_account_id: payload.business_account_id,
+          status: payload.status,
+          ativo: payload.ativo,
+          atualizado_em: payload.atualizado_em,
+        };
         const { error } = await (supabase as any)
           .from("whatsapp_conexoes")
           .update(alteracoes)
