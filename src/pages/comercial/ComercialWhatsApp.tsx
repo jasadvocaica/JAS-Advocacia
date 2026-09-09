@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -385,7 +385,10 @@ export default function ComercialWhatsApp() {
             <div className="flex items-center gap-3 border-b bg-background p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{iniciais(conversa.nome_contato)}</div><div className="min-w-0 flex-1"><p className="truncate font-medium">{conversa.nome_contato || conversa.telefone}</p><p className="text-xs text-muted-foreground">{conversa.telefone}</p></div><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></div>
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
               {mensagens.length === 0 ? <div className="flex h-full items-center justify-center"><div className="text-center"><MessageCircle className="mx-auto mb-3 h-9 w-9 text-muted-foreground/35" /><p className="font-medium">Histórico vazio</p><p className="text-sm text-muted-foreground">As mensagens oficiais aparecerão aqui após a sincronização.</p></div></div> : mensagens.map((msg) => (
-                <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p><p className="mt-1 text-right text-[10px] opacity-60">{hora(msg.ocorrida_em)}</p></div></div>
+                <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p><div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-60">
+                  <span>{hora(msg.ocorrida_em)}</span>
+                  {msg.direcao === "saida" && <StatusMensagem status={msg.status} />}
+                </div></div></div>
               ))}
             </div>
             <div className="border-t bg-background p-3">
@@ -565,6 +568,23 @@ export default function ComercialWhatsApp() {
       </Dialog>
     </div>
   );
+}
+
+function StatusMensagem({ status }: { status: string }) {
+  const normalizado = status.toLowerCase();
+  if (normalizado === "lida") {
+    return <span className="inline-flex items-center gap-0.5 text-sky-600" title="Lida"><CheckCheck className="h-3.5 w-3.5" /><span className="sr-only">Lida</span></span>;
+  }
+  if (normalizado === "entregue") {
+    return <span className="inline-flex items-center gap-0.5" title="Entregue"><CheckCheck className="h-3.5 w-3.5" /><span className="sr-only">Entregue</span></span>;
+  }
+  if (normalizado === "enviada") {
+    return <span className="inline-flex items-center gap-0.5" title="Enviada"><Check className="h-3.5 w-3.5" /><span className="sr-only">Enviada</span></span>;
+  }
+  if (normalizado === "falha") {
+    return <span className="inline-flex items-center gap-0.5 text-destructive" title="Falha no envio"><CircleAlert className="h-3.5 w-3.5" /><span className="sr-only">Falha no envio</span></span>;
+  }
+  return <span className="inline-flex items-center gap-0.5" title="Aguardando envio"><Clock3 className="h-3.5 w-3.5" /><span className="sr-only">Aguardando envio</span></span>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
