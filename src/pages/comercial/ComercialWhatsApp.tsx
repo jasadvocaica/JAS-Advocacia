@@ -122,6 +122,50 @@ export default function ComercialWhatsApp() {
   useEffect(() => { if (!selecionada && conversas[0]) setSelecionada(conversas[0].id); }, [conversas, selecionada]);
   const conversa = conversas.find((item) => item.id === selecionada) ?? null;
 
+  useEffect(() => {
+    const channel = supabase
+      .channel(`comercial-whatsapp-${selecionada || "geral"}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_conversas" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] });
+          queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "whatsapp_mensagens",
+          ...(selecionada ? { filter: `conversa_id=eq.${selecionada}` } : {}),
+        },
+        () => {
+          if (selecionada) queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", selecionada] });
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_conexoes" },
+        () => queryClient.invalidateQueries({ queryKey: ["whatsapp-conexao-ativa"] }),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, selecionada]);
+
+  useEffect(() => {
+    if (!conversa || conversa.nao_lidas <= 0) return;
+    void (supabase as any)
+      .from("whatsapp_conversas")
+      .update({ nao_lidas: 0, atualizado_em: new Date().toISOString() })
+      .eq("id", conversa.id);
+  }, [conversa?.id, conversa?.nao_lidas]);
+
   const { data: mensagens = [] } = useQuery({
     queryKey: ["whatsapp-mensagens", selecionada],
     enabled: !!selecionada,
