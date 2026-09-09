@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,11 +34,13 @@ type Conversa = {
   ultima_mensagem_em: string | null;
   ultima_mensagem_resumo: string | null;
   nao_lidas: number;
+  responsavel_id: string | null;
 };
 type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string };
 type Conexao = { id: string; nome: string; numero_exibicao: string | null; status: string; ativo: boolean };
 type Lead = { id: string; nome: string; email: string | null; area_direito: string | null; status: string; canal: string | null; valor_contrato: number | null };
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
+type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 
 const hora = (data: string | null) => data ? new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(data)) : "";
 const iniciais = (nome?: string | null) => (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -50,8 +53,9 @@ const linkWhatsApp = (telefone?: string | null) => {
 
 export default function ComercialWhatsApp() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<"todas" | "fila" | "nao_lidas" | "encerradas">("todas");
+  const [filtro, setFiltro] = useState<"todas" | "minhas" | "fila" | "nao_lidas" | "encerradas">("todas");
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [novaConversaAberta, setNovaConversaAberta] = useState(false);
   const [buscaContato, setBuscaContato] = useState("");
@@ -63,6 +67,14 @@ export default function ComercialWhatsApp() {
       const { data, error } = await (supabase as any).from("whatsapp_conexoes").select("id,nome,numero_exibicao,status,ativo").eq("ativo", true).maybeSingle();
       if (error) throw error;
       return data as Conexao | null;
+    },
+  });
+  const { data: responsaveis = [] } = useQuery({
+    queryKey: ["comercial-responsaveis-autorizados"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("comercial_responsaveis_autorizados");
+      if (error) throw error;
+      return (data ?? []) as Responsavel[];
     },
   });
   const { data: contatos = [], isLoading: carregandoContatos } = useQuery({
@@ -120,7 +132,7 @@ export default function ComercialWhatsApp() {
     queryKey: ["whatsapp-conversas"],
     queryFn: async () => {
       const { data, error } = await (supabase as any).from("whatsapp_conversas")
-        .select("id,lead_id,cliente_id,nome_contato,telefone,status,ultima_mensagem_em,ultima_mensagem_resumo,nao_lidas")
+        .select("id,lead_id,cliente_id,nome_contato,telefone,status,responsavel_id,ultima_mensagem_em,ultima_mensagem_resumo,nao_lidas")
         .order("ultima_mensagem_em", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as Conversa[];
@@ -227,6 +239,24 @@ export default function ComercialWhatsApp() {
     },
     onError: () => toast.error("Não foi possível atualizar o atendimento."),
   });
+  const atribuirResponsavel = useMutation({
+    mutationFn: async (responsavelId: string) => {
+      if (!selecionada) throw new Error("Selecione uma conversa.");
+      const { error } = await (supabase as any)
+        .from("whatsapp_conversas")
+        .update({
+          responsavel_id: responsavelId === "sem_responsavel" ? null : responsavelId,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", selecionada);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] });
+      toast.success("Responsável pelo atendimento atualizado.");
+    },
+    onError: () => toast.error("Não foi possível atribuir o atendimento."),
+  });
   const { data: lead } = useQuery({
     queryKey: ["whatsapp-lead", conversa?.lead_id],
     enabled: !!conversa?.lead_id,
@@ -240,11 +270,12 @@ export default function ComercialWhatsApp() {
   const filtradas = useMemo(() => conversas.filter((item) => {
     const bateBusca = [item.nome_contato, item.telefone, item.ultima_mensagem_resumo].some((v) => (v || "").toLowerCase().includes(busca.toLowerCase()));
     const bateFiltro = filtro === "todas" ||
+      (filtro === "minhas" && item.responsavel_id === user?.id) ||
       (filtro === "fila" && ["aberta", "aguardando_escritorio"].includes(item.status)) ||
       (filtro === "nao_lidas" && item.nao_lidas > 0) ||
       (filtro === "encerradas" && item.status === "encerrada");
     return bateBusca && bateFiltro;
-  }), [conversas, busca, filtro]);
+  }), [conversas, busca, filtro, user?.id]);
 
   const contatosFiltrados = useMemo(() => {
     const termo = buscaContato.trim().toLowerCase();
@@ -283,7 +314,7 @@ export default function ComercialWhatsApp() {
           <div className="space-y-3 border-b p-4">
             <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conversa ou contato" className="pl-9" /></div>
             <div className="flex gap-1">
-              {([["todas","Todas"],["fila","Fila"],["nao_lidas","Não lidas"],["encerradas","Fechadas"]] as const).map(([valor, rotulo]) => <Button key={valor} size="sm" variant={filtro === valor ? "secondary" : "ghost"} onClick={() => setFiltro(valor)}>{rotulo}</Button>)}
+              {([["todas","Todas"],["minhas","Minhas"],["fila","Fila"],["nao_lidas","Não lidas"],["encerradas","Fechadas"]] as const).map(([valor, rotulo]) => <Button key={valor} size="sm" variant={filtro === valor ? "secondary" : "ghost"} onClick={() => setFiltro(valor)}>{rotulo}</Button>)}
             </div>
           </div>
           <div className="max-h-[590px] overflow-y-auto">
@@ -362,9 +393,29 @@ export default function ComercialWhatsApp() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" className="w-full gap-2" disabled title="A atribuição será liberada após definir a equipe comercial">
-              <UserRound className="h-4 w-4" />Responsável ainda não configurado
-            </Button>
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Responsável pelo atendimento</p>
+              <Select
+                value={conversa.responsavel_id || "sem_responsavel"}
+                onValueChange={(responsavelId) => atribuirResponsavel.mutate(responsavelId)}
+                disabled={atribuirResponsavel.isPending || responsaveis.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar responsável" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sem_responsavel">Sem responsável</SelectItem>
+                  {responsaveis.map((responsavel) => (
+                    <SelectItem key={responsavel.user_id} value={responsavel.user_id}>
+                      {responsavel.nome}{responsavel.gestor ? " · Gestora" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {responsaveis.length === 0 && (
+                <p className="text-xs text-amber-700">Nenhum usuário possui autorização comercial.</p>
+              )}
+            </div>
           </div> : <p className="mt-4 text-sm text-muted-foreground">O cadastro vinculado aparecerá aqui.</p>}
           {!conexao && <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950"><PlugZap className="mb-2 h-5 w-5" /><p className="font-medium">Canal não configurado</p><p className="mt-1 text-xs">Nenhuma mensagem será enviada até a conexão oficial.</p></div>}
         </aside>
