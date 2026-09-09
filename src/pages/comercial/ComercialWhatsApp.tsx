@@ -13,6 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -198,6 +205,28 @@ export default function ComercialWhatsApp() {
       toast.error(erro.message || "Não foi possível enviar a mensagem.");
     },
   });
+  const alterarStatus = useMutation({
+    mutationFn: async (status: string) => {
+      if (!selecionada) throw new Error("Selecione uma conversa.");
+      const { error } = await (supabase as any)
+        .from("whatsapp_conversas")
+        .update({
+          status,
+          nao_lidas: status === "encerrada" ? 0 : conversa?.nao_lidas || 0,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", selecionada);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+        queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] }),
+      ]);
+      toast.success("Situação do atendimento atualizada.");
+    },
+    onError: () => toast.error("Não foi possível atualizar o atendimento."),
+  });
   const { data: lead } = useQuery({
     queryKey: ["whatsapp-lead", conversa?.lead_id],
     enabled: !!conversa?.lead_id,
@@ -312,9 +341,27 @@ export default function ComercialWhatsApp() {
           <h2 className="font-display text-xl">Contexto comercial</h2>
           {conversa ? <div className="mt-5 space-y-5">
             <div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted font-semibold">{iniciais(conversa.nome_contato)}</div><div><p className="font-semibold">{conversa.nome_contato || conversa.telefone}</p><p className="text-sm text-muted-foreground">{lead ? "Lead cadastrado" : conversa.cliente_id ? "Cliente cadastrado" : "Contato vinculado"}</p></div></div>
-            <Info label="Telefone" value={conversa.telefone} /><Info label="E-mail" value={lead?.email || "Não informado"} /><Info label="Área de interesse" value={lead?.area_direito || "Não informada"} /><Info label="Origem" value={lead?.canal || "Não informada"} /><Info label="Etapa no CRM" value={lead?.status || conversa.status} />
+            <Info label="Telefone" value={conversa.telefone} /><Info label="E-mail" value={lead?.email || "Não informado"} /><Info label="Área de interesse" value={lead?.area_direito || "Não informada"} /><Info label="Origem" value={lead?.canal || "Não informada"} /><Info label="Etapa no CRM" value={lead?.status || "Sem lead vinculado"} />
             {lead?.valor_contrato != null && <Info label="Valor esperado" value={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(lead.valor_contrato)} />}
-            <Button variant="outline" className="w-full gap-2" disabled><UserRound className="h-4 w-4" />Editar responsável</Button>
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Situação do atendimento</p>
+              <Select
+                value={conversa.status}
+                onValueChange={(status) => alterarStatus.mutate(status)}
+                disabled={alterarStatus.isPending}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aberta">Aberta</SelectItem>
+                  <SelectItem value="aguardando_escritorio">Aguardando escritório</SelectItem>
+                  <SelectItem value="aguardando_cliente">Aguardando cliente</SelectItem>
+                  <SelectItem value="encerrada">Encerrada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" className="w-full gap-2" disabled title="A atribuição será liberada após definir a equipe comercial">
+              <UserRound className="h-4 w-4" />Responsável ainda não configurado
+            </Button>
           </div> : <p className="mt-4 text-sm text-muted-foreground">O cadastro vinculado aparecerá aqui.</p>}
           {!conexao && <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950"><PlugZap className="mb-2 h-5 w-5" /><p className="font-medium">Canal não configurado</p><p className="mt-1 text-xs">Nenhuma mensagem será enviada até a conexão oficial.</p></div>}
         </aside>
