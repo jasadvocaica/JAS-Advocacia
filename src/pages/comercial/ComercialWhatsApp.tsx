@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X, CalendarClock } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Download, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
@@ -38,7 +38,7 @@ type Conversa = {
   nao_lidas: number;
   responsavel_id: string | null;
 };
-type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string };
+type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string; provider_media_id: string | null; mime_type: string | null; nome_arquivo: string | null };
 type Conexao = { id: string; nome: string; numero_exibicao: string | null; status: string; ativo: boolean };
 type Lead = { id: string; nome: string; email: string | null; area_direito: string | null; status: string; canal: string | null; valor_contrato: number | null };
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
@@ -276,7 +276,7 @@ export default function ComercialWhatsApp() {
     queryKey: ["whatsapp-mensagens", selecionada],
     enabled: !!selecionada,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("whatsapp_mensagens").select("id,direcao,tipo,conteudo,ocorrida_em,status")
+      const { data, error } = await (supabase as any).from("whatsapp_mensagens").select("id,direcao,tipo,conteudo,ocorrida_em,status,provider_media_id,mime_type,nome_arquivo")
         .eq("conversa_id", selecionada).order("ocorrida_em", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Mensagem[];
@@ -420,6 +420,32 @@ export default function ComercialWhatsApp() {
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível remover a nota."),
   });
+  const baixarMidia = useMutation({
+    mutationFn: async (mensagem: Mensagem) => {
+      if (!mensagem.provider_media_id) throw new Error("Esta mensagem não possui anexo disponível.");
+      const { data, error } = await supabase.functions.invoke("whatsapp-midia", {
+        body: { mensagem_id: mensagem.id },
+      });
+      if (error) throw error;
+      const blob = data instanceof Blob
+        ? data
+        : new Blob([data], { type: mensagem.mime_type || "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      try {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = mensagem.nome_arquivo || `anexo-whatsapp-${mensagem.id}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } finally {
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    },
+    onSuccess: () => toast.success("Anexo baixado com segurança."),
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível baixar o anexo."),
+  });
+
   const enviarMensagem = useMutation({
     mutationFn: async () => {
       if (!selecionada || !texto.trim()) throw new Error("Digite uma mensagem.");
@@ -674,7 +700,19 @@ export default function ComercialWhatsApp() {
             <div className="flex items-center gap-3 border-b bg-background p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{iniciais(conversa.nome_contato)}</div><div className="min-w-0 flex-1"><p className="truncate font-medium">{conversa.nome_contato || conversa.telefone}</p><p className="text-xs text-muted-foreground">{conversa.telefone}</p></div><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></div>
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
               {mensagens.length === 0 ? <div className="flex h-full items-center justify-center"><div className="text-center"><MessageCircle className="mx-auto mb-3 h-9 w-9 text-muted-foreground/35" /><p className="font-medium">Histórico vazio</p><p className="text-sm text-muted-foreground">As mensagens oficiais aparecerão aqui após a sincronização.</p></div></div> : mensagens.map((msg) => (
-                <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p><div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-60">
+                <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p>{msg.provider_media_id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 h-8 bg-background/80"
+                    disabled={baixarMidia.isPending}
+                    onClick={() => baixarMidia.mutate(msg)}
+                  >
+                    <Download className="mr-2 h-3.5 w-3.5" />
+                    {baixarMidia.isPending ? "Baixando..." : (msg.nome_arquivo || "Baixar anexo")}
+                  </Button>
+                )}<div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-60">
                   <span>{hora(msg.ocorrida_em)}</span>
                   {msg.direcao === "saida" && <StatusMensagem status={msg.status} />}
                 </div></div></div>
