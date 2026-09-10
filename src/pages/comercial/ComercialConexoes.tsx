@@ -66,6 +66,20 @@ export default function ComercialConexoes() {
   const [form, setForm] = useState(inicial);
   const { data: responsavelAtual } = useResponsavelComunicacao();
 
+  const { data: slaPrimeiraResposta } = useQuery({
+    queryKey: ["whatsapp-sla-primeira-resposta"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("configuracoes_sistema")
+        .select("valor")
+        .eq("secao", "comercial")
+        .eq("chave", "sla_primeira_resposta_minutos")
+        .maybeSingle();
+      if (error) throw error;
+      return data?.valor as string | null | undefined;
+    },
+  });
+
   const { data: responsaveis = [] } = useQuery({
     queryKey: ["comercial-responsaveis-autorizados"],
     queryFn: async () => {
@@ -215,6 +229,27 @@ export default function ComercialConexoes() {
     },
     onError: (erro: Error) =>
       toast.error(erro.message || "Não foi possível sincronizar os templates."),
+  });
+
+  const salvarSla = useMutation({
+    mutationFn: async (minutos: string) => {
+      if (!isGestor) throw new Error("Somente gestores podem configurar o SLA.");
+      const { error } = await (supabase as any)
+        .from("configuracoes_sistema")
+        .update({
+          valor: minutos === "nao_configurado" ? null : minutos,
+          atualizado_por: user?.id || null,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("secao", "comercial")
+        .eq("chave", "sla_primeira_resposta_minutos");
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-sla-primeira-resposta"] });
+      toast.success("SLA de primeira resposta atualizado.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível atualizar o SLA."),
   });
 
   const salvarResponsavel = useMutation({
@@ -506,6 +541,34 @@ export default function ComercialConexoes() {
                   {responsavel.nome}{responsavel.gestor ? " · Gestora" : ""}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <div className="grid gap-4 md:grid-cols-[1fr_360px] md:items-center">
+          <div>
+            <p className="font-medium">SLA da primeira resposta humana</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Conta da primeira mensagem recebida até a primeira resposta confirmada da equipe.
+              Mensagens automáticas não encerram o SLA.
+            </p>
+          </div>
+          <Select
+            value={slaPrimeiraResposta || "nao_configurado"}
+            onValueChange={(valor) => salvarSla.mutate(valor)}
+            disabled={!isGestor || salvarSla.isPending}
+          >
+            <SelectTrigger><SelectValue placeholder="Definir prazo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nao_configurado">Não configurado</SelectItem>
+              <SelectItem value="5">5 minutos</SelectItem>
+              <SelectItem value="10">10 minutos</SelectItem>
+              <SelectItem value="15">15 minutos</SelectItem>
+              <SelectItem value="30">30 minutos</SelectItem>
+              <SelectItem value="60">1 hora</SelectItem>
+              <SelectItem value="120">2 horas</SelectItem>
             </SelectContent>
           </Select>
         </div>
