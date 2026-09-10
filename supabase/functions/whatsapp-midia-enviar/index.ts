@@ -125,7 +125,7 @@ Deno.serve(async (request: Request) => {
       .insert({
         conversa_id: conversa.id,
         direcao: "saida",
-        tipo,
+        tipo: tipo === "image" ? "imagem" : tipo === "document" ? "documento" : tipo,
         conteudo: `[Anexo: ${nome}]`,
         status: "pendente",
         enviada_por: usuario.user.id,
