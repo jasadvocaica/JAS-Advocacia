@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ExternalLink, Pencil, PlugZap, RefreshCw, Shield } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, ExternalLink, Pencil, PlugZap, RefreshCw, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,14 @@ import {
 } from "@/components/ui/dialog";
 
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
+type StatusAtivacao = {
+  canal_cadastrado: boolean;
+  identificadores_configurados: boolean;
+  segredos_configurados: boolean;
+  webhook_url: string;
+  webhook_pronto: boolean;
+  canal_conectado: boolean;
+};
 type WhatsAppTemplate = {
   id: string;
   conexao_id: string;
@@ -64,6 +72,16 @@ export default function ComercialConexoes() {
       const { data, error } = await (supabase as any).rpc("comercial_responsaveis_autorizados");
       if (error) throw error;
       return (data ?? []) as Responsavel[];
+    },
+  });
+
+  const { data: statusAtivacao, isLoading: carregandoStatus } = useQuery({
+    queryKey: ["whatsapp-status-ativacao"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-status", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as StatusAtivacao;
     },
   });
 
@@ -144,6 +162,7 @@ export default function ComercialConexoes() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["whatsapp-conexoes"] }),
         queryClient.invalidateQueries({ queryKey: ["whatsapp-conexao-ativa"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-status-ativacao"] }),
       ]);
       setDialogAberto(false);
       setForm(inicial);
@@ -231,6 +250,74 @@ export default function ComercialConexoes() {
         </div>
         {isGestor && <Button onClick={abrirNovo}>Cadastrar canal</Button>}
       </header>
+
+      <Card className="p-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="font-display text-xl">Ativação do WhatsApp oficial</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Acompanhe o que já está pronto. O sistema somente marcará o canal como conectado depois de uma
+              homologação real com a Meta.
+            </p>
+          </div>
+          <Button variant="outline" asChild className="shrink-0">
+            <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">
+              <ExternalLink className="mr-2 h-4 w-4" />Abrir painel da Meta
+            </a>
+          </Button>
+        </div>
+        {carregandoStatus ? (
+          <p className="mt-5 text-sm text-muted-foreground">Verificando configuração segura…</p>
+        ) : (
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["1. Canal cadastrado", statusAtivacao?.canal_cadastrado, "Número e identificação pública"],
+              ["2. IDs da Meta", statusAtivacao?.identificadores_configurados, "Phone Number e Business Account"],
+              ["3. Segredos protegidos", statusAtivacao?.segredos_configurados, "Configurados somente no servidor"],
+              ["4. Homologação real", statusAtivacao?.canal_conectado, "Webhook validado e teste concluído"],
+            ].map(([titulo, concluido, descricao]) => (
+              <div key={String(titulo)} className="rounded-lg border p-4">
+                <div className="flex items-center gap-2">
+                  {concluido
+                    ? <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    : <AlertTriangle className="h-5 w-5 text-amber-600" />}
+                  <p className="font-medium">{titulo}</p>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{descricao}</p>
+                <Badge variant={concluido ? "default" : "outline"} className="mt-3">
+                  {concluido ? "Concluído" : "Pendente"}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+        {statusAtivacao?.webhook_url && (
+          <div className="mt-5 rounded-lg border bg-muted/30 p-4">
+            <p className="text-sm font-medium">URL de callback para cadastrar na Meta</p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <Input readOnly value={statusAtivacao.webhook_url} className="font-mono text-xs" />
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(statusAtivacao.webhook_url);
+                    toast.success("URL do webhook copiada.");
+                  } catch {
+                    toast.error("Não foi possível copiar automaticamente.");
+                  }
+                }}
+              >
+                <ClipboardCopy className="mr-2 h-4 w-4" />Copiar URL
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              O token de verificação não é exibido nesta tela. Ele permanece protegido no servidor.
+            </p>
+          </div>
+        )}
+      </Card>
 
       {isLoading ? (
         <p>Carregando…</p>
