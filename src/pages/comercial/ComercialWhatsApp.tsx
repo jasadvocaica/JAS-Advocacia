@@ -81,10 +81,14 @@ const quantidadeParametrosCorpo = (template?: TemplateWhatsApp) => {
   return indices.length > 0 ? Math.max(...indices) : 0;
 };
 
-const linkWhatsApp = (telefone?: string | null) => {
+const normalizarWhatsApp = (telefone?: string | null) => {
   const digitos = (telefone || "").replace(/\D/g, "");
-  if (!digitos) return "https://web.whatsapp.com/";
-  const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
+  if (digitos.length === 10 || digitos.length === 11) return `55${digitos}`;
+  return digitos;
+};
+const linkWhatsApp = (telefone?: string | null) => {
+  const numero = normalizarWhatsApp(telefone);
+  if (!numero) return "https://web.whatsapp.com/";
   return `https://web.whatsapp.com/send?phone=${numero}`;
 };
 
@@ -615,14 +619,23 @@ export default function ComercialWhatsApp() {
       if (!contatoSelecionado || !templateSelecionado) {
         throw new Error("Selecione um contato real e um template aprovado.");
       }
-      const telefone = contatoSelecionado.telefone.replace(/\D/g, "");
+      const telefone = normalizarWhatsApp(contatoSelecionado.telefone);
       if (!telefone) throw new Error("O contato não possui telefone válido.");
+
+      const { data: bloqueio, error: erroBloqueio } = await (supabase as any)
+        .from("whatsapp_contatos_bloqueados")
+        .select("telefone_normalizado")
+        .eq("telefone_normalizado", telefone)
+        .is("restaurado_em", null)
+        .maybeSingle();
+      if (erroBloqueio) throw erroBloqueio;
+      if (bloqueio) throw new Error("Este contato solicitou descadastro. Uma nova conversa não pode ser iniciada.");
 
       const localizar = () => (supabase as any)
         .from("whatsapp_conversas")
         .select("id")
         .eq("conexao_id", conexao.id)
-        .eq("telefone", telefone)
+        .eq("telefone_normalizado", telefone)
         .neq("status", "encerrada")
         .maybeSingle();
 
