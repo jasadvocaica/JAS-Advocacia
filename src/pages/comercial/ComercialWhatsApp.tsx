@@ -452,6 +452,29 @@ export default function ComercialWhatsApp() {
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível remover a nota."),
   });
+  const restaurarConsentimento = useMutation({
+    mutationFn: async () => {
+      if (!isGestor || !conversa?.id) throw new Error("Somente gestores podem restaurar o consentimento.");
+      const confirmado = window.confirm(
+        "Confirme somente se o cliente autorizou formalmente a retomada das mensagens. A decisão ficará registrada na auditoria.",
+      );
+      if (!confirmado) throw new Error("Restauração cancelada.");
+      const { error } = await (supabase as any).rpc("whatsapp_restaurar_consentimento", {
+        _conversa_id: conversa.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] });
+      toast.success("Consentimento restaurado e registrado na auditoria.");
+    },
+    onError: (erro: Error) => {
+      if (erro.message !== "Restauração cancelada.") {
+        toast.error(erro.message || "Não foi possível restaurar o consentimento.");
+      }
+    },
+  });
+
   const criarRespostaRapida = useMutation({
     mutationFn: async () => {
       if (!isGestor) throw new Error("Somente gestores podem cadastrar respostas rápidas.");
@@ -885,6 +908,18 @@ export default function ComercialWhatsApp() {
                         {conversa.opt_out_termo ? ` usando “${conversa.opt_out_termo}”` : ""}.
                         Textos, templates, anexos, reenvios e automações estão bloqueados.
                       </p>
+                      {isGestor && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 border-destructive/25"
+                          disabled={restaurarConsentimento.isPending}
+                          onClick={() => restaurarConsentimento.mutate()}
+                        >
+                          {restaurarConsentimento.isPending ? "Restaurando…" : "Registrar nova autorização"}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
