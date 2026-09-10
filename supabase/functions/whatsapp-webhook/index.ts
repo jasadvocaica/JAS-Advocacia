@@ -42,6 +42,14 @@ const assinaturaValida = async (corpo: string, assinatura: string | null, segred
   return diferenca === 0;
 };
 
+const textoErroSeguro = (valor: unknown, limite: number) =>
+  String(valor || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/(access[_ -]?token|authorization|bearer)\s*[:=]?\s*[^\s,;]+/gi, "$1 [protegido]")
+    .replace(/https?:\/\/\S+/gi, "[endereço protegido]")
+    .trim()
+    .slice(0, limite) || null;
+
 const normalizarNumero = (numero: string) => numero.replace(/\D/g, "");
 const variantesNumero = (numero: string) => {
   const limpo = normalizarNumero(numero);
@@ -210,9 +218,17 @@ Deno.serve(async (request: Request) => {
               mensagemAtual &&
               (novoStatus === "falha" || (ordem[novoStatus] ?? 0) >= (ordem[mensagemAtual.status] ?? 0))
             ) {
+              const erroMeta = statusEvento.errors?.[0] || null;
               await db
                 .from("whatsapp_mensagens")
-                .update({ status: novoStatus })
+                .update({
+                  status: novoStatus,
+                  erro_codigo: novoStatus === "falha" ? textoErroSeguro(erroMeta?.code, 80) : null,
+                  erro_titulo: novoStatus === "falha" ? textoErroSeguro(erroMeta?.title || erroMeta?.message, 180) : null,
+                  erro_detalhe: novoStatus === "falha"
+                    ? textoErroSeguro(erroMeta?.error_data?.details, 500)
+                    : null,
+                })
                 .eq("id", mensagemAtual.id);
             }
           }
