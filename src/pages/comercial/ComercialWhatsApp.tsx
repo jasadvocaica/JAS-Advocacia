@@ -266,12 +266,21 @@ export default function ComercialWhatsApp() {
   }, [queryClient, selecionada]);
 
   useEffect(() => {
-    if (!conversa || conversa.nao_lidas <= 0) return;
-    void (supabase as any)
-      .from("whatsapp_conversas")
-      .update({ nao_lidas: 0, atualizado_em: new Date().toISOString() })
-      .eq("id", conversa.id);
-  }, [conversa?.id, conversa?.nao_lidas]);
+    if (!conversa || conversa.nao_lidas <= 0 || conexao?.status !== "conectado") return;
+    let ativo = true;
+    void supabase.functions.invoke("whatsapp-marcar-lida", {
+      body: { conversa_id: conversa.id },
+    }).then(({ data, error }) => {
+      if (!ativo || error || data?.error) return;
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", conversa.id] }),
+      ]);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [conversa?.id, conversa?.nao_lidas, conexao?.status, queryClient]);
 
   const { data: mensagens = [] } = useQuery({
     queryKey: ["whatsapp-mensagens", selecionada],
