@@ -54,7 +54,7 @@ Deno.serve(async (request: Request) => {
   const accessToken = Deno.env.get("META_WHATSAPP_ACCESS_TOKEN") || "";
   const graphVersion = Deno.env.get("META_WHATSAPP_GRAPH_VERSION") || "";
   const verifyToken = Deno.env.get("META_WHATSAPP_VERIFY_TOKEN") || "";
-  const appSecret = Deno.env.get("META_APP_SECRET") || "";
+  const appSecret = Deno.env.get("META_WHATSAPP_APP_SECRET") || "";
   if (!accessToken || !graphVersion || !verifyToken || !appSecret) {
     return resposta({ error: "Os segredos oficiais ainda não estão completos no servidor." }, 503);
   }
