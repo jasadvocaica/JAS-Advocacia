@@ -37,6 +37,8 @@ type Conversa = {
   ultima_mensagem_resumo: string | null;
   nao_lidas: number;
   responsavel_id: string | null;
+  opt_out_em: string | null;
+  opt_out_termo: string | null;
 };
 type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string; provider_media_id: string | null; mime_type: string | null; nome_arquivo: string | null; erro_codigo: string | null; erro_titulo: string | null; erro_detalhe: string | null; reenvio_de: string | null };
 type Conexao = { id: string; nome: string; numero_exibicao: string | null; status: string; ativo: boolean };
@@ -227,7 +229,7 @@ export default function ComercialWhatsApp() {
     queryKey: ["whatsapp-conversas"],
     queryFn: async () => {
       const { data, error } = await (supabase as any).from("whatsapp_conversas")
-        .select("id,lead_id,cliente_id,nome_contato,telefone,status,responsavel_id,ultima_mensagem_em,ultima_mensagem_resumo,nao_lidas")
+        .select("id,lead_id,cliente_id,nome_contato,telefone,status,responsavel_id,ultima_mensagem_em,ultima_mensagem_resumo,nao_lidas,opt_out_em,opt_out_termo")
         .order("ultima_mensagem_em", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as Conversa[];
@@ -722,7 +724,7 @@ export default function ComercialWhatsApp() {
   }, [mensagens]);
   const janelaAtiva = !!ultimaEntradaEm &&
     Date.now() - new Date(ultimaEntradaEm).getTime() <= 24 * 60 * 60 * 1000;
-  const envioDisponivel = conexao?.status === "conectado" && janelaAtiva;
+  const envioDisponivel = conexao?.status === "conectado" && janelaAtiva && !conversa?.opt_out_em;
 
   const { data: lead } = useQuery({
     queryKey: ["whatsapp-lead", conversa?.lead_id],
@@ -859,7 +861,22 @@ export default function ComercialWhatsApp() {
               ))}
             </div>
             <div className="border-t bg-background p-3">
-              {conexao?.status === "conectado" && !janelaAtiva && (
+              {conversa?.opt_out_em && (
+                <div className="mb-3 rounded-md border border-destructive/25 bg-destructive/5 p-3">
+                  <div className="flex items-start gap-2">
+                    <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                    <div>
+                      <p className="text-sm font-medium text-destructive">Contato descadastrado</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        O cliente solicitou que não sejam enviadas novas mensagens
+                        {conversa.opt_out_termo ? ` usando “${conversa.opt_out_termo}”` : ""}.
+                        Textos, templates, anexos, reenvios e automações estão bloqueados.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {conexao?.status === "conectado" && !janelaAtiva && !conversa?.opt_out_em && (
                 <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3">
                   <p className="text-xs text-amber-950">
                     A janela de 24 horas está encerrada. Retome o contato somente com um template aprovado pela Meta.
