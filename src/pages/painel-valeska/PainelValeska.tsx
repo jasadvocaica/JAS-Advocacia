@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import {
   AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, Loader2, PhoneCall,
-  ShieldAlert, UserPlus, Users,
+  ShieldAlert, UserPlus, Users, CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -68,6 +68,10 @@ export default function PainelValeska() {
     const tarefas = tarefasDoUsuario(data?.tarefas ?? [], userId);
     const contratacoes = contratacoesEmAberto(data?.fichas ?? []);
     const semResponsavel = comunicacoesSemResponsavel(comunicacoesTodas);
+    const followups = (data?.followups ?? [])
+      .filter((f) => isGestor || f.responsavel_id === userId)
+      .sort((a, b) => a.agendado_para.localeCompare(b.agendado_para));
+    const followupsVencidos = followups.filter((f) => new Date(f.agendado_para).getTime() < agora.getTime());
     const pendenciasGerenciais = (data?.pendencias ?? []).filter(
       (p) => isGestor || p.codigo === "SEM_RESPONSAVEL_COMUNICACAO",
     );
@@ -80,12 +84,14 @@ export default function PainelValeska() {
       contratacoes,
       semResponsavel,
       pendenciasGerenciais,
+      followups,
+      followupsVencidos,
       funilFichas: funilFichas(data?.fichas ?? []),
       funilLeads: funilLeads(data?.leads ?? []),
       total: precisaDeMimAgora({
         comunicacoes: minhas, tarefas: tarefasCriticas(tarefas, agora),
         contratacoes, pendencias: pendenciasGerenciais,
-      }),
+      }) + followups.length,
     };
   }, [data, userId, isGestor]);
 
@@ -140,7 +146,7 @@ export default function PainelValeska() {
 
       {/* 1) Precisa de mim agora */}
       <Secao titulo={`Precisa de mim agora (${modelo.total})`} icone={AlertTriangle}>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Card><CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Clientes para avisar</p>
             <p className="text-2xl font-semibold">{modelo.comunicacoes.length}</p>
@@ -155,6 +161,11 @@ export default function PainelValeska() {
             <p className="text-xs text-muted-foreground">Contratações em aberto</p>
             <p className="text-2xl font-semibold">{modelo.contratacoes.length}</p>
             <p className="text-xs text-muted-foreground">fichas não convertidas</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Meus retornos comerciais</p>
+            <p className="text-2xl font-semibold">{modelo.followups.length}</p>
+            <p className="text-xs text-destructive">{modelo.followupsVencidos.length} vencidos</p>
           </CardContent></Card>
           <Card><CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Pendências registradas</p>
@@ -223,6 +234,37 @@ export default function PainelValeska() {
                         Cliente comunicado
                       </Button>
                     </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </Secao>
+
+      <Secao titulo="Próximos contatos comerciais" icone={CalendarClock}>
+        {modelo.followups.length === 0 ? (
+          <Vazio texto="Nenhum retorno comercial atribuído a você." />
+        ) : (
+          <div className="space-y-2">
+            {modelo.followups.slice(0, 10).map((f) => {
+              const vencido = new Date(f.agendado_para).getTime() < agora.getTime();
+              return (
+                <Card key={f.id}>
+                  <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={vencido ? "destructive" : "outline"}>{vencido ? "Vencido" : "Agendado"}</Badge>
+                        <p className="truncate text-sm font-medium">{f.descricao}</p>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {f.conversa_nome || f.conversa_telefone || "Conversa vinculada"} ·{" "}
+                        {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(f.agendado_para))}
+                      </p>
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/comercial?conversa=${f.conversa_id}`}>Abrir conversa</Link>
+                    </Button>
                   </CardContent>
                 </Card>
               );
