@@ -38,7 +38,7 @@ type Conversa = {
   nao_lidas: number;
   responsavel_id: string | null;
 };
-type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string; provider_media_id: string | null; mime_type: string | null; nome_arquivo: string | null };
+type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string; provider_media_id: string | null; mime_type: string | null; nome_arquivo: string | null; erro_codigo: string | null; erro_titulo: string | null; erro_detalhe: string | null };
 type Conexao = { id: string; nome: string; numero_exibicao: string | null; status: string; ativo: boolean };
 type Lead = { id: string; nome: string; email: string | null; area_direito: string | null; status: string; canal: string | null; valor_contrato: number | null };
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
@@ -286,7 +286,7 @@ export default function ComercialWhatsApp() {
     queryKey: ["whatsapp-mensagens", selecionada],
     enabled: !!selecionada,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("whatsapp_mensagens").select("id,direcao,tipo,conteudo,ocorrida_em,status,provider_media_id,mime_type,nome_arquivo")
+      const { data, error } = await (supabase as any).from("whatsapp_mensagens").select("id,direcao,tipo,conteudo,ocorrida_em,status,provider_media_id,mime_type,nome_arquivo,erro_codigo,erro_titulo,erro_detalhe")
         .eq("conversa_id", selecionada).order("ocorrida_em", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Mensagem[];
@@ -740,7 +740,13 @@ export default function ComercialWhatsApp() {
             <div className="flex items-center gap-3 border-b bg-background p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{iniciais(conversa.nome_contato)}</div><div className="min-w-0 flex-1"><p className="truncate font-medium">{conversa.nome_contato || conversa.telefone}</p><p className="text-xs text-muted-foreground">{conversa.telefone}</p></div><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></div>
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
               {mensagens.length === 0 ? <div className="flex h-full items-center justify-center"><div className="text-center"><MessageCircle className="mx-auto mb-3 h-9 w-9 text-muted-foreground/35" /><p className="font-medium">Histórico vazio</p><p className="text-sm text-muted-foreground">As mensagens oficiais aparecerão aqui após a sincronização.</p></div></div> : mensagens.map((msg) => (
-                <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p>{msg.provider_media_id && (
+                <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p>{msg.status === "falha" && (
+                  <div className="mt-2 rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs text-destructive">
+                    <p className="font-medium">{msg.erro_titulo || "A mensagem não foi entregue."}</p>
+                    {msg.erro_detalhe && <p className="mt-1 opacity-90">{msg.erro_detalhe}</p>}
+                    {msg.erro_codigo && <p className="mt-1 font-mono text-[10px] opacity-70">Código {msg.erro_codigo}</p>}
+                  </div>
+                )}{msg.provider_media_id && (
                   <Button
                     type="button"
                     variant="outline"
