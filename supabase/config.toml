@@ -165,3 +165,7 @@ verify_jwt = true
 # Diagnóstico retorna apenas presença das configurações, nunca os segredos.
 [functions.whatsapp-status]
 verify_jwt = true
+
+# Homologação do canal é restrita à gestão e valida número e webhook diretamente na Meta.
+[functions.whatsapp-homologar]
+verify_jwt = true
