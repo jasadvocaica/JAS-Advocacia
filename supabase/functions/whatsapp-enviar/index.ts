@@ -36,7 +36,7 @@ Deno.serve(async (request: Request) => {
   const { data: usuario, error: erroUsuario } = await db.auth.getUser(tokenUsuario);
   if (erroUsuario || !usuario.user) return resposta({ error: "Sessão inválida." }, 401);
 
-  let body: { conversa_id?: string; texto?: string; template_id?: string };
+  let body: { conversa_id?: string; texto?: string; template_id?: string; template_parametros?: string[] };
   try {
     body = await request.json();
   } catch {
@@ -68,6 +68,7 @@ Deno.serve(async (request: Request) => {
   }
 
   let template: { nome: string; idioma: string; componentes: unknown } | null = null;
+  let parametrosTemplate: string[] = [];
   if (templateId) {
     const { data, error } = await db
       .from("whatsapp_templates")
@@ -78,8 +79,27 @@ Deno.serve(async (request: Request) => {
       .eq("status", "APPROVED")
       .maybeSingle();
     if (error || !data) return resposta({ error: "Template aprovado não encontrado para este canal." }, 404);
-    if (/{{\s*\d+\s*}}/.test(JSON.stringify(data.componentes ?? []))) {
-      return resposta({ error: "Este template exige parâmetros. Configure os campos antes de enviá-lo." }, 409);
+
+    const componentes = Array.isArray(data.componentes) ? data.componentes as Array<Record<string, unknown>> : [];
+    const corpo = componentes.find((item) => String(item.type || "").toUpperCase() === "BODY");
+    const textoCorpo = typeof corpo?.text === "string" ? corpo.text : "";
+    const indices = Array.from(textoCorpo.matchAll(/{{\s*(\d+)\s*}}/g))
+      .map((match) => Number(match[1]))
+      .filter((numero) => Number.isInteger(numero) && numero > 0);
+    const quantidadeParametros = indices.length > 0 ? Math.max(...indices) : 0;
+    const componentesNaoCorpo = componentes.filter((item) => String(item.type || "").toUpperCase() !== "BODY");
+    if (/{{\s*\d+\s*}}/.test(JSON.stringify(componentesNaoCorpo))) {
+      return resposta({ error: "Este template possui parâmetros fora do corpo e ainda requer homologação específica." }, 409);
+    }
+
+    parametrosTemplate = Array.isArray(body.template_parametros)
+      ? body.template_parametros.map((valor) => String(valor ?? "").trim())
+      : [];
+    if (parametrosTemplate.length !== quantidadeParametros || parametrosTemplate.some((valor) => !valor)) {
+      return resposta({ error: `Preencha os ${quantidadeParametros} parâmetro(s) obrigatórios do template.` }, 400);
+    }
+    if (parametrosTemplate.some((valor) => valor.length > 1024)) {
+      return resposta({ error: "Um parâmetro do template ultrapassa 1.024 caracteres." }, 400);
     }
     template = data;
   }
@@ -143,6 +163,17 @@ Deno.serve(async (request: Request) => {
               template: {
                 name: template.nome,
                 language: { code: template.idioma },
+                ...(parametrosTemplate.length > 0
+                  ? {
+                      components: [{
+                        type: "body",
+                        parameters: parametrosTemplate.map((textoParametro) => ({
+                          type: "text",
+                          text: textoParametro,
+                        })),
+                      }],
+                    }
+                  : {}),
               },
             }
           : {
