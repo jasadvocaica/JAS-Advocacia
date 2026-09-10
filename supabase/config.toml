@@ -173,3 +173,7 @@ verify_jwt = true
 # Confirmação de leitura é iniciada por usuário autenticado ao abrir a conversa.
 [functions.whatsapp-marcar-lida]
 verify_jwt = true
+
+# Reenvio de falhas exige sessão válida e preserva a tentativa anterior para auditoria.
+[functions.whatsapp-reenviar]
+verify_jwt = true
