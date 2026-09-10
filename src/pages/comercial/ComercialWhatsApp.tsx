@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
@@ -70,7 +70,7 @@ const linkWhatsApp = (telefone?: string | null) => {
 
 export default function ComercialWhatsApp() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isGestor } = useAuth();
   const { data: responsavelPadrao } = useResponsavelComunicacao();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todas" | "minhas" | "fila" | "nao_lidas" | "encerradas">("todas");
@@ -81,6 +81,8 @@ export default function ComercialWhatsApp() {
   const [templateSelecionado, setTemplateSelecionado] = useState("");
   const [contatoSelecionado, setContatoSelecionado] = useState<Contato | null>(null);
   const [novaNota, setNovaNota] = useState("");
+  const [notaEmEdicao, setNotaEmEdicao] = useState<string | null>(null);
+  const [textoNotaEmEdicao, setTextoNotaEmEdicao] = useState("");
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -280,6 +282,37 @@ export default function ComercialWhatsApp() {
       toast.success("Nota interna registrada.");
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível registrar a nota."),
+  });
+  const editarNota = useMutation({
+    mutationFn: async () => {
+      if (!notaEmEdicao || !textoNotaEmEdicao.trim()) throw new Error("A nota não pode ficar vazia.");
+      const { error } = await (supabase as any)
+        .from("whatsapp_conversa_notas")
+        .update({ conteudo: textoNotaEmEdicao.trim(), atualizado_em: new Date().toISOString() })
+        .eq("id", notaEmEdicao);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      setNotaEmEdicao(null);
+      setTextoNotaEmEdicao("");
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversa-notas", selecionada] });
+      toast.success("Nota interna atualizada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível atualizar a nota."),
+  });
+  const excluirNota = useMutation({
+    mutationFn: async (notaId: string) => {
+      const { error } = await (supabase as any)
+        .from("whatsapp_conversa_notas")
+        .delete()
+        .eq("id", notaId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversa-notas", selecionada] });
+      toast.success("Nota interna removida.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível remover a nota."),
   });
   const enviarMensagem = useMutation({
     mutationFn: async () => {
@@ -673,15 +706,68 @@ export default function ComercialWhatsApp() {
                 <p className="mt-3 text-xs text-muted-foreground">Nenhuma nota interna.</p>
               ) : (
                 <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-                  {notas.map((nota) => (
-                    <div key={nota.id} className="rounded-md bg-amber-50 p-3 text-amber-950">
-                      <p className="whitespace-pre-wrap text-xs">{nota.conteudo}</p>
-                      <p className="mt-1 text-[10px] opacity-70">
-                        {nota.criado_por === user?.id ? "Você" : nomeResponsavel(nota.criado_por)} ·{" "}
-                        {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(nota.criado_em))}
-                      </p>
-                    </div>
-                  ))}
+                  {notas.map((nota) => {
+                    const podeGerenciar = nota.criado_por === user?.id || isGestor;
+                    const editando = notaEmEdicao === nota.id;
+                    return (
+                      <div key={nota.id} className="rounded-md bg-amber-50 p-3 text-amber-950">
+                        {editando ? (
+                          <>
+                            <textarea
+                              value={textoNotaEmEdicao}
+                              onChange={(evento) => setTextoNotaEmEdicao(evento.target.value)}
+                              rows={3}
+                              maxLength={4000}
+                              className="w-full resize-none rounded-md border bg-background px-2 py-1.5 text-xs outline-none"
+                            />
+                            <div className="mt-2 flex gap-1">
+                              <Button size="sm" className="h-7 text-xs" onClick={() => editarNota.mutate()} disabled={!textoNotaEmEdicao.trim() || editarNota.isPending}>
+                                Salvar
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setNotaEmEdicao(null); setTextoNotaEmEdicao(""); }}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-start gap-2">
+                              <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs">{nota.conteudo}</p>
+                              {podeGerenciar && (
+                                <div className="flex shrink-0">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6"
+                                    title="Editar nota"
+                                    onClick={() => { setNotaEmEdicao(nota.id); setTextoNotaEmEdicao(nota.conteudo); }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 text-destructive hover:text-destructive"
+                                    title="Excluir nota"
+                                    onClick={() => {
+                                      if (window.confirm("Excluir esta nota interna?")) excluirNota.mutate(nota.id);
+                                    }}
+                                    disabled={excluirNota.isPending}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                            <p className="mt-1 text-[10px] opacity-70">
+                              {nota.criado_por === user?.id ? "Você" : nomeResponsavel(nota.criado_por)} ·{" "}
+                              {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(nota.criado_em))}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
