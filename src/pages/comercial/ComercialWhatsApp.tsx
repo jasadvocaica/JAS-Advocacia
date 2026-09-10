@@ -39,6 +39,9 @@ type Conversa = {
   responsavel_id: string | null;
   opt_out_em: string | null;
   opt_out_termo: string | null;
+  primeira_entrada_em: string | null;
+  primeira_resposta_humana_em: string | null;
+  sla_primeira_resposta_limite_em: string | null;
 };
 type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string; provider_media_id: string | null; mime_type: string | null; nome_arquivo: string | null; erro_codigo: string | null; erro_titulo: string | null; erro_detalhe: string | null; reenvio_de: string | null };
 type Conexao = { id: string; nome: string; numero_exibicao: string | null; status: string; ativo: boolean };
@@ -92,6 +95,20 @@ const linkWhatsApp = (telefone?: string | null) => {
   return `https://web.whatsapp.com/send?phone=${numero}`;
 };
 
+const descricaoSla = (conversa: Conversa, agora: number) => {
+  if (!conversa.primeira_entrada_em || !conversa.sla_primeira_resposta_limite_em) return null;
+  if (conversa.primeira_resposta_humana_em) {
+    const minutos = Math.max(0, Math.round(
+      (new Date(conversa.primeira_resposta_humana_em).getTime() - new Date(conversa.primeira_entrada_em).getTime()) / 60000,
+    ));
+    return { texto: `Respondido em ${minutos} min`, vencido: new Date(conversa.primeira_resposta_humana_em) > new Date(conversa.sla_primeira_resposta_limite_em) };
+  }
+  const restantes = Math.ceil((new Date(conversa.sla_primeira_resposta_limite_em).getTime() - agora) / 60000);
+  return restantes <= 0
+    ? { texto: `SLA vencido há ${Math.abs(restantes)} min`, vencido: true }
+    : { texto: `SLA: ${restantes} min`, vencido: false };
+};
+
 export default function ComercialWhatsApp() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -100,6 +117,7 @@ export default function ComercialWhatsApp() {
   const { user, isGestor } = useAuth();
   const { data: responsavelPadrao } = useResponsavelComunicacao();
   const [busca, setBusca] = useState("");
+  const [agora, setAgora] = useState(() => Date.now());
   const [filtro, setFiltro] = useState<"todas" | "minhas" | "fila" | "nao_lidas" | "encerradas">("todas");
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [novaConversaAberta, setNovaConversaAberta] = useState(false);
@@ -117,6 +135,11 @@ export default function ComercialWhatsApp() {
   const [tituloResposta, setTituloResposta] = useState("");
   const [conteudoResposta, setConteudoResposta] = useState("");
   const arquivoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setAgora(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const { data: respostasRapidas = [] } = useQuery({
     queryKey: ["whatsapp-respostas-rapidas"],
@@ -233,7 +256,7 @@ export default function ComercialWhatsApp() {
     queryKey: ["whatsapp-conversas"],
     queryFn: async () => {
       const { data, error } = await (supabase as any).from("whatsapp_conversas")
-        .select("id,lead_id,cliente_id,nome_contato,telefone,status,responsavel_id,ultima_mensagem_em,ultima_mensagem_resumo,nao_lidas,opt_out_em,opt_out_termo")
+        .select("id,lead_id,cliente_id,nome_contato,telefone,status,responsavel_id,ultima_mensagem_em,ultima_mensagem_resumo,nao_lidas,opt_out_em,opt_out_termo,primeira_entrada_em,primeira_resposta_humana_em,sla_primeira_resposta_limite_em")
         .order("ultima_mensagem_em", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as Conversa[];
@@ -864,7 +887,15 @@ export default function ComercialWhatsApp() {
               <button key={item.id} onClick={() => setSelecionada(item.id)} className={cn("flex w-full gap-3 border-b p-4 text-left transition-colors hover:bg-muted/60", selecionada === item.id && "bg-primary/5")}>
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{iniciais(item.nome_contato)}</div>
                 <div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><p className="truncate font-medium">{item.nome_contato || item.telefone}</p><span className="text-[11px] text-muted-foreground">{hora(item.ultima_mensagem_em)}</span></div><p className="truncate text-sm text-muted-foreground">{item.ultima_mensagem_resumo || "Sem mensagem registrada"}</p></div>
-                {item.nao_lidas > 0 && <Badge className="h-5 min-w-5 px-1.5">{item.nao_lidas}</Badge>}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {(() => {
+                    const sla = descricaoSla(item, agora);
+                    return sla && !item.primeira_resposta_humana_em
+                      ? <Badge variant={sla.vencido ? "destructive" : "outline"} className="text-[10px]">{sla.texto}</Badge>
+                      : null;
+                  })()}
+                  {item.nao_lidas > 0 && <Badge className="h-5 min-w-5 px-1.5">{item.nao_lidas}</Badge>}
+                </div>
               </button>
             ))}
           </div>
@@ -1061,6 +1092,10 @@ export default function ComercialWhatsApp() {
             <div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted font-semibold">{iniciais(conversa.nome_contato)}</div><div><p className="font-semibold">{conversa.nome_contato || conversa.telefone}</p><p className="text-sm text-muted-foreground">{lead ? "Lead cadastrado" : conversa.cliente_id ? "Cliente cadastrado" : "Contato vinculado"}</p></div></div>
             <Info label="Telefone" value={conversa.telefone} /><Info label="E-mail" value={lead?.email || "Não informado"} /><Info label="Área de interesse" value={lead?.area_direito || "Não informada"} /><Info label="Origem" value={lead?.canal || "Não informada"} /><Info label="Etapa no CRM" value={lead?.status || "Sem lead vinculado"} />
             {lead?.valor_contrato != null && <Info label="Valor esperado" value={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(lead.valor_contrato)} />}
+            <Info
+              label="SLA da primeira resposta"
+              value={descricaoSla(conversa, agora)?.texto || "Não configurado para esta conversa"}
+            />
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">Situação do atendimento</p>
               <Select
