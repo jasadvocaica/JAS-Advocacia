@@ -43,6 +43,15 @@ type Lead = { id: string; nome: string; email: string | null; area_direito: stri
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 type TemplateWhatsApp = { id: string; nome: string; idioma: string; categoria: string | null };
+type HistoricoConversa = {
+  id: string;
+  evento: "criada" | "status_alterado" | "responsavel_alterado";
+  status_anterior: string | null;
+  status_novo: string | null;
+  responsavel_anterior_id: string | null;
+  responsavel_novo_id: string | null;
+  ocorrido_em: string;
+};
 
 const hora = (data: string | null) => data ? new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(data)) : "";
 const iniciais = (nome?: string | null) => (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -213,6 +222,20 @@ export default function ComercialWhatsApp() {
         .eq("conversa_id", selecionada).order("ocorrida_em", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Mensagem[];
+    },
+  });
+  const { data: historico = [] } = useQuery({
+    queryKey: ["whatsapp-conversa-historico", selecionada],
+    enabled: !!selecionada,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_conversa_historico")
+        .select("id,evento,status_anterior,status_novo,responsavel_anterior_id,responsavel_novo_id,ocorrido_em")
+        .eq("conversa_id", selecionada)
+        .order("ocorrido_em", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as HistoricoConversa[];
     },
   });
   const enviarMensagem = useMutation({
@@ -402,6 +425,16 @@ export default function ComercialWhatsApp() {
     );
   }, [buscaContato, contatos]);
 
+  const nomeResponsavel = (id: string | null) =>
+    responsaveis.find((item) => item.user_id === id)?.nome || (id ? "Usuário não disponível" : "Sem responsável");
+  const descricaoHistorico = (item: HistoricoConversa) => {
+    if (item.evento === "criada") return "Conversa aberta no sistema";
+    if (item.evento === "status_alterado") {
+      return `Situação: ${item.status_anterior || "—"} → ${item.status_novo || "—"}`;
+    }
+    return `Responsável: ${nomeResponsavel(item.responsavel_anterior_id)} → ${nomeResponsavel(item.responsavel_novo_id)}`;
+  };
+
   return (
     <div className="space-y-4">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -569,6 +602,23 @@ export default function ComercialWhatsApp() {
               </Select>
               {responsaveis.length === 0 && (
                 <p className="text-xs text-amber-700">Nenhum usuário possui autorização comercial.</p>
+              )}
+            </div>
+            <div className="border-t pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Histórico operacional</p>
+              {historico.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">Nenhuma alteração registrada.</p>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {historico.map((item) => (
+                    <div key={item.id} className="border-l-2 border-primary/30 pl-3">
+                      <p className="text-xs font-medium">{descricaoHistorico(item)}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(item.ocorrido_em))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div> : <p className="mt-4 text-sm text-muted-foreground">O cadastro vinculado aparecerá aqui.</p>}
