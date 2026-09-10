@@ -99,6 +99,15 @@ const conteudoMensagem = (message: Json) => {
   return `[${message.type || "mensagem"}]`;
 };
 
+const termoOptOut = (conteudo: string | null) => {
+  if (!conteudo) return null;
+  const termo = conteudo.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase().replace(/[^A-Z]/g, "").trim();
+  return ["SAIR", "PARAR", "CANCELAR", "REMOVER", "DESCADASTRAR"].includes(termo)
+    ? termo
+    : null;
+};
+
 Deno.serve(async (request: Request) => {
   const verifyToken = Deno.env.get("META_WHATSAPP_VERIFY_TOKEN") || "";
   const appSecret = Deno.env.get("META_WHATSAPP_APP_SECRET") || "";
@@ -323,20 +332,40 @@ Deno.serve(async (request: Request) => {
             : new Date().toISOString();
 
           const midia = metadadosMidia(message);
+          const conteudo = conteudoMensagem(message);
           const inserida = await db.from("whatsapp_mensagens").upsert({
             conversa_id: conversa.id,
             provider_message_id: message.id,
             direcao: "entrada",
             tipo: tipoMensagem(message),
-            conteudo: conteudoMensagem(message),
+            conteudo,
             provider_media_id: midia.provider_media_id,
             mime_type: midia.mime_type,
             nome_arquivo: midia.nome_arquivo,
             status: "recebida",
             ocorrida_em: ocorridaEm,
-          }, { onConflict: "provider_message_id", ignoreDuplicates: true });
+          }, { onConflict: "provider_message_id", ignoreDuplicates: true })
+            .select("id")
+            .maybeSingle();
 
           if (inserida.error) throw inserida.error;
+
+          const termoRevogacao = termoOptOut(conteudo);
+          if (termoRevogacao && inserida.data?.id) {
+            await db.from("whatsapp_conversas").update({
+              opt_out_em: ocorridaEm,
+              opt_out_termo: termoRevogacao,
+              opt_out_mensagem_id: inserida.data.id,
+              atualizado_em: new Date().toISOString(),
+            }).eq("id", conversa.id);
+            await db.from("whatsapp_consentimento_eventos").insert({
+              conversa_id: conversa.id,
+              tipo: "revogado",
+              origem: "mensagem_cliente",
+              termo: termoRevogacao,
+              mensagem_id: inserida.data.id,
+            });
+          }
 
           await db
             .from("whatsapp_webhook_eventos")
