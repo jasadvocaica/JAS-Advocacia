@@ -169,3 +169,7 @@ verify_jwt = true
 # Homologação do canal é restrita à gestão e valida número e webhook diretamente na Meta.
 [functions.whatsapp-homologar]
 verify_jwt = true
+
+# Confirmação de leitura é iniciada por usuário autenticado ao abrir a conversa.
+[functions.whatsapp-marcar-lida]
+verify_jwt = true
