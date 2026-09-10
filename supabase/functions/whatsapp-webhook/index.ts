@@ -60,6 +60,20 @@ const tipoMensagem = (message: Json) => {
   return permitidos.includes(tipo) ? tipo : "texto";
 };
 
+const metadadosMidia = (message: Json) => {
+  const origem = message.image || message.document || message.audio || message.video || message.sticker;
+  if (!origem?.id) return { provider_media_id: null, mime_type: null, nome_arquivo: null };
+  const nomeOriginal = typeof origem.filename === "string" ? origem.filename : null;
+  const nomeSeguro = nomeOriginal
+    ? nomeOriginal.replace(/[\\/\0-\x1f\x7f]/g, "_").slice(0, 240)
+    : null;
+  return {
+    provider_media_id: String(origem.id),
+    mime_type: typeof origem.mime_type === "string" ? origem.mime_type.slice(0, 150) : null,
+    nome_arquivo: nomeSeguro,
+  };
+};
+
 const conteudoMensagem = (message: Json) => {
   if (message.type === "text") return message.text?.body || null;
   if (message.type === "button") return message.button?.text || null;
@@ -292,12 +306,16 @@ Deno.serve(async (request: Request) => {
             ? new Date(Number(message.timestamp) * 1000).toISOString()
             : new Date().toISOString();
 
+          const midia = metadadosMidia(message);
           const inserida = await db.from("whatsapp_mensagens").upsert({
             conversa_id: conversa.id,
             provider_message_id: message.id,
             direcao: "entrada",
             tipo: tipoMensagem(message),
             conteudo: conteudoMensagem(message),
+            provider_media_id: midia.provider_media_id,
+            mime_type: midia.mime_type,
+            nome_arquivo: midia.nome_arquivo,
             status: "recebida",
             ocorrida_em: ocorridaEm,
           }, { onConflict: "provider_message_id", ignoreDuplicates: true });
