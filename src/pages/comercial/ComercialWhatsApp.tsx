@@ -43,7 +43,7 @@ type Conexao = { id: string; nome: string; numero_exibicao: string | null; statu
 type Lead = { id: string; nome: string; email: string | null; area_direito: string | null; status: string; canal: string | null; valor_contrato: number | null };
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
-type TemplateWhatsApp = { id: string; nome: string; idioma: string; categoria: string | null };
+type TemplateWhatsApp = { id: string; nome: string; idioma: string; categoria: string | null; componentes: unknown };
 type FollowupConversa = {
   id: string;
   responsavel_id: string | null;
@@ -70,6 +70,14 @@ type HistoricoConversa = {
 
 const hora = (data: string | null) => data ? new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(data)) : "";
 const iniciais = (nome?: string | null) => (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+const quantidadeParametrosCorpo = (template?: TemplateWhatsApp) => {
+  const componentes = Array.isArray(template?.componentes) ? template.componentes as Array<Record<string, unknown>> : [];
+  const corpo = componentes.find((item) => String(item.type || "").toUpperCase() === "BODY");
+  const texto = typeof corpo?.text === "string" ? corpo.text : "";
+  const indices = Array.from(texto.matchAll(/{{\s*(\d+)\s*}}/g)).map((match) => Number(match[1]));
+  return indices.length > 0 ? Math.max(...indices) : 0;
+};
+
 const linkWhatsApp = (telefone?: string | null) => {
   const digitos = (telefone || "").replace(/\D/g, "");
   if (!digitos) return "https://web.whatsapp.com/";
@@ -91,6 +99,7 @@ export default function ComercialWhatsApp() {
   const [buscaContato, setBuscaContato] = useState("");
   const [texto, setTexto] = useState("");
   const [templateSelecionado, setTemplateSelecionado] = useState("");
+  const [parametrosTemplate, setParametrosTemplate] = useState<string[]>([]);
   const [contatoSelecionado, setContatoSelecionado] = useState<Contato | null>(null);
   const [novaNota, setNovaNota] = useState("");
   const [notaEmEdicao, setNotaEmEdicao] = useState<string | null>(null);
@@ -112,7 +121,7 @@ export default function ComercialWhatsApp() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("whatsapp_templates")
-        .select("id,nome,idioma,categoria")
+        .select("id,nome,idioma,categoria,componentes")
         .eq("conexao_id", conexao!.id)
         .eq("presente_meta", true)
         .eq("status", "APPROVED")
@@ -437,7 +446,7 @@ export default function ComercialWhatsApp() {
     mutationFn: async () => {
       if (!selecionada || !templateSelecionado) throw new Error("Selecione um template aprovado.");
       const { data, error } = await supabase.functions.invoke("whatsapp-enviar", {
-        body: { conversa_id: selecionada, template_id: templateSelecionado },
+        body: { conversa_id: selecionada, template_id: templateSelecionado, template_parametros: parametrosTemplate },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -445,6 +454,7 @@ export default function ComercialWhatsApp() {
     },
     onSuccess: async () => {
       setTemplateSelecionado("");
+      setParametrosTemplate([]);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", selecionada] }),
         queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
@@ -498,7 +508,7 @@ export default function ComercialWhatsApp() {
       }
 
       const { data, error } = await supabase.functions.invoke("whatsapp-enviar", {
-        body: { conversa_id: conversaExistente.id, template_id: templateSelecionado },
+        body: { conversa_id: conversaExistente.id, template_id: templateSelecionado, template_parametros: parametrosTemplate },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -598,6 +608,12 @@ export default function ComercialWhatsApp() {
     );
   }, [buscaContato, contatos]);
 
+  const selecionarTemplate = (templateId: string) => {
+    setTemplateSelecionado(templateId);
+    const template = templates.find((item) => item.id === templateId);
+    setParametrosTemplate(Array.from({ length: quantidadeParametrosCorpo(template) }, () => ""));
+  };
+
   const nomeResponsavel = (id: string | null) =>
     responsaveis.find((item) => item.user_id === id)?.nome || (id ? "Usuário não disponível" : "Sem responsável");
   const descricaoHistorico = (item: HistoricoConversa) => {
@@ -672,7 +688,7 @@ export default function ComercialWhatsApp() {
                   </p>
                   {templates.length > 0 ? (
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <Select value={templateSelecionado} onValueChange={setTemplateSelecionado}>
+                      <Select value={templateSelecionado} onValueChange={selecionarTemplate}>
                         <SelectTrigger className="bg-background">
                           <SelectValue placeholder="Selecionar template aprovado" />
                         </SelectTrigger>
@@ -693,6 +709,12 @@ export default function ComercialWhatsApp() {
                         {enviarTemplate.isPending ? "Enviando…" : "Enviar template"}
                       </Button>
                     </div>
+                    <ParametrosTemplate
+                      template={templates.find((item) => item.id === templateSelecionado)}
+                      valores={parametrosTemplate}
+                      onChange={setParametrosTemplate}
+                      disabled={enviarTemplate.isPending}
+                    />
                   ) : (
                     <p className="mt-2 text-xs font-medium text-amber-950">
                       Nenhum template aprovado está sincronizado para este canal.
@@ -950,6 +972,7 @@ export default function ComercialWhatsApp() {
           if (!aberta) {
             setContatoSelecionado(null);
             setTemplateSelecionado("");
+            setParametrosTemplate([]);
           }
         }}
       >
@@ -966,7 +989,7 @@ export default function ComercialWhatsApp() {
               <p className="font-medium">{contatoSelecionado.nome}</p>
               <p className="text-xs text-muted-foreground">{contatoSelecionado.telefone}</p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <Select value={templateSelecionado} onValueChange={setTemplateSelecionado}>
+                <Select value={templateSelecionado} onValueChange={selecionarTemplate}>
                   <SelectTrigger className="bg-background">
                     <SelectValue placeholder="Template aprovado para iniciar" />
                   </SelectTrigger>
@@ -987,6 +1010,12 @@ export default function ComercialWhatsApp() {
                   {iniciarConversa.isPending ? "Iniciando…" : "Iniciar no sistema"}
                 </Button>
               </div>
+              <ParametrosTemplate
+                template={templates.find((item) => item.id === templateSelecionado)}
+                valores={parametrosTemplate}
+                onChange={setParametrosTemplate}
+                disabled={iniciarConversa.isPending}
+              />
               {conexao?.status !== "conectado" && (
                 <p className="mt-2 text-xs text-amber-700">Conecte o canal oficial para iniciar dentro do sistema.</p>
               )}
@@ -1046,6 +1075,41 @@ export default function ComercialWhatsApp() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function ParametrosTemplate({
+  template,
+  valores,
+  onChange,
+  disabled,
+}: {
+  template?: TemplateWhatsApp;
+  valores: string[];
+  onChange: (valores: string[]) => void;
+  disabled: boolean;
+}) {
+  const quantidade = quantidadeParametrosCorpo(template);
+  if (!template || quantidade === 0) return null;
+  return (
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      {Array.from({ length: quantidade }, (_, indice) => (
+        <label key={indice} className="space-y-1">
+          <span className="text-xs font-medium">Parâmetro {indice + 1}</span>
+          <Input
+            value={valores[indice] || ""}
+            onChange={(evento) => {
+              const proximos = [...valores];
+              proximos[indice] = evento.target.value;
+              onChange(proximos);
+            }}
+            maxLength={1024}
+            disabled={disabled}
+            placeholder={`Valor para {{${indice + 1}}}`}
+          />
+        </label>
+      ))}
     </div>
   );
 }
