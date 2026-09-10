@@ -119,8 +119,7 @@ Deno.serve(async (request: Request) => {
 
     const mediaId = String(uploadResultado.id);
     const tipo = tipoWhatsApp(mime);
-    const nome = arquivo.name.replace(/[\\/"\r
-]/g, "_").slice(0, 240) || "anexo-whatsapp";
+    const nome = arquivo.name.replace(/[\\\/"\\r\\n]/g, "_").slice(0, 240) || "anexo-whatsapp";
     const { data: mensagem, error: erroInsert } = await db
       .from("whatsapp_mensagens")
       .insert({
