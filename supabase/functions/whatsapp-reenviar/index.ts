@@ -55,7 +55,7 @@ Deno.serve(async (request: Request) => {
 
   const { data: original, error: erroOriginal } = await db
     .from("whatsapp_mensagens")
-    .select("id,conversa_id,direcao,tipo,conteudo,status,provider_media_id,mime_type,nome_arquivo,whatsapp_conversas!inner(id,telefone,whatsapp_conexoes!inner(phone_number_id,status,ativo))")
+    .select("id,conversa_id,direcao,tipo,conteudo,status,provider_media_id,mime_type,nome_arquivo,whatsapp_conversas!inner(id,telefone,opt_out_em,whatsapp_conexoes!inner(phone_number_id,status,ativo))")
     .eq("id", mensagemId)
     .single();
   if (erroOriginal || !original) return resposta({ error: "Mensagem não encontrada ou sem permissão." }, 404);
@@ -69,7 +69,7 @@ Deno.serve(async (request: Request) => {
   const conversa = Array.isArray(original.whatsapp_conversas)
     ? original.whatsapp_conversas[0]
     : original.whatsapp_conversas;
-  const conexao = Array.isArray(conversa?.whatsapp_conexoes)
+  if (conversa?.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. O reenvio está bloqueado." }, 409);\n\n  const conexao = Array.isArray(conversa?.whatsapp_conexoes)
     ? conversa.whatsapp_conexoes[0]
     : conversa?.whatsapp_conexoes;
   if (!conexao?.ativo || conexao.status !== "conectado" || !conexao.phone_number_id) {
