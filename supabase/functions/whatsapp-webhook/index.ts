@@ -305,7 +305,7 @@ Deno.serve(async (request: Request) => {
             .from("whatsapp_conversas")
             .select("id")
             .eq("conexao_id", conexao.id)
-            .eq("telefone", telefone)
+            .eq("telefone_normalizado", telefone)
             .neq("status", "encerrada")
             .maybeSingle();
 
@@ -358,6 +358,16 @@ Deno.serve(async (request: Request) => {
               opt_out_mensagem_id: inserida.data.id,
               atualizado_em: new Date().toISOString(),
             }).eq("id", conversa.id);
+            await db.from("whatsapp_contatos_bloqueados").upsert({
+              telefone_normalizado: telefone,
+              revogado_em: ocorridaEm,
+              termo: termoRevogacao,
+              conversa_origem_id: conversa.id,
+              mensagem_origem_id: inserida.data.id,
+              restaurado_em: null,
+              restaurado_por: null,
+              atualizado_em: new Date().toISOString(),
+            }, { onConflict: "telefone_normalizado" });
             await db.from("whatsapp_consentimento_eventos").insert({
               conversa_id: conversa.id,
               tipo: "revogado",
