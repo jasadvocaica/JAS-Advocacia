@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
@@ -43,6 +43,14 @@ type Lead = { id: string; nome: string; email: string | null; area_direito: stri
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 type TemplateWhatsApp = { id: string; nome: string; idioma: string; categoria: string | null };
+type FollowupConversa = {
+  id: string;
+  responsavel_id: string | null;
+  descricao: string;
+  agendado_para: string;
+  status: "pendente" | "concluido" | "cancelado";
+  concluido_em: string | null;
+};
 type NotaConversa = {
   id: string;
   conteudo: string;
@@ -83,6 +91,8 @@ export default function ComercialWhatsApp() {
   const [novaNota, setNovaNota] = useState("");
   const [notaEmEdicao, setNotaEmEdicao] = useState<string | null>(null);
   const [textoNotaEmEdicao, setTextoNotaEmEdicao] = useState("");
+  const [descricaoFollowup, setDescricaoFollowup] = useState("");
+  const [dataFollowup, setDataFollowup] = useState("");
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -263,6 +273,66 @@ export default function ComercialWhatsApp() {
       if (error) throw error;
       return (data ?? []) as NotaConversa[];
     },
+  });
+  const { data: followups = [] } = useQuery({
+    queryKey: ["whatsapp-conversa-followups", selecionada],
+    enabled: !!selecionada,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_conversa_followups")
+        .select("id,responsavel_id,descricao,agendado_para,status,concluido_em")
+        .eq("conversa_id", selecionada)
+        .neq("status", "cancelado")
+        .order("agendado_para", { ascending: true })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []) as FollowupConversa[];
+    },
+  });
+  const criarFollowup = useMutation({
+    mutationFn: async () => {
+      if (!selecionada || !descricaoFollowup.trim() || !dataFollowup) {
+        throw new Error("Informe a ação e a data do próximo contato.");
+      }
+      const agendadoPara = new Date(dataFollowup);
+      if (Number.isNaN(agendadoPara.getTime())) throw new Error("Data inválida.");
+      const { error } = await (supabase as any)
+        .from("whatsapp_conversa_followups")
+        .insert({
+          conversa_id: selecionada,
+          responsavel_id: conversa?.responsavel_id || user?.id || null,
+          descricao: descricaoFollowup.trim(),
+          agendado_para: agendadoPara.toISOString(),
+          criado_por: user?.id,
+        });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      setDescricaoFollowup("");
+      setDataFollowup("");
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversa-followups", selecionada] });
+      toast.success("Próximo contato agendado.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível agendar o contato."),
+  });
+  const atualizarFollowup = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "concluido" | "cancelado" }) => {
+      const { error } = await (supabase as any)
+        .from("whatsapp_conversa_followups")
+        .update({
+          status,
+          concluido_em: status === "concluido" ? new Date().toISOString() : null,
+          concluido_por: status === "concluido" ? user?.id : null,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversa-followups", selecionada] });
+      toast.success("Próximo contato atualizado.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível atualizar o contato."),
   });
   const adicionarNota = useMutation({
     mutationFn: async () => {
@@ -678,6 +748,59 @@ export default function ComercialWhatsApp() {
               </Select>
               {responsaveis.length === 0 && (
                 <p className="text-xs text-amber-700">Nenhum usuário possui autorização comercial.</p>
+              )}
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-primary" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximos contatos</p>
+              </div>
+              <Input
+                value={descricaoFollowup}
+                onChange={(evento) => setDescricaoFollowup(evento.target.value)}
+                maxLength={500}
+                placeholder="Ex.: retornar sobre documentos"
+                className="mt-3"
+              />
+              <Input
+                type="datetime-local"
+                value={dataFollowup}
+                onChange={(evento) => setDataFollowup(evento.target.value)}
+                className="mt-2"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                onClick={() => criarFollowup.mutate()}
+                disabled={!descricaoFollowup.trim() || !dataFollowup || criarFollowup.isPending}
+              >
+                {criarFollowup.isPending ? "Agendando…" : "Agendar retorno"}
+              </Button>
+              {followups.length === 0 ? (
+                <p className="mt-3 text-xs text-muted-foreground">Nenhum retorno agendado.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {followups.map((followup) => (
+                    <div key={followup.id} className={cn("rounded-md border p-3", followup.status === "concluido" && "bg-muted/50 opacity-70")}>
+                      <p className={cn("text-xs font-medium", followup.status === "concluido" && "line-through")}>{followup.descricao}</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(followup.agendado_para))}
+                        {" · "}{nomeResponsavel(followup.responsavel_id)}
+                      </p>
+                      {followup.status === "pendente" && (
+                        <div className="mt-2 flex gap-1">
+                          <Button size="sm" className="h-7 text-xs" onClick={() => atualizarFollowup.mutate({ id: followup.id, status: "concluido" })}>
+                            Concluir
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => atualizarFollowup.mutate({ id: followup.id, status: "cancelado" })}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
             <div className="border-t pt-4">
