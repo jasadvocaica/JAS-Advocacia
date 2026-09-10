@@ -157,3 +157,7 @@ verify_jwt = true
 # Download de mídia recebida exige sessão válida; token da Meta permanece somente no servidor.
 [functions.whatsapp-midia]
 verify_jwt = true
+
+# Upload e envio de anexos exigem sessão válida e respeitam a janela oficial de 24 horas.
+[functions.whatsapp-midia-enviar]
+verify_jwt = true
