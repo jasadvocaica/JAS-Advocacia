@@ -8,8 +8,11 @@ import {
   MessageCircle,
   Target,
   Users,
+  CalendarClock,
+  AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +24,15 @@ type Lead = {
   canal: string | null;
   valor_contrato: number | null;
   criado_em: string;
+};
+
+type Followup = {
+  id: string;
+  conversa_id: string;
+  descricao: string;
+  agendado_para: string;
+  responsavel_id: string | null;
+  whatsapp_conversas: { nome_contato: string | null; telefone: string } | Array<{ nome_contato: string | null; telefone: string }>;
 };
 
 type Conversa = {
@@ -46,10 +58,11 @@ const moeda = (valor: number) =>
 const normalizar = (status?: string | null) => (status || "novo").trim().toLowerCase();
 
 export default function ComercialVisaoGeral() {
+  const { user } = useAuth();
   const { data, isLoading, error } = useQuery({
-    queryKey: ["comercial-visao-geral"],
+    queryKey: ["comercial-visao-geral", user?.id],
     queryFn: async () => {
-      const [leadsResult, conversasResult, clientesResult, fichasResult] = await Promise.all([
+      const [leadsResult, conversasResult, clientesResult, fichasResult, followupsResult] = await Promise.all([
         (supabase as any)
           .from("mkt_leads")
           .select("id,nome,status,canal,valor_contrato,criado_em")
@@ -64,12 +77,22 @@ export default function ComercialVisaoGeral() {
         (supabase as any)
           .from("cliente_atendimentos")
           .select("id,convertido_em", { count: "exact" }),
+        user?.id
+          ? (supabase as any)
+              .from("whatsapp_conversa_followups")
+              .select("id,conversa_id,descricao,agendado_para,responsavel_id,whatsapp_conversas!inner(nome_contato,telefone)")
+              .eq("responsavel_id", user.id)
+              .eq("status", "pendente")
+              .order("agendado_para", { ascending: true })
+              .limit(20)
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (leadsResult.error) throw leadsResult.error;
       if (conversasResult.error) throw conversasResult.error;
       if (clientesResult.error) throw clientesResult.error;
       if (fichasResult.error) throw fichasResult.error;
+      if (followupsResult.error) throw followupsResult.error;
 
       return {
         leads: (leadsResult.data ?? []) as Lead[],
@@ -78,6 +101,7 @@ export default function ComercialVisaoGeral() {
         clientesComUf: (clientesResult.data ?? []).filter((cliente: any) => !!cliente.estado?.trim()).length,
         fichasTotal: fichasResult.count ?? (fichasResult.data ?? []).length,
         fichasAbertas: (fichasResult.data ?? []).filter((ficha: any) => !ficha.convertido_em).length,
+        followups: (followupsResult.data ?? []) as Followup[],
       };
     },
   });
@@ -88,6 +112,9 @@ export default function ComercialVisaoGeral() {
   const clientesComUf = data?.clientesComUf ?? 0;
   const fichasTotal = data?.fichasTotal ?? 0;
   const fichasAbertas = data?.fichasAbertas ?? 0;
+  const followups = data?.followups ?? [];
+  const agora = Date.now();
+  const followupsVencidos = followups.filter((item) => new Date(item.agendado_para).getTime() < agora);
 
   const resumo = useMemo(() => {
     const totalValor = leads.reduce((soma, lead) => soma + Number(lead.valor_contrato || 0), 0);
@@ -157,7 +184,54 @@ export default function ComercialVisaoGeral() {
         <Metrica icon={FileCheck2} label="Convertidos" value={isLoading ? "…" : String(resumo.convertidos)} />
         <Metrica icon={CircleDollarSign} label="Valor informado" value={isLoading ? "…" : moeda(resumo.totalValor)} />
         <Metrica icon={MessageCircle} label="Mensagens não lidas" value={isLoading ? "…" : String(resumo.naoLidas)} />
+        <Metrica icon={CalendarClock} label="Meus retornos pendentes" value={isLoading ? "…" : String(followups.length)} />
+        <Metrica icon={AlertTriangle} label="Meus retornos vencidos" value={isLoading ? "…" : String(followupsVencidos.length)} />
       </div>
+
+      <Card className="p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-2xl">Precisa de mim agora</h2>
+            <p className="text-sm text-muted-foreground">
+              Retornos explicitamente atribuídos a você, sem inferência de mensagens externas.
+            </p>
+          </div>
+          <Badge variant={followupsVencidos.length > 0 ? "destructive" : "secondary"}>
+            {followupsVencidos.length} vencido(s)
+          </Badge>
+        </div>
+        {followups.length === 0 ? (
+          <p className="mt-5 rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+            Nenhum retorno pendente atribuído a você.
+          </p>
+        ) : (
+          <div className="mt-5 divide-y">
+            {followups.slice(0, 8).map((followup) => {
+              const dadosConversa = Array.isArray(followup.whatsapp_conversas)
+                ? followup.whatsapp_conversas[0]
+                : followup.whatsapp_conversas;
+              const vencido = new Date(followup.agendado_para).getTime() < agora;
+              return (
+                <Link
+                  key={followup.id}
+                  to={`/comercial?conversa=${followup.conversa_id}`}
+                  className="flex flex-col gap-2 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{followup.descricao}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {dadosConversa?.nome_contato || dadosConversa?.telefone || "Conversa vinculada"}
+                    </p>
+                  </div>
+                  <Badge variant={vencido ? "destructive" : "outline"}>
+                    {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(followup.agendado_para))}
+                  </Badge>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <Card className="p-5">
