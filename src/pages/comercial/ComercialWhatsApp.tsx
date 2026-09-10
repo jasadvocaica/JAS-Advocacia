@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
@@ -43,6 +43,12 @@ type Lead = { id: string; nome: string; email: string | null; area_direito: stri
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 type TemplateWhatsApp = { id: string; nome: string; idioma: string; categoria: string | null };
+type NotaConversa = {
+  id: string;
+  conteudo: string;
+  criado_por: string;
+  criado_em: string;
+};
 type HistoricoConversa = {
   id: string;
   evento: "criada" | "status_alterado" | "responsavel_alterado";
@@ -74,6 +80,7 @@ export default function ComercialWhatsApp() {
   const [texto, setTexto] = useState("");
   const [templateSelecionado, setTemplateSelecionado] = useState("");
   const [contatoSelecionado, setContatoSelecionado] = useState<Contato | null>(null);
+  const [novaNota, setNovaNota] = useState("");
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -240,6 +247,39 @@ export default function ComercialWhatsApp() {
       if (error) throw error;
       return (data ?? []) as HistoricoConversa[];
     },
+  });
+  const { data: notas = [] } = useQuery({
+    queryKey: ["whatsapp-conversa-notas", selecionada],
+    enabled: !!selecionada,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_conversa_notas")
+        .select("id,conteudo,criado_por,criado_em")
+        .eq("conversa_id", selecionada)
+        .order("criado_em", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []) as NotaConversa[];
+    },
+  });
+  const adicionarNota = useMutation({
+    mutationFn: async () => {
+      if (!selecionada || !novaNota.trim()) throw new Error("Escreva a nota interna.");
+      const { error } = await (supabase as any)
+        .from("whatsapp_conversa_notas")
+        .insert({
+          conversa_id: selecionada,
+          conteudo: novaNota.trim(),
+          criado_por: user?.id,
+        });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      setNovaNota("");
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversa-notas", selecionada] });
+      toast.success("Nota interna registrada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível registrar a nota."),
   });
   const enviarMensagem = useMutation({
     mutationFn: async () => {
@@ -605,6 +645,44 @@ export default function ComercialWhatsApp() {
               </Select>
               {responsaveis.length === 0 && (
                 <p className="text-xs text-amber-700">Nenhum usuário possui autorização comercial.</p>
+              )}
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2">
+                <MessageSquarePlus className="h-4 w-4 text-primary" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notas internas</p>
+              </div>
+              <textarea
+                value={novaNota}
+                onChange={(evento) => setNovaNota(evento.target.value)}
+                rows={3}
+                maxLength={4000}
+                placeholder="Registrar informação somente para a equipe…"
+                className="mt-3 w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                onClick={() => adicionarNota.mutate()}
+                disabled={!novaNota.trim() || adicionarNota.isPending}
+              >
+                {adicionarNota.isPending ? "Registrando…" : "Adicionar nota"}
+              </Button>
+              {notas.length === 0 ? (
+                <p className="mt-3 text-xs text-muted-foreground">Nenhuma nota interna.</p>
+              ) : (
+                <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+                  {notas.map((nota) => (
+                    <div key={nota.id} className="rounded-md bg-amber-50 p-3 text-amber-950">
+                      <p className="whitespace-pre-wrap text-xs">{nota.conteudo}</p>
+                      <p className="mt-1 text-[10px] opacity-70">
+                        {nota.criado_por === user?.id ? "Você" : nomeResponsavel(nota.criado_por)} ·{" "}
+                        {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(nota.criado_em))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
             <div className="border-t pt-4">
