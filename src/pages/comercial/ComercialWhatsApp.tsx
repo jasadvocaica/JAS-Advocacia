@@ -179,6 +179,9 @@ export default function ComercialWhatsApp() {
         () => {
           queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] });
           queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] });
+          if (selecionada) {
+            queryClient.invalidateQueries({ queryKey: ["whatsapp-conversa-historico", selecionada] });
+          }
         },
       )
       .on(
