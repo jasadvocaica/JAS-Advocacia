@@ -38,4 +38,13 @@ jobs:
         run: npm test
 
       - name: Gerar build de produção
-        run: npm run build
+        shell: bash
+        run: |
+          set +e
+          npm run build 2>&1 | tee build-output.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            resumo=$(tail -n 20 build-output.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')
+            echo "::error title=Build de produção falhou::${resumo}"
+          fi
+          exit "$status"
