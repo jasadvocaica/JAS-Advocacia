@@ -68,12 +68,12 @@ Deno.serve(async (request: Request) => {
 
   const { data: conversa, error: erroConversa } = await db
     .from("whatsapp_conversas")
-    .select("id,telefone,conexao_id,whatsapp_conexoes!inner(phone_number_id,status,ativo)")
+    .select("id,telefone,conexao_id,opt_out_em,whatsapp_conexoes!inner(phone_number_id,status,ativo)")
     .eq("id", conversaId)
     .single();
   if (erroConversa || !conversa) return resposta({ error: "Conversa não encontrada ou sem permissão." }, 404);
 
-  const conexao = Array.isArray(conversa.whatsapp_conexoes)
+  if (conversa.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. Novos envios estão bloqueados." }, 409);\n\n  const conexao = Array.isArray(conversa.whatsapp_conexoes)
     ? conversa.whatsapp_conexoes[0]
     : conversa.whatsapp_conexoes;
   if (!conexao?.ativo || conexao.status !== "conectado" || !conexao.phone_number_id) {
