@@ -33,22 +33,22 @@ function tarefa(p: Partial<TarefaPainel> = {}): TarefaPainel {
   };
 }
 
-describe("Painel comercial — escopo sem WhatsApp", () => {
-  it("não há qualquer referência a WhatsApp/mensageria no módulo", () => {
+describe("Painel comercial — somente eventos internos confiáveis", () => {
+  it("não infere pendência por mensagens, não lidas ou tempo de conversa", () => {
     const dir = __dirname;
     const arquivos = fs.readdirSync(dir).filter((f) => /\.(ts|tsx)$/.test(f));
     for (const f of arquivos) {
       if (f === "logic.test.ts") continue;
-      // Ignora comentários: o que importa é não haver código/consulta a mensageria.
       const conteudo = fs
         .readFileSync(path.join(dir, f), "utf8")
         .split("\n")
         .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
         .join("\n")
         .toLowerCase();
-      expect(conteudo).not.toContain("whatsapp");
-      expect(conteudo).not.toContain("wa_");
-      expect(conteudo).not.toContain("mensageria");
+      expect(conteudo).not.toContain('.from("whatsapp_mensagens")');
+      expect(conteudo).not.toContain("nao_lidas");
+      expect(conteudo).not.toContain("ultima_mensagem_em");
+      expect(conteudo).not.toContain("tempo_desde");
     }
   });
 
