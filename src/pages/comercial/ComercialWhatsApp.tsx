@@ -709,6 +709,25 @@ export default function ComercialWhatsApp() {
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível iniciar a conversa."),
   });
+  const assumirConversa = useMutation({
+    mutationFn: async () => {
+      if (!selecionada) throw new Error("Selecione uma conversa.");
+      const { data, error } = await (supabase as any).rpc("whatsapp_assumir_conversa", {
+        _conversa_id: selecionada,
+      });
+      if (error) throw error;
+      if (!data) throw new Error("Outra pessoa já assumiu este atendimento.");
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversa-historico", selecionada] }),
+      ]);
+      toast.success("Atendimento atribuído a você.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível assumir o atendimento."),
+  });
+
   const alterarStatus = useMutation({
     mutationFn: async (status: string) => {
       if (!selecionada) throw new Error("Selecione uma conversa.");
@@ -853,7 +872,18 @@ export default function ComercialWhatsApp() {
 
         <section className="flex min-h-[560px] flex-col bg-muted/15">
           {conversa ? <>
-            <div className="flex items-center gap-3 border-b bg-background p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{iniciais(conversa.nome_contato)}</div><div className="min-w-0 flex-1"><p className="truncate font-medium">{conversa.nome_contato || conversa.telefone}</p><p className="text-xs text-muted-foreground">{conversa.telefone}</p></div><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></div>
+            <div className="flex items-center gap-3 border-b bg-background p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{iniciais(conversa.nome_contato)}</div><div className="min-w-0 flex-1"><p className="truncate font-medium">{conversa.nome_contato || conversa.telefone}</p><p className="text-xs text-muted-foreground">{conversa.telefone}</p></div>{!conversa.responsavel_id && conversa.status !== "encerrada" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={assumirConversa.isPending}
+                onClick={() => assumirConversa.mutate()}
+              >
+                <UserRound className="mr-2 h-4 w-4" />
+                {assumirConversa.isPending ? "Assumindo…" : "Assumir"}
+              </Button>
+            )}<Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></div>
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
               {mensagens.length === 0 ? <div className="flex h-full items-center justify-center"><div className="text-center"><MessageCircle className="mx-auto mb-3 h-9 w-9 text-muted-foreground/35" /><p className="font-medium">Histórico vazio</p><p className="text-sm text-muted-foreground">As mensagens oficiais aparecerão aqui após a sincronização.</p></div></div> : mensagens.map((msg) => (
                 <div key={msg.id} className={cn("flex", msg.direcao === "saida" ? "justify-end" : "justify-start")}><div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm", msg.direcao === "saida" ? "rounded-br-sm bg-emerald-100 text-emerald-950" : "rounded-bl-sm border bg-background")}><p className="whitespace-pre-wrap">{msg.conteudo || `[${msg.tipo}]`}</p>{msg.status === "falha" && (
@@ -1052,7 +1082,7 @@ export default function ComercialWhatsApp() {
               <Select
                 value={conversa.responsavel_id || "sem_responsavel"}
                 onValueChange={(responsavelId) => atribuirResponsavel.mutate(responsavelId)}
-                disabled={atribuirResponsavel.isPending || responsaveis.length === 0}
+                disabled={!isGestor || atribuirResponsavel.isPending || responsaveis.length === 0}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar responsável" />
