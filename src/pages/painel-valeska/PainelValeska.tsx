@@ -12,6 +12,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ETAPA_LABEL, etapaAtualDe, type EtapaWorkflow } from "@/pages/controladoria/workflow";
@@ -54,6 +57,8 @@ export default function PainelValeska() {
   const { user, isGestor } = useAuth();
   const { data, isLoading, isError, refetch, isFetching } = usePainelValeskaData(!!user);
   const [marcando, setMarcando] = useState<string | null>(null);
+  const [comunicacaoSelecionada, setComunicacaoSelecionada] = useState<ComunicacaoPendente | null>(null);
+  const [observacaoComunicacao, setObservacaoComunicacao] = useState("");
 
   const agora = new Date();
   const userId = user?.id ?? "";
@@ -102,10 +107,13 @@ export default function PainelValeska() {
   async function marcarComunicado(c: ComunicacaoPendente) {
     setMarcando(c.id);
     const { error } = await (supabase as any).rpc("comunicacao_marcar_comunicada", {
-      _id: c.id, _observacao: null,
+      _id: c.id,
+      _observacao: observacaoComunicacao.trim() || null,
     });
     setMarcando(null);
     if (error) { toast.error(error.message); return; }
+    setComunicacaoSelecionada(null);
+    setObservacaoComunicacao("");
     toast.success("Comunicação registrada no histórico da tarefa");
     refetch();
   }
@@ -236,7 +244,7 @@ export default function PainelValeska() {
                           <Link to={`/clientes/${c.cliente_id}`}>Cliente</Link>
                         </Button>
                       )}
-                      <Button size="sm" disabled={marcando === c.id} onClick={() => marcarComunicado(c)}>
+                      <Button size="sm" disabled={marcando === c.id} onClick={() => setComunicacaoSelecionada(c)}>
                         {marcando === c.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="mr-1 h-3 w-3" />}
                         Cliente comunicado
                       </Button>
@@ -378,6 +386,51 @@ export default function PainelValeska() {
       <Secao titulo="Suporte interno" icone={ShieldAlert}>
         <Vazio texto="Indicador preparado, aguardando fonte de dados (não há registro interno de chamados de suporte)." />
       </Secao>
+      <Dialog
+        open={!!comunicacaoSelecionada}
+        onOpenChange={(aberto) => {
+          if (!aberto && !marcando) {
+            setComunicacaoSelecionada(null);
+            setObservacaoComunicacao("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Confirmar comunicação ao cliente</DialogTitle>
+            <DialogDescription>
+              Confirme somente depois de realizar a comunicação pelo canal escolhido. A data, o horário e seu usuário serão registrados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="rounded-md bg-muted p-3 text-sm">
+              <p className="font-medium">{comunicacaoSelecionada?.cliente_nome || "Cliente não informado"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{comunicacaoSelecionada?.item_titulo || "Tarefa protocolada"}</p>
+            </div>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">Observação opcional</span>
+              <textarea
+                value={observacaoComunicacao}
+                onChange={(evento) => setObservacaoComunicacao(evento.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Ex.: comunicado por ligação; cliente confirmou recebimento."
+                className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComunicacaoSelecionada(null)} disabled={!!marcando}>Cancelar</Button>
+            <Button
+              onClick={() => comunicacaoSelecionada && marcarComunicado(comunicacaoSelecionada)}
+              disabled={!comunicacaoSelecionada || !!marcando}
+            >
+              {marcando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              Confirmar comunicação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
