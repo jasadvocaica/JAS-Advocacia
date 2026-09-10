@@ -79,8 +79,9 @@ const linkWhatsApp = (telefone?: string | null) => {
 
 export default function ComercialWhatsApp() {
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const conversaParam = searchParams.get("conversa");
+  const clienteParam = searchParams.get("cliente");
   const { user, isGestor } = useAuth();
   const { data: responsavelPadrao } = useResponsavelComunicacao();
   const [busca, setBusca] = useState("");
@@ -179,6 +180,23 @@ export default function ComercialWhatsApp() {
       return Array.from(unicos.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     },
   });
+  useEffect(() => {
+    if (!clienteParam) return;
+    setNovaConversaAberta(true);
+    if (carregandoContatos) return;
+
+    const contato = contatos.find((item) => item.origem === "cliente" && item.id === clienteParam);
+    if (contato) {
+      setContatoSelecionado(contato);
+    } else if (contatos.length > 0) {
+      toast.error("O cliente não possui um número de WhatsApp cadastrado.");
+    }
+
+    const proximosParametros = new URLSearchParams(searchParams);
+    proximosParametros.delete("cliente");
+    setSearchParams(proximosParametros, { replace: true });
+  }, [clienteParam, carregandoContatos, contatos, searchParams, setSearchParams]);
+
   const { data: conversas = [], isLoading } = useQuery({
     queryKey: ["whatsapp-conversas"],
     queryFn: async () => {
@@ -925,7 +943,16 @@ export default function ComercialWhatsApp() {
         </aside>
       </Card>
 
-      <Dialog open={novaConversaAberta} onOpenChange={setNovaConversaAberta}>
+      <Dialog
+        open={novaConversaAberta}
+        onOpenChange={(aberta) => {
+          setNovaConversaAberta(aberta);
+          if (!aberta) {
+            setContatoSelecionado(null);
+            setTemplateSelecionado("");
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Iniciar conversa</DialogTitle>
