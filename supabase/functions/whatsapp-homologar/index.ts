@@ -38,7 +38,7 @@ Deno.serve(async (request: Request) => {
   );
   if (erroUsuario || !usuario.user) return resposta({ error: "Sessão inválida." }, 401);
 
-  const { data: gestor, error: erroGestor } = await db.rpc("is_gestor");
+  const { data: gestor, error: erroGestor } = await db.rpc("is_gestor", { _user_id: usuario.user.id });
   if (erroGestor || !gestor) return resposta({ error: "Somente gestores podem homologar o canal." }, 403);
 
   const { data: conexao, error: erroConexao } = await db
