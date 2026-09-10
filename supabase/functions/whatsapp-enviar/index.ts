@@ -59,7 +59,9 @@ Deno.serve(async (request: Request) => {
 
   if (erroConversa || !conversa) return resposta({ error: "Conversa não encontrada ou sem permissão." }, 404);
 
-  if (conversa.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. Novos envios estão bloqueados." }, 409);\n\n  const conexao = Array.isArray(conversa.whatsapp_conexoes)
+  if (conversa.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. Novos envios estão bloqueados." }, 409);
+
+  const conexao = Array.isArray(conversa.whatsapp_conexoes)
     ? conversa.whatsapp_conexoes[0]
     : conversa.whatsapp_conexoes;
 
