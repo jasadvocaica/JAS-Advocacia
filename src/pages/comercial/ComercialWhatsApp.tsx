@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { Search, MessageCircle, Paperclip, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -78,6 +79,8 @@ const linkWhatsApp = (telefone?: string | null) => {
 
 export default function ComercialWhatsApp() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const conversaParam = searchParams.get("conversa");
   const { user, isGestor } = useAuth();
   const { data: responsavelPadrao } = useResponsavelComunicacao();
   const [busca, setBusca] = useState("");
@@ -186,7 +189,13 @@ export default function ComercialWhatsApp() {
       return (data ?? []) as Conversa[];
     },
   });
-  useEffect(() => { if (!selecionada && conversas[0]) setSelecionada(conversas[0].id); }, [conversas, selecionada]);
+  useEffect(() => {
+    if (selecionada && conversas.some((item) => item.id === selecionada)) return;
+    const indicada = conversaParam && conversas.some((item) => item.id === conversaParam)
+      ? conversaParam
+      : conversas[0]?.id || null;
+    setSelecionada(indicada);
+  }, [conversas, selecionada, conversaParam]);
   const conversa = conversas.find((item) => item.id === selecionada) ?? null;
 
   useEffect(() => {
