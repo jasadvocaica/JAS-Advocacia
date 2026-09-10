@@ -171,6 +171,28 @@ export default function ComercialConexoes() {
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível salvar o canal."),
   });
 
+  const homologarCanal = useMutation({
+    mutationFn: async () => {
+      if (!isGestor) throw new Error("Somente gestores podem homologar o canal.");
+      const { data, error } = await supabase.functions.invoke("whatsapp-homologar", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { homologado?: boolean; numero_exibicao?: string | null; nome_verificado?: string | null };
+    },
+    onSuccess: async (data) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conexoes"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conexao-ativa"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-status-ativacao"] }),
+      ]);
+      const detalhe = data?.nome_verificado
+        ? ` Canal verificado como ${data.nome_verificado}.`
+        : "";
+      toast.success(`Canal homologado com a Meta.${detalhe}`);
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível homologar o canal."),
+  });
+
   const sincronizarTemplates = useMutation({
     mutationFn: async () => {
       if (!isGestor) throw new Error("Somente gestores podem sincronizar templates.");
@@ -260,11 +282,23 @@ export default function ComercialConexoes() {
               homologação real com a Meta.
             </p>
           </div>
-          <Button variant="outline" asChild className="shrink-0">
-            <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-2 h-4 w-4" />Abrir painel da Meta
-            </a>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {isGestor && !statusAtivacao?.canal_conectado && (
+              <Button
+                type="button"
+                disabled={!statusAtivacao?.webhook_pronto || homologarCanal.isPending}
+                onClick={() => homologarCanal.mutate()}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${homologarCanal.isPending ? "animate-spin" : ""}`} />
+                {homologarCanal.isPending ? "Validando com a Meta…" : "Homologar conexão"}
+              </Button>
+            )}
+            <Button variant="outline" asChild className="shrink-0">
+              <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />Abrir painel da Meta
+              </a>
+            </Button>
+          </div>
         </div>
         {carregandoStatus ? (
           <p className="mt-5 text-sm text-muted-foreground">Verificando configuração segura…</p>
