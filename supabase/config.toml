@@ -153,3 +153,7 @@ verify_jwt = false
 
 [functions.whatsapp-sincronizar-templates]
 verify_jwt = true
+
+# Download de mídia recebida exige sessão válida; token da Meta permanece somente no servidor.
+[functions.whatsapp-midia]
+verify_jwt = true
