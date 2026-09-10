@@ -69,7 +69,9 @@ Deno.serve(async (request: Request) => {
   const conversa = Array.isArray(original.whatsapp_conversas)
     ? original.whatsapp_conversas[0]
     : original.whatsapp_conversas;
-  if (conversa?.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. O reenvio está bloqueado." }, 409);\n\n  const conexao = Array.isArray(conversa?.whatsapp_conexoes)
+  if (conversa?.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. O reenvio está bloqueado." }, 409);
+
+  const conexao = Array.isArray(conversa?.whatsapp_conexoes)
     ? conversa.whatsapp_conexoes[0]
     : conversa?.whatsapp_conexoes;
   if (!conexao?.ativo || conexao.status !== "conectado" || !conexao.phone_number_id) {
