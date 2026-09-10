@@ -687,6 +687,7 @@ export default function ComercialWhatsApp() {
                     A janela de 24 horas está encerrada. Retome o contato somente com um template aprovado pela Meta.
                   </p>
                   {templates.length > 0 ? (
+                    <>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <Select value={templateSelecionado} onValueChange={selecionarTemplate}>
                         <SelectTrigger className="bg-background">
@@ -715,6 +716,7 @@ export default function ComercialWhatsApp() {
                       onChange={setParametrosTemplate}
                       disabled={enviarTemplate.isPending}
                     />
+                    </>
                   ) : (
                     <p className="mt-2 text-xs font-medium text-amber-950">
                       Nenhum template aprovado está sincronizado para este canal.
