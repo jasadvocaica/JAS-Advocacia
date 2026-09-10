@@ -73,7 +73,9 @@ Deno.serve(async (request: Request) => {
     .single();
   if (erroConversa || !conversa) return resposta({ error: "Conversa não encontrada ou sem permissão." }, 404);
 
-  if (conversa.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. Novos envios estão bloqueados." }, 409);\n\n  const conexao = Array.isArray(conversa.whatsapp_conexoes)
+  if (conversa.opt_out_em) return resposta({ error: "Este contato solicitou o descadastro. Novos envios estão bloqueados." }, 409);
+
+  const conexao = Array.isArray(conversa.whatsapp_conexoes)
     ? conversa.whatsapp_conexoes[0]
     : conversa.whatsapp_conexoes;
   if (!conexao?.ativo || conexao.status !== "conectado" || !conexao.phone_number_id) {
@@ -117,7 +119,8 @@ Deno.serve(async (request: Request) => {
 
     const mediaId = String(uploadResultado.id);
     const tipo = tipoWhatsApp(mime);
-    const nome = arquivo.name.replace(/[\\/"\r\n]/g, "_").slice(0, 240) || "anexo-whatsapp";
+    const nome = arquivo.name.replace(/[\\/"\r
+]/g, "_").slice(0, 240) || "anexo-whatsapp";
     const { data: mensagem, error: erroInsert } = await db
       .from("whatsapp_mensagens")
       .insert({
