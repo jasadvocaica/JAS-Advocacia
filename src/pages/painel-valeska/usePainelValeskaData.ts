@@ -11,6 +11,17 @@ export interface ResponsavelComunicacao {
   ativo: boolean;
 }
 
+export interface FollowupComercial {
+  id: string;
+  conversa_id: string;
+  responsavel_id: string | null;
+  descricao: string;
+  agendado_para: string;
+  status: string;
+  conversa_nome: string | null;
+  conversa_telefone: string | null;
+}
+
 export interface PainelValeskaDados {
   responsavel: ResponsavelComunicacao;
   comunicacoes: ComunicacaoPendente[];
@@ -18,6 +29,7 @@ export interface PainelValeskaDados {
   leads: LeadRegistrado[];
   tarefas: TarefaPainel[];
   pendencias: PendenciaGerencial[];
+  followups: FollowupComercial[];
 }
 
 const COLUNAS_TAREFA =
@@ -27,10 +39,11 @@ const nomeCliente = (d: any) =>
   Array.isArray(d?.cliente) ? d.cliente[0]?.nome ?? null : d?.cliente?.nome ?? null;
 
 /**
- * Hook consolidado do Painel Comercial: 6 leituras em paralelo, uma entrada de
+ * Hook consolidado do Painel Comercial: leituras paralelas, uma entrada de
  * cache, sem N+1 e sem refetch duplicado.
  *
- * NENHUMA fonte de WhatsApp/mensageria é consultada nesta fase.
+ * Mensagens não são inferidas. Follow-ups entram somente quando registrados
+ * explicitamente pela equipe em uma conversa real.
  */
 export function usePainelValeskaData(habilitado: boolean) {
   return useQuery<PainelValeskaDados>({
@@ -39,7 +52,7 @@ export function usePainelValeskaData(habilitado: boolean) {
     staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const [rResp, rCom, rFichas, rLeads, rTarefas, rPend] = await Promise.all([
+      const [rResp, rCom, rFichas, rLeads, rTarefas, rPend, rFollowups] = await Promise.all([
         (supabase as any).rpc("comercial_responsavel_comunicacao"),
         (supabase as any)
           .from("comunicacoes_cliente")
@@ -71,9 +84,15 @@ export function usePainelValeskaData(habilitado: boolean) {
           .is("resolvido_em", null)
           .order("criado_em", { ascending: false })
           .limit(50),
+        (supabase as any)
+          .from("whatsapp_conversa_followups")
+          .select("id, conversa_id, responsavel_id, descricao, agendado_para, status, conversa:whatsapp_conversas(nome_contato,telefone)")
+          .eq("status", "pendente")
+          .order("agendado_para", { ascending: true })
+          .limit(100),
       ]);
 
-      const erro = rCom.error ?? rFichas.error ?? rTarefas.error;
+      const erro = rCom.error ?? rFichas.error ?? rTarefas.error ?? rFollowups.error;
       if (erro) throw erro;
 
       const respRaw = (rResp.data ?? {}) as any;
@@ -99,6 +118,19 @@ export function usePainelValeskaData(habilitado: boolean) {
           ...d, cliente_nome: nomeCliente(d),
         })) as TarefaPainel[],
         pendencias: ((rPend.data ?? []) as any[]) as PendenciaGerencial[],
+        followups: ((rFollowups.data ?? []) as any[]).map((d) => {
+          const conversa = Array.isArray(d.conversa) ? d.conversa[0] : d.conversa;
+          return {
+            id: d.id,
+            conversa_id: d.conversa_id,
+            responsavel_id: d.responsavel_id,
+            descricao: d.descricao,
+            agendado_para: d.agendado_para,
+            status: d.status,
+            conversa_nome: conversa?.nome_contato ?? null,
+            conversa_telefone: conversa?.telefone ?? null,
+          };
+        }) as FollowupComercial[],
       };
     },
   });
