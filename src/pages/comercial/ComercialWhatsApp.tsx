@@ -44,6 +44,7 @@ type Lead = { id: string; nome: string; email: string | null; area_direito: stri
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 type TemplateWhatsApp = { id: string; nome: string; idioma: string; categoria: string | null; componentes: unknown };
+type RespostaRapida = { id: string; titulo: string; conteudo: string; ativo: boolean };
 type FollowupConversa = {
   id: string;
   responsavel_id: string | null;
@@ -106,7 +107,22 @@ export default function ComercialWhatsApp() {
   const [textoNotaEmEdicao, setTextoNotaEmEdicao] = useState("");
   const [descricaoFollowup, setDescricaoFollowup] = useState("");
   const [dataFollowup, setDataFollowup] = useState("");
+  const [respostasAbertas, setRespostasAbertas] = useState(false);
+  const [tituloResposta, setTituloResposta] = useState("");
+  const [conteudoResposta, setConteudoResposta] = useState("");
   const arquivoInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: respostasRapidas = [] } = useQuery({
+    queryKey: ["whatsapp-respostas-rapidas"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_respostas_rapidas")
+        .select("id,titulo,conteudo,ativo")
+        .order("titulo");
+      if (error) throw error;
+      return (data ?? []) as RespostaRapida[];
+    },
+  });
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -430,6 +446,49 @@ export default function ComercialWhatsApp() {
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível remover a nota."),
   });
+  const criarRespostaRapida = useMutation({
+    mutationFn: async () => {
+      if (!isGestor) throw new Error("Somente gestores podem cadastrar respostas rápidas.");
+      if (tituloResposta.trim().length < 2 || !conteudoResposta.trim()) {
+        throw new Error("Informe um título e o texto da resposta.");
+      }
+      const { error } = await (supabase as any).from("whatsapp_respostas_rapidas").insert({
+        titulo: tituloResposta.trim(),
+        conteudo: conteudoResposta.trim(),
+        criado_por: user?.id,
+        atualizado_por: user?.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      setTituloResposta("");
+      setConteudoResposta("");
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-respostas-rapidas"] });
+      toast.success("Resposta rápida cadastrada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível cadastrar a resposta."),
+  });
+
+  const alternarRespostaRapida = useMutation({
+    mutationFn: async (resposta: RespostaRapida) => {
+      if (!isGestor) throw new Error("Somente gestores podem alterar respostas rápidas.");
+      const { error } = await (supabase as any)
+        .from("whatsapp_respostas_rapidas")
+        .update({
+          ativo: !resposta.ativo,
+          atualizado_por: user?.id,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", resposta.id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-respostas-rapidas"] });
+      toast.success("Resposta rápida atualizada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível alterar a resposta."),
+  });
+
   const reenviarMensagem = useMutation({
     mutationFn: async (mensagem: Mensagem) => {
       const { data, error } = await supabase.functions.invoke("whatsapp-reenviar", {
@@ -864,6 +923,15 @@ export default function ComercialWhatsApp() {
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  title="Respostas rápidas"
+                  onClick={() => setRespostasAbertas(true)}
+                >
+                  <MessageSquarePlus className="h-4 w-4" />
+                </Button>
                 <textarea
                   value={texto}
                   onChange={(evento) => setTexto(evento.target.value)}
@@ -1102,6 +1170,79 @@ export default function ComercialWhatsApp() {
           {!conexao && <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950"><PlugZap className="mb-2 h-5 w-5" /><p className="font-medium">Canal não configurado</p><p className="mt-1 text-xs">Nenhuma mensagem será enviada até a conexão oficial.</p></div>}
         </aside>
       </Card>
+
+      <Dialog open={respostasAbertas} onOpenChange={setRespostasAbertas}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Respostas rápidas</DialogTitle>
+            <DialogDescription>
+              Selecione um texto cadastrado pelo escritório. Ele será inserido no campo para revisão antes do envio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[360px] space-y-2 overflow-y-auto py-2">
+            {respostasRapidas.filter((resposta) => resposta.ativo || isGestor).length === 0 ? (
+              <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+                Nenhuma resposta rápida foi cadastrada.
+              </div>
+            ) : respostasRapidas.filter((resposta) => resposta.ativo || isGestor).map((resposta) => (
+              <div key={resposta.id} className="flex items-start gap-3 rounded-lg border p-3">
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  disabled={!resposta.ativo}
+                  onClick={() => {
+                    setTexto((atual) => atual.trim() ? `${atual.trim()}\n${resposta.conteudo}` : resposta.conteudo);
+                    setRespostasAbertas(false);
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{resposta.titulo}</p>
+                    {!resposta.ativo && <Badge variant="secondary">Inativa</Badge>}
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{resposta.conteudo}</p>
+                </button>
+                {isGestor && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={alternarRespostaRapida.isPending}
+                    onClick={() => alternarRespostaRapida.mutate(resposta)}
+                  >
+                    {resposta.ativo ? "Desativar" : "Ativar"}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+          {isGestor && (
+            <div className="space-y-3 border-t pt-4">
+              <p className="font-medium">Cadastrar nova resposta</p>
+              <Input
+                value={tituloResposta}
+                maxLength={80}
+                onChange={(evento) => setTituloResposta(evento.target.value)}
+                placeholder="Título para a equipe"
+              />
+              <textarea
+                value={conteudoResposta}
+                maxLength={4096}
+                rows={4}
+                onChange={(evento) => setConteudoResposta(evento.target.value)}
+                placeholder="Texto que será inserido para revisão"
+                className="w-full resize-y rounded-md border bg-background px-3 py-2 text-sm"
+              />
+              <Button
+                type="button"
+                disabled={criarRespostaRapida.isPending || tituloResposta.trim().length < 2 || !conteudoResposta.trim()}
+                onClick={() => criarRespostaRapida.mutate()}
+              >
+                {criarRespostaRapida.isPending ? "Salvando…" : "Cadastrar resposta"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={novaConversaAberta}
