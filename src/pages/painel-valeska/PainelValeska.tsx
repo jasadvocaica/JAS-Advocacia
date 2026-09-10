@@ -221,6 +221,13 @@ export default function PainelValeska() {
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
+                      {c.cliente_id && (
+                        <Button asChild size="sm" variant="secondary">
+                          <Link to={`/comercial?cliente=${c.cliente_id}`}>
+                            <PhoneCall className="mr-1 h-3 w-3" />Comunicar
+                          </Link>
+                        </Button>
+                      )}
                       <Button asChild size="sm" variant="outline">
                         <Link to={`/controladoria?item=${c.item_id}`}>Abrir tarefa <ArrowRight className="ml-1 h-3 w-3" /></Link>
                       </Button>
