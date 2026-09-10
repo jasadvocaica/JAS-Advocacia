@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Search, MessageCircle, Paperclip, Download, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X, CalendarClock } from "lucide-react";
@@ -106,6 +106,7 @@ export default function ComercialWhatsApp() {
   const [textoNotaEmEdicao, setTextoNotaEmEdicao] = useState("");
   const [descricaoFollowup, setDescricaoFollowup] = useState("");
   const [dataFollowup, setDataFollowup] = useState("");
+  const arquivoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: conexao } = useQuery({
     queryKey: ["whatsapp-conexao-ativa"],
@@ -420,6 +421,36 @@ export default function ComercialWhatsApp() {
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível remover a nota."),
   });
+  const enviarAnexo = useMutation({
+    mutationFn: async (arquivo: File) => {
+      if (!selecionada) throw new Error("Selecione uma conversa.");
+      if (!arquivo.size || arquivo.size > 16 * 1024 * 1024) {
+        throw new Error("O anexo deve ter no máximo 16 MB.");
+      }
+      const form = new FormData();
+      form.set("conversa_id", selecionada);
+      form.set("arquivo", arquivo, arquivo.name);
+      const { data, error } = await supabase.functions.invoke("whatsapp-midia-enviar", {
+        body: form,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: async () => {
+      if (arquivoInputRef.current) arquivoInputRef.current.value = "";
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", selecionada] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+      ]);
+      toast.success("Anexo enviado.");
+    },
+    onError: (erro: Error) => {
+      if (arquivoInputRef.current) arquivoInputRef.current.value = "";
+      toast.error(erro.message || "Não foi possível enviar o anexo.");
+    },
+  });
+
   const baixarMidia = useMutation({
     mutationFn: async (mensagem: Mensagem) => {
       if (!mensagem.provider_media_id) throw new Error("Esta mensagem não possui anexo disponível.");
@@ -763,7 +794,24 @@ export default function ComercialWhatsApp() {
                 </div>
               )}
               <div className="flex items-end gap-2">
-                <Button variant="ghost" size="icon" disabled title="Anexos serão liberados após a homologação do canal">
+                <input
+                  ref={arquivoInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp,audio/aac,audio/amr,audio/mpeg,audio/mp4,audio/ogg,audio/opus,video/mp4,video/3gpp,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain"
+                  onChange={(evento) => {
+                    const arquivo = evento.target.files?.[0];
+                    if (arquivo) enviarAnexo.mutate(arquivo);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={!envioDisponivel || enviarAnexo.isPending}
+                  title={janelaAtiva ? "Anexar arquivo (máximo 16 MB)" : "Anexos exigem uma conversa dentro da janela de 24 horas"}
+                  onClick={() => arquivoInputRef.current?.click()}
+                >
                   <Paperclip className="h-4 w-4" />
                 </Button>
                 <textarea
