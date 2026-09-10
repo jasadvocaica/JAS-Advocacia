@@ -60,11 +60,23 @@ Deno.serve(async (request: Request) => {
     }
 
     const { data: conversa } = await db.from("whatsapp_conversas")
-      .select("id,telefone,ultima_mensagem_em,conexao_id,whatsapp_conexoes!inner(phone_number_id,status,ativo)")
+      .select("id,telefone,opt_out_em,conexao_id,whatsapp_conexoes!inner(phone_number_id,status,ativo)")
       .eq("id", conversaId).single();
     const conexao = Array.isArray(conversa?.whatsapp_conexoes) ? conversa.whatsapp_conexoes[0] : conversa?.whatsapp_conexoes;
-    const ultima = conversa?.ultima_mensagem_em ? new Date(conversa.ultima_mensagem_em).getTime() : 0;
+    const { data: ultimaEntrada } = await db.from("whatsapp_mensagens")
+      .select("ocorrida_em").eq("conversa_id", conversaId).eq("direcao", "entrada")
+      .order("ocorrida_em", { ascending: false }).limit(1).maybeSingle();
+    const ultima = ultimaEntrada?.ocorrida_em ? new Date(ultimaEntrada.ocorrida_em).getTime() : 0;
     const dentroDaJanela = ultima > 0 && Date.now() - ultima <= 24 * 60 * 60 * 1000;
+
+    if (conversa?.opt_out_em) {
+      await db.from("mkt_automacao_execucoes").update({
+        status: "cancelada", executada_em: new Date().toISOString(),
+        erro_resumo: "Contato solicitou descadastro; automação bloqueada.",
+      }).eq("id", item.id);
+      resultados.push({ id: item.id, status: "cancelada" });
+      continue;
+    }
 
     if (!conversa || !conexao?.ativo || conexao.status !== "conectado" || !conexao.phone_number_id || !dentroDaJanela) {
       await db.from("mkt_automacao_execucoes").update({
