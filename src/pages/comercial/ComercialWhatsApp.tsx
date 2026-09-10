@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Search, MessageCircle, Paperclip, Download, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, MessageSquarePlus, Pencil, Trash2, X, CalendarClock } from "lucide-react";
+import { Search, MessageCircle, Paperclip, Download, Send, MoreVertical, UserRound, PlugZap, Inbox, ExternalLink, Plus, Check, CheckCheck, Clock3, CircleAlert, RefreshCw, MessageSquarePlus, Pencil, Trash2, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
@@ -38,7 +38,7 @@ type Conversa = {
   nao_lidas: number;
   responsavel_id: string | null;
 };
-type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string; provider_media_id: string | null; mime_type: string | null; nome_arquivo: string | null; erro_codigo: string | null; erro_titulo: string | null; erro_detalhe: string | null };
+type Mensagem = { id: string; direcao: string; tipo: string; conteudo: string | null; ocorrida_em: string; status: string; provider_media_id: string | null; mime_type: string | null; nome_arquivo: string | null; erro_codigo: string | null; erro_titulo: string | null; erro_detalhe: string | null; reenvio_de: string | null };
 type Conexao = { id: string; nome: string; numero_exibicao: string | null; status: string; ativo: boolean };
 type Lead = { id: string; nome: string; email: string | null; area_direito: string | null; status: string; canal: string | null; valor_contrato: number | null };
 type Contato = { id: string; nome: string; telefone: string; email: string | null; origem: "lead" | "cliente" };
@@ -286,7 +286,7 @@ export default function ComercialWhatsApp() {
     queryKey: ["whatsapp-mensagens", selecionada],
     enabled: !!selecionada,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("whatsapp_mensagens").select("id,direcao,tipo,conteudo,ocorrida_em,status,provider_media_id,mime_type,nome_arquivo,erro_codigo,erro_titulo,erro_detalhe")
+      const { data, error } = await (supabase as any).from("whatsapp_mensagens").select("id,direcao,tipo,conteudo,ocorrida_em,status,provider_media_id,mime_type,nome_arquivo,erro_codigo,erro_titulo,erro_detalhe,reenvio_de")
         .eq("conversa_id", selecionada).order("ocorrida_em", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Mensagem[];
@@ -430,6 +430,25 @@ export default function ComercialWhatsApp() {
     },
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível remover a nota."),
   });
+  const reenviarMensagem = useMutation({
+    mutationFn: async (mensagem: Mensagem) => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-reenviar", {
+        body: { mensagem_id: mensagem.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens", selecionada] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+      ]);
+      toast.success("Nova tentativa enviada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível reenviar a mensagem."),
+  });
+
   const enviarAnexo = useMutation({
     mutationFn: async (arquivo: File) => {
       if (!selecionada) throw new Error("Selecione uma conversa.");
@@ -745,6 +764,22 @@ export default function ComercialWhatsApp() {
                     <p className="font-medium">{msg.erro_titulo || "A mensagem não foi entregue."}</p>
                     {msg.erro_detalhe && <p className="mt-1 opacity-90">{msg.erro_detalhe}</p>}
                     {msg.erro_codigo && <p className="mt-1 font-mono text-[10px] opacity-70">Código {msg.erro_codigo}</p>}
+                    {msg.tipo !== "template" && (msg.tipo === "texto" || !!msg.provider_media_id) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-7 border-destructive/30 bg-background text-destructive hover:text-destructive"
+                        disabled={reenviarMensagem.isPending || !janelaAtiva}
+                        onClick={() => reenviarMensagem.mutate(msg)}
+                      >
+                        <RefreshCw className={`mr-1.5 h-3 w-3 ${reenviarMensagem.isPending ? "animate-spin" : ""}`} />
+                        {janelaAtiva ? "Tentar novamente" : "Janela encerrada"}
+                      </Button>
+                    )}
+                    {msg.tipo === "template" && (
+                      <p className="mt-2 text-[11px]">Reenvie pelo seletor de templates para validar os parâmetros.</p>
+                    )}
                   </div>
                 )}{msg.provider_media_id && (
                   <Button
