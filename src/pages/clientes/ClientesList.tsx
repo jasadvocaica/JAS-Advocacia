@@ -165,7 +165,8 @@ export default function ClientesList() {
     const list = clientes.filter((c) => {
       const status = c.status ?? (c.ativo ? "ativo" : "inativo");
       if (statusFiltro !== "todos" && status !== statusFiltro) return false;
-      if (ufFiltro && (c.estado || "").trim().toUpperCase() !== ufFiltro) return false;
+      if (ufFiltro === "SEM_UF" && (c.estado || "").trim()) return false;
+      if (ufFiltro && ufFiltro !== "SEM_UF" && (c.estado || "").trim().toUpperCase() !== ufFiltro) return false;
       if (!q) return true;
       const matchTexto =
         normalize(c.nome).includes(q) ||
@@ -267,7 +268,11 @@ export default function ClientesList() {
       {ufFiltro && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-primary/5 px-4 py-3 text-sm">
           <MapPin className="h-4 w-4 text-primary" />
-          <span>Exibindo clientes de <strong>{ufFiltro}</strong>.</span>
+          <span>
+            {ufFiltro === "SEM_UF"
+              ? <>Exibindo clientes <strong>sem UF cadastrada</strong>.</>
+              : <>Exibindo clientes de <strong>{ufFiltro}</strong>.</>}
+          </span>
           <Button
             size="sm"
             variant="ghost"
