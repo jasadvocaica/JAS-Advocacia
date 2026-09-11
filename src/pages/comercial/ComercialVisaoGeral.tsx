@@ -315,7 +315,7 @@ export default function ComercialVisaoGeral() {
               return (
                 <Link
                   key={atividade.id}
-                  to="/comercial/crm"
+                  to={`/comercial/crm?lead=${atividade.lead_id}&acao=abrir`}
                   className="flex flex-col gap-2 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-2"
                 >
                   <div>
