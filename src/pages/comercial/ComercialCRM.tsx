@@ -316,7 +316,7 @@ export default function ComercialCRM() {
         <Card className="flex items-center gap-3 p-4"><Users className="h-5 w-5 text-primary" /><div><p className="text-2xl font-semibold">{leads.length}</p><p className="text-xs text-muted-foreground">Negociações reais</p></div></Card>
         <Card className="flex items-center gap-3 p-4"><CircleDollarSign className="h-5 w-5 text-primary" /><div><p className="text-2xl font-semibold">{moeda(total)}</p><p className="text-xs text-muted-foreground">Valor informado</p></div></Card>
       </div>
-      <div className="relative max-w-xl"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone, e-mail, área ou origem" className="pl-9" /></div>
+      <div className="relative max-w-xl"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Buscar negociações" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone, e-mail, área ou origem" className="pl-9" /></div>
 
       <div className="grid gap-4 overflow-x-auto pb-2 xl:grid-cols-5">
         {COLUNAS.map(([status, titulo]) => {
