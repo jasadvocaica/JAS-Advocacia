@@ -10,6 +10,8 @@ import {
   Users,
   CalendarClock,
   AlertTriangle,
+  CheckCircle2,
+  Timer,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,6 +41,10 @@ type Conversa = {
   id: string;
   status: string;
   nao_lidas: number;
+  nome_contato: string | null;
+  primeira_entrada_em: string | null;
+  primeira_resposta_humana_em: string | null;
+  sla_primeira_resposta_limite_em: string | null;
 };
 
 const ETAPAS = [
@@ -69,7 +75,7 @@ export default function ComercialVisaoGeral() {
           .order("criado_em", { ascending: false }),
         (supabase as any)
           .from("whatsapp_conversas")
-          .select("id,status,nao_lidas"),
+          .select("id,status,nao_lidas,nome_contato,primeira_entrada_em,primeira_resposta_humana_em,sla_primeira_resposta_limite_em"),
         (supabase as any)
           .from("clientes")
           .select("id,estado", { count: "exact" })
@@ -123,8 +129,26 @@ export default function ComercialVisaoGeral() {
     const emAtendimento = leads.filter((lead) => ["novo", "em_atendimento", "proposta_enviada"].includes(normalizar(lead.status))).length;
     const naoLidas = conversas.reduce((soma, conversa) => soma + Number(conversa.nao_lidas || 0), 0);
     const conversao = leads.length > 0 ? (convertidos / leads.length) * 100 : 0;
+    const slaPendentes = conversas.filter((item) =>
+      item.primeira_entrada_em &&
+      item.sla_primeira_resposta_limite_em &&
+      !item.primeira_resposta_humana_em &&
+      item.status !== "encerrada"
+    );
+    const slaVencidos = slaPendentes.filter((item) =>
+      new Date(item.sla_primeira_resposta_limite_em!).getTime() < Date.now()
+    );
+    const respondidas = conversas.filter((item) => item.primeira_entrada_em && item.primeira_resposta_humana_em);
+    const tempoMedioResposta = respondidas.length > 0
+      ? respondidas.reduce((soma, item) =>
+          soma + Math.max(0, new Date(item.primeira_resposta_humana_em!).getTime() - new Date(item.primeira_entrada_em!).getTime()), 0
+        ) / respondidas.length
+      : null;
 
-    return { totalValor, propostas, convertidos, emAtendimento, naoLidas, conversao };
+    return {
+      totalValor, propostas, convertidos, emAtendimento, naoLidas, conversao,
+      slaPendentes, slaVencidos, tempoMedioResposta,
+    };
   }, [leads, conversas]);
 
   const etapas = useMemo(
@@ -186,7 +210,63 @@ export default function ComercialVisaoGeral() {
         <Metrica icon={MessageCircle} label="Mensagens não lidas" value={isLoading ? "…" : String(resumo.naoLidas)} />
         <Metrica icon={CalendarClock} label="Meus retornos pendentes" value={isLoading ? "…" : String(followups.length)} />
         <Metrica icon={AlertTriangle} label="Meus retornos vencidos" value={isLoading ? "…" : String(followupsVencidos.length)} />
+        <Metrica icon={Timer} label="SLA aguardando resposta" value={isLoading ? "…" : String(resumo.slaPendentes.length)} />
+        <Metrica icon={AlertTriangle} label="SLA vencido" value={isLoading ? "…" : String(resumo.slaVencidos.length)} />
+        <Metrica
+          icon={CheckCircle2}
+          label="Tempo médio da 1ª resposta"
+          value={isLoading
+            ? "…"
+            : resumo.tempoMedioResposta == null
+              ? "Sem dados"
+              : `${Math.round(resumo.tempoMedioResposta / 60000)} min`}
+        />
       </div>
+
+      <Card className="p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-2xl">SLA da primeira resposta</h2>
+            <p className="text-sm text-muted-foreground">
+              Conversas reais aguardando a primeira resposta confirmada da equipe.
+            </p>
+          </div>
+          <Badge variant={resumo.slaVencidos.length > 0 ? "destructive" : "secondary"}>
+            {resumo.slaVencidos.length} vencido(s)
+          </Badge>
+        </div>
+        {resumo.slaPendentes.length === 0 ? (
+          <p className="mt-5 rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+            Nenhuma conversa com primeira resposta pendente.
+          </p>
+        ) : (
+          <div className="mt-5 divide-y">
+            {[...resumo.slaPendentes]
+              .sort((a, b) => new Date(a.sla_primeira_resposta_limite_em!).getTime() - new Date(b.sla_primeira_resposta_limite_em!).getTime())
+              .slice(0, 8)
+              .map((item) => {
+                const limite = new Date(item.sla_primeira_resposta_limite_em!).getTime();
+                const minutos = Math.ceil((limite - agora) / 60000);
+                const vencido = minutos <= 0;
+                return (
+                  <Link
+                    key={item.id}
+                    to={`/comercial?conversa=${item.id}`}
+                    className="flex items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40 sm:px-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{item.nome_contato || "Contato sem nome informado"}</p>
+                      <p className="text-xs text-muted-foreground">Aguardando primeira resposta humana</p>
+                    </div>
+                    <Badge variant={vencido ? "destructive" : "outline"}>
+                      {vencido ? `Vencido há ${Math.abs(minutos)} min` : `${minutos} min restantes`}
+                    </Badge>
+                  </Link>
+                );
+              })}
+          </div>
+        )}
+      </Card>
 
       <Card className="p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
