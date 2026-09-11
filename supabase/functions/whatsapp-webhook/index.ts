@@ -279,27 +279,12 @@ Deno.serve(async (request: Request) => {
             .limit(1)
             .maybeSingle();
 
-          let { data: lead } = await db
+          const { data: lead } = await db
             .from("mkt_leads")
             .select("id,nome")
             .in("whatsapp_normalizado", variantes)
             .limit(1)
             .maybeSingle();
-
-          if (!cliente && !lead) {
-            const criado = await db
-              .from("mkt_leads")
-              .insert({
-                nome: nomePerfil || telefone,
-                whatsapp: `+${telefone}`,
-                canal: "whatsapp_direto",
-                status: "novo",
-              })
-              .select("id,nome")
-              .single();
-            if (criado.error) throw criado.error;
-            lead = criado.data;
-          }
 
           let { data: conversa } = await db
             .from("whatsapp_conversas")
