@@ -814,6 +814,62 @@ export default function ComercialWhatsApp() {
     },
   });
 
+  const converterEmLead = useMutation({
+    mutationFn: async () => {
+      if (!conversa || conversa.cliente_id || conversa.lead_id) {
+        throw new Error("Este contato já possui cadastro vinculado.");
+      }
+      const telefoneNormalizado = conversa.telefone.replace(/\D/g, "");
+      const { data: existente, error: erroBusca } = await (supabase as any)
+        .from("mkt_leads")
+        .select("id")
+        .eq("whatsapp_normalizado", telefoneNormalizado)
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (erroBusca) throw erroBusca;
+
+      let leadId = existente?.id as string | undefined;
+      if (!leadId) {
+        const { data: criado, error: erroCriacao } = await (supabase as any)
+          .from("mkt_leads")
+          .insert({
+            nome: conversa.nome_contato || conversa.telefone,
+            whatsapp: conversa.telefone.startsWith("+") ? conversa.telefone : `+${telefoneNormalizado}`,
+            canal: "whatsapp_direto",
+            status: "novo",
+            responsavel_id: conversa.responsavel_id || user?.id || null,
+            registrado_por: user?.id || null,
+          })
+          .select("id")
+          .single();
+        if (erroCriacao) throw erroCriacao;
+        leadId = criado.id;
+      }
+
+      const { data: vinculada, error: erroVinculo } = await (supabase as any)
+        .from("whatsapp_conversas")
+        .update({ lead_id: leadId, atualizado_em: new Date().toISOString() })
+        .eq("id", conversa.id)
+        .is("lead_id", null)
+        .select("id")
+        .maybeSingle();
+      if (erroVinculo) throw erroVinculo;
+      if (!vinculada) throw new Error("A conversa foi vinculada por outra pessoa. Atualize a tela.");
+      return leadId;
+    },
+    onSuccess: async (leadId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-conversas"] }),
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-lead", leadId] }),
+        queryClient.invalidateQueries({ queryKey: ["crm-leads"] }),
+        queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] }),
+      ]);
+      toast.success("Contato convertido em atendimento do CRM.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível criar o atendimento no CRM."),
+  });
+
   const filtradas = useMemo(() => conversas.filter((item) => {
     const bateBusca = [item.nome_contato, item.telefone, item.ultima_mensagem_resumo].some((v) => (v || "").toLowerCase().includes(busca.toLowerCase()));
     const bateFiltro = filtro === "todas" ||
@@ -1089,8 +1145,20 @@ export default function ComercialWhatsApp() {
         <aside className="border-t bg-background p-5 lg:border-l lg:border-t-0">
           <h2 className="font-display text-xl">Contexto comercial</h2>
           {conversa ? <div className="mt-5 space-y-5">
-            <div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted font-semibold">{iniciais(conversa.nome_contato)}</div><div><p className="font-semibold">{conversa.nome_contato || conversa.telefone}</p><p className="text-sm text-muted-foreground">{lead ? "Lead cadastrado" : conversa.cliente_id ? "Cliente cadastrado" : "Contato vinculado"}</p></div></div>
+            <div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted font-semibold">{iniciais(conversa.nome_contato)}</div><div><p className="font-semibold">{conversa.nome_contato || conversa.telefone}</p><p className="text-sm text-muted-foreground">{lead ? "Atendimento no CRM" : conversa.cliente_id ? "Cliente cadastrado" : "Contato ainda não convertido"}</p></div></div>
             <Info label="Telefone" value={conversa.telefone} /><Info label="E-mail" value={lead?.email || "Não informado"} /><Info label="Área de interesse" value={lead?.area_direito || "Não informada"} /><Info label="Origem" value={lead?.canal || "Não informada"} /><Info label="Etapa no CRM" value={lead?.status || "Sem lead vinculado"} />
+            {!lead && !conversa.cliente_id && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => converterEmLead.mutate()}
+                disabled={converterEmLead.isPending}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {converterEmLead.isPending ? "Criando atendimento…" : "Criar atendimento no CRM"}
+              </Button>
+            )}
             {lead?.valor_contrato != null && <Info label="Valor esperado" value={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(lead.valor_contrato)} />}
             <Info
               label="SLA da primeira resposta"
