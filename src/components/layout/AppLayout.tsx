@@ -336,7 +336,6 @@ export default function AppLayout() {
     return window.innerWidth < 1280;
   });
   const location = useLocation();
-  const { tema, toggle } = useTheme();
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
