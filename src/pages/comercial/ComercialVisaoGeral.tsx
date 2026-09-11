@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -11,6 +11,7 @@ import {
   CalendarClock,
   AlertTriangle,
   CheckCircle2,
+  Check,
   Timer,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 type Lead = {
   id: string;
@@ -74,6 +76,7 @@ const normalizar = (status?: string | null) => (status || "novo").trim().toLower
 
 export default function ComercialVisaoGeral() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["comercial-visao-geral", user?.id],
     queryFn: async () => {
@@ -130,6 +133,35 @@ export default function ComercialVisaoGeral() {
         atividades: (atividadesResult.data ?? []) as AtividadeCRM[],
       };
     },
+  });
+
+  const concluirAtividade = useMutation({
+    mutationFn: async (atividadeId: string) => {
+      if (!user?.id) throw new Error("Sessão não identificada.");
+      const { data: concluida, error: erroConclusao } = await (supabase as any)
+        .from("mkt_lead_atividades")
+        .update({
+          status: "concluida",
+          concluido_por: user.id,
+          concluido_em: new Date().toISOString(),
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", atividadeId)
+        .eq("responsavel_id", user.id)
+        .eq("status", "pendente")
+        .select("id")
+        .maybeSingle();
+      if (erroConclusao) throw erroConclusao;
+      if (!concluida) throw new Error("A pendência já foi atualizada ou não está atribuída a você.");
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] }),
+        queryClient.invalidateQueries({ queryKey: ["mkt-lead-atividades-pendentes"] }),
+      ]);
+      toast.success("Pendência concluída.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível concluir a pendência."),
   });
 
   const leads = data?.leads ?? [];
@@ -313,21 +345,34 @@ export default function ComercialVisaoGeral() {
               const dadosLead = Array.isArray(atividade.mkt_leads) ? atividade.mkt_leads[0] : atividade.mkt_leads;
               const vencido = new Date(atividade.agendado_para).getTime() < agora;
               return (
-                <Link
-                  key={atividade.id}
-                  to={`/comercial/crm?lead=${atividade.lead_id}&acao=abrir`}
-                  className="flex flex-col gap-2 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-2"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{atividade.descricao}</p>
-                    <p className="text-xs text-muted-foreground">
-                      CRM · {dadosLead?.nome || "Negociação vinculada"}
-                    </p>
-                  </div>
-                  <Badge variant={vencido ? "destructive" : "outline"}>
-                    {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(atividade.agendado_para))}
-                  </Badge>
-                </Link>
+                <div key={atividade.id} className="flex items-center gap-2 py-3 sm:px-2">
+                  <Link
+                    to={`/comercial/crm?lead=${atividade.lead_id}&acao=abrir`}
+                    className="flex min-w-0 flex-1 flex-col gap-2 transition-colors hover:text-primary sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{atividade.descricao}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        CRM · {dadosLead?.nome || "Negociação vinculada"}
+                      </p>
+                    </div>
+                    <Badge variant={vencido ? "destructive" : "outline"} className="w-fit shrink-0">
+                      {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(atividade.agendado_para))}
+                    </Badge>
+                  </Link>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="shrink-0"
+                    title="Concluir pendência"
+                    aria-label={`Concluir: ${atividade.descricao}`}
+                    disabled={concluirAtividade.isPending}
+                    onClick={() => concluirAtividade.mutate(atividade.id)}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </div>
               );
             })}
             {followups.slice(0, Math.max(0, 8 - atividades.length)).map((followup) => {
