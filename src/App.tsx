@@ -45,7 +45,6 @@ const FichaAtendimentoPage = lazy(() => import("@/pages/clientes/FichaAtendiment
 const ProcessosList = lazy(() => import("@/pages/processos/ProcessosList"));
 const ProcessoForm = lazy(() => import("@/pages/processos/ProcessoForm"));
 const ProcessoDetalhe = lazy(() => import("@/pages/processos/ProcessoDetalhe"));
-const EmConstrucao = lazy(() => import("@/pages/EmConstrucao"));
 const Controladoria = lazy(() => import("@/pages/controladoria/Controladoria"));
 const ControladoriaPerformance = lazy(() => import("@/pages/controladoria/Performance"));
 const FluxosList = lazy(() => import("@/pages/fluxos/FluxosList"));
