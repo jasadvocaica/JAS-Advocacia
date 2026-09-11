@@ -590,37 +590,40 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
           )}
         </Card>
 
-        {/* Mapa do Brasil */}
+        {/* Mapa do Brasil — permanece visível mesmo antes do preenchimento das UFs */}
         <Card className="p-5 shadow-none xl:col-span-3">
-          <SectionTitle title="Clientes pelo Brasil" subtitle="Distribuição por UF" />
+          <SectionTitle
+            title="Clientes pelo Brasil"
+            subtitle={totalClientesUf > 0 ? `${totalClientesUf} clientes em ${estadoData.length} UFs` : "Distribuição por UF"}
+          />
+          <MapaBrasilClientes
+            dados={estadoData}
+            onSelectUf={(uf) => navigate(`/clientes?uf=${uf}`)}
+            className="mx-auto max-w-[320px]"
+          />
+          {clientesSemUf > 0 && (
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Clientes ainda sem UF cadastrada</span>
+              <strong>{clientesSemUf}</strong>
+            </div>
+          )}
           {estadoData.length === 0 ? (
-            <EmptyState message="Nenhum cliente com UF cadastrada." />
+            <p className="mt-4 rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
+              O mapa será colorido conforme as UFs forem preenchidas nos cadastros.
+            </p>
           ) : (
-            <>
-              <MapaBrasilClientes
-                dados={estadoData}
-                onSelectUf={(uf) => navigate(`/clientes?uf=${uf}`)}
-                className="mx-auto max-w-[320px]"
-              />
-              {clientesSemUf > 0 && (
-                <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs">
-                  <span className="text-muted-foreground">Clientes ainda sem UF cadastrada</span>
-                  <strong>{clientesSemUf}</strong>
-                </div>
-              )}
-              <div className="mt-4 space-y-2">
-                {estadoData.slice(0, 5).map((e) => {
-                  const pct = totalClientesUf > 0 ? Math.round((e.total / totalClientesUf) * 100) : 0;
-                  return (
-                    <div key={e.estado} className="flex items-center gap-2 text-xs">
-                      <MapPin className="h-3 w-3 shrink-0 text-champagne" />
-                      <span className="flex-1 truncate">{UF_NOMES[e.estado] ?? e.estado}</span>
-                      <span className="tabular-nums text-muted-foreground">{e.total} · {pct}%</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+            <div className="mt-4 space-y-2">
+              {estadoData.slice(0, 5).map((e) => {
+                const pct = totalClientesUf > 0 ? Math.round((e.total / totalClientesUf) * 100) : 0;
+                return (
+                  <div key={e.estado} className="flex items-center gap-2 text-xs">
+                    <MapPin className="h-3 w-3 shrink-0 text-primary" />
+                    <span className="flex-1 truncate">{UF_NOMES[e.estado] ?? e.estado}</span>
+                    <span className="tabular-nums text-muted-foreground">{e.total} · {pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </Card>
       </div>
