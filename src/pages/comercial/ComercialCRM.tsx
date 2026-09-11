@@ -1,5 +1,6 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { CalendarClock, Check, CircleDollarSign, ExternalLink, History, Pencil, Plus, Search, UserX, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +66,7 @@ const whatsappUrl = (telefone: string) => {
 export default function ComercialCRM() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [busca, setBusca] = useState("");
   const [formAberto, setFormAberto] = useState(false);
   const [form, setForm] = useState(formVazio);
@@ -126,6 +128,14 @@ export default function ComercialCRM() {
       return (data ?? []) as Lead[];
     },
   });
+
+  useEffect(() => {
+    const leadId = searchParams.get("lead");
+    const acao = searchParams.get("acao");
+    if (!leadId || acao !== "abrir") return;
+    const lead = leads.find((item) => item.id === leadId);
+    if (lead) setLeadAcao(lead);
+  }, [leads, searchParams]);
 
   const criarAtividade = useMutation({
     mutationFn: async () => {
@@ -336,6 +346,12 @@ export default function ComercialCRM() {
         if (!aberto) {
           setLeadAcao(null);
           setNovaAcao({ descricao: "", agendado_para: "" });
+          if (searchParams.has("lead") || searchParams.has("acao")) {
+            const proximos = new URLSearchParams(searchParams);
+            proximos.delete("lead");
+            proximos.delete("acao");
+            setSearchParams(proximos, { replace: true });
+          }
         }
       }}>
         <DialogContent className="sm:max-w-xl">
