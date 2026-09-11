@@ -40,7 +40,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { grupo: "Início", to: "/", label: "Visão geral", icon: LayoutDashboard },
+  { grupo: "Início", to: "/", label: "Painel inicial", icon: LayoutDashboard },
   { grupo: "Produção jurídica", to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
   { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
@@ -48,7 +48,7 @@ const NAV: NavItem[] = [
   { grupo: "Produção jurídica", to: "/fluxos", label: "Fluxos e POPs", icon: Workflow, modulo: "controladoria" },
   { grupo: "Produção jurídica", to: "/documentos", label: "Peças e documentos", icon: FileText, modulo: "documentos" },
   { grupo: "Produção jurídica", to: "/parceiros", label: "Parceiros", icon: Handshake, modulo: "parceiros" },
-  { grupo: "Comercial", to: "/comercial/visao-geral", label: "Visão geral", icon: BarChart3, modulo: "marketing" },
+  { grupo: "Comercial", to: "/comercial/visao-geral", label: "Visão comercial", icon: BarChart3, modulo: "marketing" },
   { grupo: "Comercial", to: "/comercial", label: "Conversas", icon: MessageCircle, modulo: "marketing" },
   { grupo: "Comercial", to: "/comercial/crm", label: "CRM", icon: Users, modulo: "marketing" },
   { grupo: "Comercial", to: "/comercial/automacoes", label: "Automações", icon: Workflow, modulo: "marketing" },
