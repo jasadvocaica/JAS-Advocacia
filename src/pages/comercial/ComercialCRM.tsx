@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleDollarSign, ExternalLink, History, Pencil, Plus, Search, UserX, Users } from "lucide-react";
+import { CalendarClock, Check, CircleDollarSign, ExternalLink, History, Pencil, Plus, Search, UserX, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,7 @@ type Lead = {
 type Campanha = { id: string; nome: string; status: string };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 type Historico = { id: string; evento: string; estado_anterior: Record<string, unknown> | null; estado_novo: Record<string, unknown>; alterado_por: string | null; criado_em: string };
+type Atividade = { id: string; lead_id: string; descricao: string; agendado_para: string; responsavel_id: string | null; status: "pendente" | "concluida" | "cancelada" };
 
 const COLUNAS = [
   ["novo", "Recepção"], ["em_atendimento", "Em atendimento"],
@@ -70,6 +71,21 @@ export default function ComercialCRM() {
   const [leadPerda, setLeadPerda] = useState<Lead | null>(null);
   const [leadHistorico, setLeadHistorico] = useState<Lead | null>(null);
   const [perda, setPerda] = useState({ motivo: "", observacao: "" });
+  const [leadAcao, setLeadAcao] = useState<Lead | null>(null);
+  const [novaAcao, setNovaAcao] = useState({ descricao: "", agendado_para: "" });
+
+  const { data: atividades = [] } = useQuery({
+    queryKey: ["mkt-lead-atividades-pendentes"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("mkt_lead_atividades")
+        .select("id,lead_id,descricao,agendado_para,responsavel_id,status")
+        .eq("status", "pendente")
+        .order("agendado_para", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Atividade[];
+    },
+  });
 
   const { data: campanhas = [] } = useQuery({
     queryKey: ["crm-campanhas-selecao"],
@@ -109,6 +125,50 @@ export default function ComercialCRM() {
       if (erro) throw erro;
       return (data ?? []) as Lead[];
     },
+  });
+
+  const criarAtividade = useMutation({
+    mutationFn: async () => {
+      if (!leadAcao || novaAcao.descricao.trim().length < 2 || !novaAcao.agendado_para) {
+        throw new Error("Informe a próxima ação e a data.");
+      }
+      const data = new Date(novaAcao.agendado_para);
+      if (Number.isNaN(data.getTime())) throw new Error("Data inválida.");
+      const { error } = await (supabase as any).from("mkt_lead_atividades").insert({
+        lead_id: leadAcao.id,
+        descricao: novaAcao.descricao.trim(),
+        agendado_para: data.toISOString(),
+        responsavel_id: leadAcao.responsavel_id || user?.id || null,
+        criado_por: user?.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      setNovaAcao({ descricao: "", agendado_para: "" });
+      await queryClient.invalidateQueries({ queryKey: ["mkt-lead-atividades-pendentes"] });
+      toast.success("Próxima ação agendada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível agendar a ação."),
+  });
+
+  const atualizarAtividade = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "concluida" | "cancelada" }) => {
+      const agora = new Date().toISOString();
+      const { error } = await (supabase as any).from("mkt_lead_atividades").update({
+        status,
+        concluido_em: status === "concluida" ? agora : null,
+        concluido_por: status === "concluida" ? user?.id : null,
+        cancelado_em: status === "cancelada" ? agora : null,
+        cancelado_por: status === "cancelada" ? user?.id : null,
+        atualizado_em: agora,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["mkt-lead-atividades-pendentes"] });
+      toast.success("Atividade comercial atualizada.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível atualizar a atividade."),
   });
 
   const salvarLead = useMutation({
@@ -204,6 +264,13 @@ export default function ComercialCRM() {
     if (!termo) return leads;
     return leads.filter((lead) => [lead.nome, lead.whatsapp, lead.email, lead.area_direito, lead.canal].some((v) => (v || "").toLowerCase().includes(termo)));
   }, [busca, leads]);
+  const proximaAtividade = useMemo(() => {
+    const mapa = new Map<string, Atividade>();
+    atividades.forEach((atividade) => {
+      if (!mapa.has(atividade.lead_id)) mapa.set(atividade.lead_id, atividade);
+    });
+    return mapa;
+  }, [atividades]);
   const total = useMemo(() => leads.reduce((s, lead) => s + Number(lead.valor_contrato || 0), 0), [leads]);
   const submit = (evento: FormEvent) => { evento.preventDefault(); salvarLead.mutate(); };
 
@@ -232,12 +299,25 @@ export default function ComercialCRM() {
                     <div>
                       <div className="flex items-start justify-between gap-2"><p className="font-semibold">{lead.nome}</p><div className="flex">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setLeadHistorico(lead)} aria-label="Ver histórico"><History className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setLeadAcao(lead)} aria-label="Agendar próxima ação"><CalendarClock className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => editar(lead)} aria-label="Editar atendimento"><Pencil className="h-3.5 w-3.5" /></Button>
                       </div></div>
                       <p className="mt-1 text-sm text-muted-foreground">{lead.area_direito || "Área não informada"}</p>
                       <p className="mt-2 text-xs text-muted-foreground">Origem: {lead.canal}</p>
                       {lead.whatsapp && <a className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline" href={whatsappUrl(lead.whatsapp)} target="_blank" rel="noreferrer">{lead.whatsapp}<ExternalLink className="h-3 w-3" /></a>}
                       {lead.valor_contrato != null && <p className="mt-2 font-medium text-primary">{moeda(Number(lead.valor_contrato))}</p>}
+                      {proximaAtividade.get(lead.id) && (() => {
+                        const atividade = proximaAtividade.get(lead.id)!;
+                        const vencida = new Date(atividade.agendado_para).getTime() < Date.now();
+                        return (
+                          <div className={`mt-3 rounded-md border p-2 text-xs ${vencida ? "border-destructive/30 bg-destructive/5" : "bg-muted/40"}`}>
+                            <p className="font-medium">{atividade.descricao}</p>
+                            <p className={vencida ? "mt-1 text-destructive" : "mt-1 text-muted-foreground"}>
+                              {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(atividade.agendado_para))}
+                            </p>
+                          </div>
+                        );
+                      })()}
                       {lead.status === "perdido" && lead.motivo_perda && <p className="mt-2 text-xs text-destructive">Motivo: {MOTIVOS_PERDA.find(([id]) => id === lead.motivo_perda)?.[1] || lead.motivo_perda}</p>}
                     </div>
                     <Select value={lead.status} onValueChange={(novoStatus) => mudarEtapa(lead, novoStatus)} disabled={alterarEtapa.isPending}>
@@ -251,6 +331,43 @@ export default function ComercialCRM() {
           );
         })}
       </div>
+
+      <Dialog open={!!leadAcao} onOpenChange={(aberto) => {
+        if (!aberto) {
+          setLeadAcao(null);
+          setNovaAcao({ descricao: "", agendado_para: "" });
+        }
+      }}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Próximas ações</DialogTitle>
+            <DialogDescription>{leadAcao?.nome} · compromissos comerciais registrados.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[260px] space-y-2 overflow-y-auto py-2">
+            {atividades.filter((atividade) => atividade.lead_id === leadAcao?.id).length === 0 ? (
+              <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Nenhuma ação pendente.</p>
+            ) : atividades.filter((atividade) => atividade.lead_id === leadAcao?.id).map((atividade) => (
+              <div key={atividade.id} className="flex items-start gap-2 rounded-lg border p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{atividade.descricao}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(atividade.agendado_para))}
+                  </p>
+                </div>
+                <Button size="icon" variant="outline" title="Concluir" disabled={atualizarAtividade.isPending} onClick={() => atualizarAtividade.mutate({ id: atividade.id, status: "concluida" })}><Check className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="Cancelar" disabled={atualizarAtividade.isPending} onClick={() => atualizarAtividade.mutate({ id: atividade.id, status: "cancelada" })}><X className="h-4 w-4" /></Button>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-3 border-t pt-4">
+            <Input value={novaAcao.descricao} maxLength={500} onChange={(e) => setNovaAcao((a) => ({ ...a, descricao: e.target.value }))} placeholder="Ex.: retornar com proposta revisada" />
+            <Input type="datetime-local" value={novaAcao.agendado_para} onChange={(e) => setNovaAcao((a) => ({ ...a, agendado_para: e.target.value }))} />
+            <Button disabled={criarAtividade.isPending || novaAcao.descricao.trim().length < 2 || !novaAcao.agendado_para} onClick={() => criarAtividade.mutate()}>
+              {criarAtividade.isPending ? "Agendando…" : "Agendar próxima ação"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={formAberto} onOpenChange={setFormAberto}>
         <DialogContent className="sm:max-w-2xl">
