@@ -819,44 +819,12 @@ export default function ComercialWhatsApp() {
       if (!conversa || conversa.cliente_id || conversa.lead_id) {
         throw new Error("Este contato já possui cadastro vinculado.");
       }
-      const telefoneNormalizado = conversa.telefone.replace(/\D/g, "");
-      const { data: existente, error: erroBusca } = await (supabase as any)
-        .from("mkt_leads")
-        .select("id")
-        .eq("whatsapp_normalizado", telefoneNormalizado)
-        .order("criado_em", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (erroBusca) throw erroBusca;
-
-      let leadId = existente?.id as string | undefined;
-      if (!leadId) {
-        const { data: criado, error: erroCriacao } = await (supabase as any)
-          .from("mkt_leads")
-          .insert({
-            nome: conversa.nome_contato || conversa.telefone,
-            whatsapp: conversa.telefone.startsWith("+") ? conversa.telefone : `+${telefoneNormalizado}`,
-            canal: "whatsapp_direto",
-            status: "novo",
-            responsavel_id: conversa.responsavel_id || user?.id || null,
-            registrado_por: user?.id || null,
-          })
-          .select("id")
-          .single();
-        if (erroCriacao) throw erroCriacao;
-        leadId = criado.id;
-      }
-
-      const { data: vinculada, error: erroVinculo } = await (supabase as any)
-        .from("whatsapp_conversas")
-        .update({ lead_id: leadId, atualizado_em: new Date().toISOString() })
-        .eq("id", conversa.id)
-        .is("lead_id", null)
-        .select("id")
-        .maybeSingle();
-      if (erroVinculo) throw erroVinculo;
-      if (!vinculada) throw new Error("A conversa foi vinculada por outra pessoa. Atualize a tela.");
-      return leadId;
+      const { data, error } = await (supabase as any).rpc("comercial_converter_conversa_em_lead", {
+        p_conversa_id: conversa.id,
+      });
+      if (error) throw error;
+      if (!data) throw new Error("A conversão não retornou o atendimento criado.");
+      return data as string;
     },
     onSuccess: async (leadId) => {
       await Promise.all([
