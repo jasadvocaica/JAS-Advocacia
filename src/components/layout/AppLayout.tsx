@@ -186,7 +186,7 @@ function SidebarContent({
               JA
             </div>
           ) : (
-            <BrandLogo variant="dark" size="h-44" />
+            <BrandLogo variant="light" size="h-16" />
           )}
         </div>
 
