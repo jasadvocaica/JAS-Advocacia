@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
-import { CalendarClock, Check, CircleDollarSign, ExternalLink, History, Pencil, Plus, Search, UserX, Users, X } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { CalendarClock, Check, CircleDollarSign, ExternalLink, History, MessageCircle, Pencil, Plus, Search, UserX, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +34,7 @@ type Campanha = { id: string; nome: string; status: string };
 type Responsavel = { user_id: string; nome: string; ativo: boolean; gestor: boolean };
 type Historico = { id: string; evento: string; estado_anterior: Record<string, unknown> | null; estado_novo: Record<string, unknown>; alterado_por: string | null; criado_em: string };
 type Atividade = { id: string; lead_id: string; descricao: string; agendado_para: string; responsavel_id: string | null; status: "pendente" | "concluida" | "cancelada" };
+type ConversaCRM = { id: string; lead_id: string | null; status: string };
 
 const COLUNAS = [
   ["novo", "Recepção"], ["em_atendimento", "Em atendimento"],
@@ -86,6 +87,19 @@ export default function ComercialCRM() {
         .order("agendado_para", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Atividade[];
+    },
+  });
+
+  const { data: conversas = [] } = useQuery({
+    queryKey: ["crm-conversas-vinculadas"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_conversas")
+        .select("id,lead_id,status")
+        .not("lead_id", "is", null)
+        .order("ultima_mensagem_em", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ConversaCRM[];
     },
   });
 
@@ -281,6 +295,13 @@ export default function ComercialCRM() {
     });
     return mapa;
   }, [atividades]);
+  const conversaPorLead = useMemo(() => {
+    const mapa = new Map<string, ConversaCRM>();
+    conversas.forEach((conversa) => {
+      if (conversa.lead_id && !mapa.has(conversa.lead_id)) mapa.set(conversa.lead_id, conversa);
+    });
+    return mapa;
+  }, [conversas]);
   const total = useMemo(() => leads.reduce((s, lead) => s + Number(lead.valor_contrato || 0), 0), [leads]);
   const submit = (evento: FormEvent) => { evento.preventDefault(); salvarLead.mutate(); };
 
@@ -314,7 +335,20 @@ export default function ComercialCRM() {
                       </div></div>
                       <p className="mt-1 text-sm text-muted-foreground">{lead.area_direito || "Área não informada"}</p>
                       <p className="mt-2 text-xs text-muted-foreground">Origem: {lead.canal}</p>
-                      {lead.whatsapp && <a className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline" href={whatsappUrl(lead.whatsapp)} target="_blank" rel="noreferrer">{lead.whatsapp}<ExternalLink className="h-3 w-3" /></a>}
+                      {lead.whatsapp && (() => {
+                        const conversa = conversaPorLead.get(lead.id);
+                        return conversa ? (
+                          <Link className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline" to={`/comercial?conversa=${conversa.id}`}>
+                            {lead.whatsapp}<MessageCircle className="h-3 w-3" />
+                            <span className="sr-only">Abrir conversa interna</span>
+                          </Link>
+                        ) : (
+                          <a className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline" href={whatsappUrl(lead.whatsapp)} target="_blank" rel="noreferrer">
+                            {lead.whatsapp}<ExternalLink className="h-3 w-3" />
+                            <span className="sr-only">Abrir WhatsApp Web externo</span>
+                          </a>
+                        );
+                      })()}
                       {lead.valor_contrato != null && <p className="mt-2 font-medium text-primary">{moeda(Number(lead.valor_contrato))}</p>}
                       {proximaAtividade.get(lead.id) && (() => {
                         const atividade = proximaAtividade.get(lead.id)!;
