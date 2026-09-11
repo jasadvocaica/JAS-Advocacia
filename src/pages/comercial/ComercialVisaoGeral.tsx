@@ -164,6 +164,33 @@ export default function ComercialVisaoGeral() {
     onError: (erro: Error) => toast.error(erro.message || "Não foi possível concluir a pendência."),
   });
 
+  const concluirFollowup = useMutation({
+    mutationFn: async (followupId: string) => {
+      if (!user?.id) throw new Error("Sessão não identificada.");
+      const agoraConclusao = new Date().toISOString();
+      const { data: concluido, error: erroConclusao } = await (supabase as any)
+        .from("whatsapp_conversa_followups")
+        .update({
+          status: "concluido",
+          concluido_por: user.id,
+          concluido_em: agoraConclusao,
+          atualizado_em: agoraConclusao,
+        })
+        .eq("id", followupId)
+        .eq("responsavel_id", user.id)
+        .eq("status", "pendente")
+        .select("id")
+        .maybeSingle();
+      if (erroConclusao) throw erroConclusao;
+      if (!concluido) throw new Error("O retorno já foi atualizado ou não está atribuído a você.");
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["comercial-visao-geral"] });
+      toast.success("Retorno concluído.");
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Não foi possível concluir o retorno."),
+  });
+
   const leads = data?.leads ?? [];
   const conversas = data?.conversas ?? [];
   const clientesAtivos = data?.clientesAtivos ?? 0;
@@ -381,21 +408,34 @@ export default function ComercialVisaoGeral() {
                 : followup.whatsapp_conversas;
               const vencido = new Date(followup.agendado_para).getTime() < agora;
               return (
-                <Link
-                  key={followup.id}
-                  to={`/comercial?conversa=${followup.conversa_id}`}
-                  className="flex flex-col gap-2 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-2"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{followup.descricao}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {dadosConversa?.nome_contato || dadosConversa?.telefone || "Conversa vinculada"}
-                    </p>
-                  </div>
-                  <Badge variant={vencido ? "destructive" : "outline"}>
-                    {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(followup.agendado_para))}
-                  </Badge>
-                </Link>
+                <div key={followup.id} className="flex items-center gap-2 py-3 sm:px-2">
+                  <Link
+                    to={`/comercial?conversa=${followup.conversa_id}`}
+                    className="flex min-w-0 flex-1 flex-col gap-2 transition-colors hover:text-primary sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{followup.descricao}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Conversa · {dadosConversa?.nome_contato || dadosConversa?.telefone || "Contato vinculado"}
+                      </p>
+                    </div>
+                    <Badge variant={vencido ? "destructive" : "outline"} className="w-fit shrink-0">
+                      {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(followup.agendado_para))}
+                    </Badge>
+                  </Link>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="shrink-0"
+                    title="Concluir retorno"
+                    aria-label={`Concluir retorno: ${followup.descricao}`}
+                    disabled={concluirFollowup.isPending}
+                    onClick={() => concluirFollowup.mutate(followup.id)}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </div>
               );
             })}
           </div>
