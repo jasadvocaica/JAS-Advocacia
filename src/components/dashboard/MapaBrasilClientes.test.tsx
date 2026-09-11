@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MapaBrasilClientes } from "./MapaBrasilClientes";
 
@@ -26,7 +26,7 @@ describe("MapaBrasilClientes", () => {
     const matoGrosso = screen.getByRole("button", {
       name: "Mato Grosso: 3 clientes",
     });
-    matoGrosso.click();
+    fireEvent.click(matoGrosso);
 
     expect(selecionar).toHaveBeenCalledWith("MT");
     expect(screen.getByText("3 em 1 UF")).toBeInTheDocument();
