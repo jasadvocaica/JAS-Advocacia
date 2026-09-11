@@ -47,6 +47,15 @@ type Conversa = {
   sla_primeira_resposta_limite_em: string | null;
 };
 
+type AtividadeCRM = {
+  id: string;
+  lead_id: string;
+  descricao: string;
+  agendado_para: string;
+  responsavel_id: string | null;
+  mkt_leads: { nome: string } | Array<{ nome: string }>;
+};
+
 const ETAPAS = [
   { label: "Recepção", status: "novo" },
   { label: "Em atendimento", status: "em_atendimento" },
@@ -68,7 +77,7 @@ export default function ComercialVisaoGeral() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["comercial-visao-geral", user?.id],
     queryFn: async () => {
-      const [leadsResult, conversasResult, clientesResult, fichasResult, followupsResult] = await Promise.all([
+      const [leadsResult, conversasResult, clientesResult, fichasResult, followupsResult, atividadesResult] = await Promise.all([
         (supabase as any)
           .from("mkt_leads")
           .select("id,nome,status,canal,valor_contrato,criado_em")
@@ -92,6 +101,15 @@ export default function ComercialVisaoGeral() {
               .order("agendado_para", { ascending: true })
               .limit(20)
           : Promise.resolve({ data: [], error: null }),
+        user?.id
+          ? (supabase as any)
+              .from("mkt_lead_atividades")
+              .select("id,lead_id,descricao,agendado_para,responsavel_id,mkt_leads!inner(nome)")
+              .eq("responsavel_id", user.id)
+              .eq("status", "pendente")
+              .order("agendado_para", { ascending: true })
+              .limit(20)
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (leadsResult.error) throw leadsResult.error;
@@ -99,6 +117,7 @@ export default function ComercialVisaoGeral() {
       if (clientesResult.error) throw clientesResult.error;
       if (fichasResult.error) throw fichasResult.error;
       if (followupsResult.error) throw followupsResult.error;
+      if (atividadesResult.error) throw atividadesResult.error;
 
       return {
         leads: (leadsResult.data ?? []) as Lead[],
@@ -108,6 +127,7 @@ export default function ComercialVisaoGeral() {
         fichasTotal: fichasResult.count ?? (fichasResult.data ?? []).length,
         fichasAbertas: (fichasResult.data ?? []).filter((ficha: any) => !ficha.convertido_em).length,
         followups: (followupsResult.data ?? []) as Followup[],
+        atividades: (atividadesResult.data ?? []) as AtividadeCRM[],
       };
     },
   });
@@ -119,8 +139,11 @@ export default function ComercialVisaoGeral() {
   const fichasTotal = data?.fichasTotal ?? 0;
   const fichasAbertas = data?.fichasAbertas ?? 0;
   const followups = data?.followups ?? [];
+  const atividades = data?.atividades ?? [];
   const agora = Date.now();
   const followupsVencidos = followups.filter((item) => new Date(item.agendado_para).getTime() < agora);
+  const atividadesVencidas = atividades.filter((item) => new Date(item.agendado_para).getTime() < agora);
+  const pendenciasVencidas = followupsVencidos.length + atividadesVencidas.length;
 
   const resumo = useMemo(() => {
     const totalValor = leads.reduce((soma, lead) => soma + Number(lead.valor_contrato || 0), 0);
@@ -208,8 +231,8 @@ export default function ComercialVisaoGeral() {
         <Metrica icon={FileCheck2} label="Convertidos" value={isLoading ? "…" : String(resumo.convertidos)} />
         <Metrica icon={CircleDollarSign} label="Valor informado" value={isLoading ? "…" : moeda(resumo.totalValor)} />
         <Metrica icon={MessageCircle} label="Mensagens não lidas" value={isLoading ? "…" : String(resumo.naoLidas)} />
-        <Metrica icon={CalendarClock} label="Meus retornos pendentes" value={isLoading ? "…" : String(followups.length)} />
-        <Metrica icon={AlertTriangle} label="Meus retornos vencidos" value={isLoading ? "…" : String(followupsVencidos.length)} />
+        <Metrica icon={CalendarClock} label="Minhas pendências" value={isLoading ? "…" : String(followups.length + atividades.length)} />
+        <Metrica icon={AlertTriangle} label="Minhas pendências vencidas" value={isLoading ? "…" : String(pendenciasVencidas)} />
         <Metrica icon={Timer} label="SLA aguardando resposta" value={isLoading ? "…" : String(resumo.slaPendentes.length)} />
         <Metrica icon={AlertTriangle} label="SLA vencido" value={isLoading ? "…" : String(resumo.slaVencidos.length)} />
         <Metrica
@@ -273,20 +296,41 @@ export default function ComercialVisaoGeral() {
           <div>
             <h2 className="font-display text-2xl">Precisa de mim agora</h2>
             <p className="text-sm text-muted-foreground">
-              Retornos explicitamente atribuídos a você, sem inferência de mensagens externas.
+              Retornos de conversas e próximas ações do CRM explicitamente atribuídos a você.
             </p>
           </div>
-          <Badge variant={followupsVencidos.length > 0 ? "destructive" : "secondary"}>
-            {followupsVencidos.length} vencido(s)
+          <Badge variant={pendenciasVencidas > 0 ? "destructive" : "secondary"}>
+            {pendenciasVencidas} vencido(s)
           </Badge>
         </div>
-        {followups.length === 0 ? (
+        {followups.length === 0 && atividades.length === 0 ? (
           <p className="mt-5 rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
-            Nenhum retorno pendente atribuído a você.
+            Nenhuma pendência atribuída a você.
           </p>
         ) : (
           <div className="mt-5 divide-y">
-            {followups.slice(0, 8).map((followup) => {
+            {atividades.slice(0, 8).map((atividade) => {
+              const dadosLead = Array.isArray(atividade.mkt_leads) ? atividade.mkt_leads[0] : atividade.mkt_leads;
+              const vencido = new Date(atividade.agendado_para).getTime() < agora;
+              return (
+                <Link
+                  key={atividade.id}
+                  to="/comercial/crm"
+                  className="flex flex-col gap-2 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{atividade.descricao}</p>
+                    <p className="text-xs text-muted-foreground">
+                      CRM · {dadosLead?.nome || "Negociação vinculada"}
+                    </p>
+                  </div>
+                  <Badge variant={vencido ? "destructive" : "outline"}>
+                    {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(atividade.agendado_para))}
+                  </Badge>
+                </Link>
+              );
+            })}
+            {followups.slice(0, Math.max(0, 8 - atividades.length)).map((followup) => {
               const dadosConversa = Array.isArray(followup.whatsapp_conversas)
                 ? followup.whatsapp_conversas[0]
                 : followup.whatsapp_conversas;
