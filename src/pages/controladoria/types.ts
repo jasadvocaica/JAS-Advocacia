@@ -144,6 +144,7 @@ export interface ControladoriaItem {
   id: string;
   titulo: string;
   descricao: string | null;
+  origem?: string | null;
   tipo: TipoItem;
   status: StatusItem;
   prioridade: Prioridade;

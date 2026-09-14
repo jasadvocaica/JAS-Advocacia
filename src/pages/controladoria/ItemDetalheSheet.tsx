@@ -17,6 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { formatDateTime } from "@/lib/format";
+import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import {
   ControladoriaItem, TIPO_LABELS, STATUS_LABELS, PRIORIDADE_LABELS,
   TIPO_CLASS, STATUS_CLASS, PRIORIDADE_CLASS, TIPOS_EVENTO, EVENTO_COR_HEADER,
@@ -257,7 +258,7 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
 
         <div>
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Descrição</p>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.descricao}</p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{item.origem === "pje_publicacao" ? textoLegivelPublicacao(item.descricao) : item.descricao}</p>
         </div>
       )}
 
@@ -515,7 +516,7 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                       </h2>
                     </div>
                     {item.descricao && (
-                      <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 pl-[26px]">{item.descricao}</p>
+                      <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 pl-[26px]">{item.origem === "pje_publicacao" ? textoLegivelPublicacao(item.descricao) : item.descricao}</p>
                     )}
                   </div>
                   {podeEditar && (
