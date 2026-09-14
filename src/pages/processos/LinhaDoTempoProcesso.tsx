@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatBRL, formatDateTime } from "@/lib/format";
+import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import { cn } from "@/lib/utils";
 
 type TipoEvento = "andamento" | "tarefa" | "peca" | "pagamento" | "fluxo";
@@ -132,13 +133,16 @@ export function LinhaDoTempoProcesso({ processoId }: Props) {
         const lista: EventoTimeline[] = [];
 
         (resAnd.data ?? []).forEach((a: any) => {
+          const descricao = a.fonte === "pje_comunica"
+            ? textoLegivelPublicacao(a.descricao)
+            : (a.descricao ?? "");
           lista.push({
             id: `and-${a.id}`,
             tipo: "andamento",
             data: a.data,
-            titulo: a.descricao?.split("\n")[0]?.slice(0, 140) || "Andamento",
-            descricao: a.descricao && a.descricao.length > 140 ? a.descricao.slice(140, 400) + "…" : null,
-            badge: a.fonte,
+            titulo: descricao.split("\n")[0]?.slice(0, 140) || "Andamento",
+            descricao: descricao.length > 140 ? descricao.slice(140, 400) + "…" : null,
+            badge: a.fonte === "pje_comunica" ? "DJEN" : a.fonte,
           });
         });
 

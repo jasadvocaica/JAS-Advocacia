@@ -28,6 +28,7 @@ import ChecklistDiligenciasTab from "./ChecklistDiligenciasTab";
 import ClienteVeTab from "./ClienteVeTab";
 import { LinhaDoTempoProcesso } from "./LinhaDoTempoProcesso";
 import { formatBRL, formatCNJ, formatDate, formatDateTime } from "@/lib/format";
+import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import { TRIBUNAIS } from "@/lib/datajud";
 import { toast } from "sonner";
 import { AplicarFluxoDialog } from "@/pages/fluxos/AplicarFluxoDialog";
@@ -121,7 +122,7 @@ export default function ProcessoDetalhe() {
   const [savingAnd, setSavingAnd] = useState(false);
   const [consultando, setConsultando] = useState(false);
   const [datajudErro, setDatajudErro] = useState<string | null>(null);
-  const [filtroFonte, setFiltroFonte] = useState<"todos" | "manual" | "datajud" | "tjmt_direto" | "pje_direto">("todos");
+  const [filtroFonte, setFiltroFonte] = useState<"todos" | "manual" | "datajud" | "tjmt_direto" | "pje_direto" | "pdpj_pdf" | "pje_comunica">("todos");
   const [sincronizandoTrib, setSincronizandoTrib] = useState(false);
   const [syncStage, setSyncStage] = useState<string | null>(null);
   const [ctrlItens, setCtrlItens] = useState<ControladoriaItem[]>([]);
@@ -520,8 +521,8 @@ export default function ProcessoDetalhe() {
             {ultimaMov ? (
               <>
                 <div className="text-[11px] font-medium leading-tight">{formatDate(ultimaMov.data)}</div>
-                <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2" title={ultimaMov.descricao}>
-                  {ultimaMov.descricao}
+                <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2" title={ultimaMov.fonte === "pje_comunica" ? textoLegivelPublicacao(ultimaMov.descricao) : ultimaMov.descricao}>
+                  {ultimaMov.fonte === "pje_comunica" ? textoLegivelPublicacao(ultimaMov.descricao) : ultimaMov.descricao}
                 </p>
               </>
             ) : (
@@ -665,6 +666,7 @@ export default function ProcessoDetalhe() {
                     <SelectItem value="datajud">Só DataJud</SelectItem>
                     <SelectItem value="tjmt_direto">Só TJMT direto</SelectItem>
                     <SelectItem value="pje_direto">Só PJe direto</SelectItem>
+                    <SelectItem value="pje_comunica">Só DJEN</SelectItem>
                     <SelectItem value="pdpj_pdf">Só PDPJ (PDF)</SelectItem>
                     <SelectItem value="manual">Só manuais</SelectItem>
                   </SelectContent>
@@ -821,6 +823,7 @@ export default function ProcessoDetalhe() {
                                 {a.fonte === "datajud" ? "DataJud" :
                                  a.fonte === "tjmt_direto" ? "TJMT direto" :
                                  a.fonte === "pje_direto" ? "PJe direto" :
+                                 a.fonte === "pje_comunica" ? "DJEN" :
                                  a.fonte === "pdpj_pdf" ? "PDPJ" : "Manual"}
                               </Badge>
                               {a.codigo_movimento && (
@@ -835,7 +838,7 @@ export default function ProcessoDetalhe() {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-sm whitespace-pre-wrap">{a.descricao}</p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{a.fonte === "pje_comunica" ? textoLegivelPublicacao(a.descricao) : a.descricao}</p>
                           </div>
                           {a.fonte === "manual" && hasPermission("processos", "excluir") && (
                             <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" onClick={() => handleDeleteAndamento(a.id)}>
