@@ -151,6 +151,7 @@ Deno.serve(async (request: Request) => {
     return json({ error: "Corpo inválido." }, 400);
   }
 
+  let eventoEmProcessamento: string | null = null;
   try {
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
@@ -189,19 +190,16 @@ Deno.serve(async (request: Request) => {
 
         for (const statusEvento of value.statuses ?? []) {
           const eventoId = `${statusEvento.id}:status:${statusEvento.status}`;
-          const { data: evento } = await db
-            .from("whatsapp_webhook_eventos")
-            .upsert({
-              provedor: "meta",
-              provedor_evento_id: eventoId,
-              tipo: "status_mensagem",
-              conexao_id: conexao?.id || null,
-              status: conexao ? "processando" : "ignorado",
-            }, { onConflict: "provedor,provedor_evento_id", ignoreDuplicates: true })
-            .select("id")
-            .maybeSingle();
+          const { data: eventoIdReivindicado, error: erroReivindicacao } = await db
+            .rpc("whatsapp_reivindicar_evento", {
+              _provedor_evento_id: eventoId,
+              _tipo: "status_mensagem",
+              _conexao_id: conexao?.id || null,
+            });
 
-          if (!evento || !conexao) continue;
+          if (erroReivindicacao) throw erroReivindicacao;
+          if (!eventoIdReivindicado || !conexao) continue;
+          eventoEmProcessamento = eventoIdReivindicado;
 
           const mapaStatus: Record<string, string> = {
             sent: "enviada",
@@ -228,7 +226,7 @@ Deno.serve(async (request: Request) => {
               (novoStatus === "falha" || (ordem[novoStatus] ?? 0) >= (ordem[mensagemAtual.status] ?? 0))
             ) {
               const erroMeta = statusEvento.errors?.[0] || null;
-              await db
+              const { error: erroStatus } = await db
                 .from("whatsapp_mensagens")
                 .update({
                   status: novoStatus,
@@ -239,35 +237,43 @@ Deno.serve(async (request: Request) => {
                     : null,
                 })
                 .eq("id", mensagemAtual.id);
+              if (erroStatus) throw erroStatus;
             }
           }
-          await db
+          const { data: concluido, error: erroConclusao } = await db
             .from("whatsapp_webhook_eventos")
             .update({ status: "processado", processado_em: new Date().toISOString() })
-            .eq("id", evento.id);
+            .eq("id", eventoIdReivindicado)
+            .eq("status", "processando")
+            .select("id")
+            .maybeSingle();
+          if (erroConclusao || !concluido) throw erroConclusao || new Error("Evento não concluído.");
+          eventoEmProcessamento = null;
         }
 
         const nomePerfil = value.contacts?.[0]?.profile?.name || null;
         for (const message of value.messages ?? []) {
-          const { data: evento } = await db
-            .from("whatsapp_webhook_eventos")
-            .upsert({
-              provedor: "meta",
-              provedor_evento_id: message.id,
-              tipo: "mensagem_recebida",
-              conexao_id: conexao?.id || null,
-              status: conexao ? "processando" : "ignorado",
-            }, { onConflict: "provedor,provedor_evento_id", ignoreDuplicates: true })
-            .select("id")
-            .maybeSingle();
+          const { data: eventoIdReivindicado, error: erroReivindicacao } = await db
+            .rpc("whatsapp_reivindicar_evento", {
+              _provedor_evento_id: message.id,
+              _tipo: "mensagem_recebida",
+              _conexao_id: conexao?.id || null,
+            });
 
-          if (!evento || !conexao) continue;
+          if (erroReivindicacao) throw erroReivindicacao;
+          if (!eventoIdReivindicado || !conexao) continue;
+          eventoEmProcessamento = eventoIdReivindicado;
 
           const telefone = normalizarNumero(message.from || "");
           if (!telefone) {
-            await db.from("whatsapp_webhook_eventos")
+            const { data: ignorado, error: erroIgnorar } = await db.from("whatsapp_webhook_eventos")
               .update({ status: "ignorado", processado_em: new Date().toISOString() })
-              .eq("id", evento.id);
+              .eq("id", eventoIdReivindicado)
+              .eq("status", "processando")
+              .select("id")
+              .maybeSingle();
+            if (erroIgnorar || !ignorado) throw erroIgnorar || new Error("Evento não ignorado.");
+            eventoEmProcessamento = null;
             continue;
           }
 
@@ -335,37 +341,59 @@ Deno.serve(async (request: Request) => {
 
           if (inserida.error) throw inserida.error;
 
+          // Em uma nova tentativa, a mensagem pode já ter sido gravada antes da falha.
+          let mensagemId = inserida.data?.id || null;
+          if (!mensagemId) {
+            const { data: existente, error: erroExistente } = await db
+              .from("whatsapp_mensagens")
+              .select("id")
+              .eq("provider_message_id", message.id)
+              .maybeSingle();
+            if (erroExistente || !existente) throw erroExistente || new Error("Mensagem não localizada.");
+            mensagemId = existente.id;
+          }
+
           const termoRevogacao = termoOptOut(conteudo);
-          if (termoRevogacao && inserida.data?.id) {
-            await db.from("whatsapp_conversas").update({
+          if (termoRevogacao) {
+            const { error: erroConversa } = await db.from("whatsapp_conversas").update({
               opt_out_em: ocorridaEm,
               opt_out_termo: termoRevogacao,
-              opt_out_mensagem_id: inserida.data.id,
+              opt_out_mensagem_id: mensagemId,
               atualizado_em: new Date().toISOString(),
             }).eq("id", conversa.id);
-            await db.from("whatsapp_contatos_bloqueados").upsert({
+            if (erroConversa) throw erroConversa;
+
+            const { error: erroBloqueio } = await db.from("whatsapp_contatos_bloqueados").upsert({
               telefone_normalizado: telefone,
               revogado_em: ocorridaEm,
               termo: termoRevogacao,
               conversa_origem_id: conversa.id,
-              mensagem_origem_id: inserida.data.id,
+              mensagem_origem_id: mensagemId,
               restaurado_em: null,
               restaurado_por: null,
               atualizado_em: new Date().toISOString(),
             }, { onConflict: "telefone_normalizado" });
-            await db.from("whatsapp_consentimento_eventos").insert({
+            if (erroBloqueio) throw erroBloqueio;
+
+            const { error: erroConsentimento } = await db.from("whatsapp_consentimento_eventos").insert({
               conversa_id: conversa.id,
               tipo: "revogado",
               origem: "mensagem_cliente",
               termo: termoRevogacao,
-              mensagem_id: inserida.data.id,
+              mensagem_id: mensagemId,
             });
+            if (erroConsentimento && erroConsentimento.code !== "23505") throw erroConsentimento;
           }
 
-          await db
+          const { data: concluido, error: erroConclusao } = await db
             .from("whatsapp_webhook_eventos")
-            .update({ status: "processado", tentativas: 1, processado_em: new Date().toISOString() })
-            .eq("id", evento.id);
+            .update({ status: "processado", processado_em: new Date().toISOString() })
+            .eq("id", eventoIdReivindicado)
+            .eq("status", "processando")
+            .select("id")
+            .maybeSingle();
+          if (erroConclusao || !concluido) throw erroConclusao || new Error("Evento não concluído.");
+          eventoEmProcessamento = null;
         }
 
         if (conexao) {
@@ -381,7 +409,18 @@ Deno.serve(async (request: Request) => {
 
     return json({ recebido: true });
   } catch (error) {
-    console.error("Falha sanitizada no webhook WhatsApp:", error instanceof Error ? error.message : "erro desconhecido");
+    if (eventoEmProcessamento) {
+      const { error: erroRegistro } = await db.from("whatsapp_webhook_eventos")
+        .update({
+          status: "erro",
+          erro: "Falha ao processar callback; aguardando nova tentativa.",
+          processado_em: new Date().toISOString(),
+        })
+        .eq("id", eventoEmProcessamento)
+        .eq("status", "processando");
+      if (erroRegistro) console.error("Falha ao registrar erro do webhook.");
+    }
+    console.error("Falha sanitizada no webhook WhatsApp:", error instanceof Error ? error.name : "erro desconhecido");
     return json({ error: "Falha ao processar evento." }, 500);
   }
 });
