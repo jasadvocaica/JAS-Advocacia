@@ -12,13 +12,21 @@ Deno.serve(async (request: Request) => {
   const adminKey = serviceKey();
   const authorization = request.headers.get("authorization") || "";
   if (!supabaseUrl || !adminKey) return resposta({ error: "Servidor não configurado." }, 503);
-  if (authorization !== `Bearer ${adminKey}`) return resposta({ error: "Não autorizado." }, 401);
+  const cronSecret = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!cronSecret) return resposta({ error: "Não autorizado." }, 401);
+
+  const db = createClient(supabaseUrl, adminKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: autorizado, error: erroAutorizacao } = await db.rpc(
+    "validar_whatsapp_automacoes_cron_secret",
+    { _secret: cronSecret },
+  );
+  if (erroAutorizacao || autorizado !== true) return resposta({ error: "Não autorizado." }, 401);
 
   const accessToken = Deno.env.get("META_WHATSAPP_ACCESS_TOKEN") || "";
   const graphVersion = Deno.env.get("META_WHATSAPP_GRAPH_VERSION") || "";
-  if (!accessToken || !graphVersion) return resposta({ error: "Credenciais oficiais não configuradas." }, 503);
-
-  const db = createClient(supabaseUrl, adminKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (!accessToken || !graphVersion) {
+    return resposta({ processadas: 0, canal: "aguardando_credenciais_oficiais" });
+  }
   const { data: fila, error: erroFila } = await db
     .from("mkt_automacao_execucoes")
     .select("id,automacao_id,lead_id,conversa_id,mkt_automacoes!inner(status,mensagem_template)")
