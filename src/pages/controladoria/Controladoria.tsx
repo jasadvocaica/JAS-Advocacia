@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search, Loader2, Calendar as CalendarIcon, LayoutGrid, List, AlertTriangle, Clock, Workflow, CalendarCheck, BarChart3, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { isToday, isTomorrow, isPast, isThisWeek, isWithinInterval, addDays, startOfDay } from "date-fns";
+import { isToday, isTomorrow, isBefore, isThisWeek, isWithinInterval, addDays, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -145,10 +145,10 @@ export default function Controladoria() {
         if (it.status === "concluido" || it.status === "cancelado") return false;
         const v = new Date(it.data_vencimento);
         const ok =
-          prazoParam === "atrasado" ? isPast(v) && !isToday(v)
+          prazoParam === "atrasado" ? isBefore(startOfDay(v), startOfDay(new Date()))
           : prazoParam === "hoje" ? isToday(v)
           : prazoParam === "amanha" ? isTomorrow(v)
-          : isThisWeek(v, { weekStartsOn: 1 }) && !isPast(v) && !isToday(v) && !isTomorrow(v);
+          : isThisWeek(v, { weekStartsOn: 1 }) && !isBefore(startOfDay(v), startOfDay(new Date())) && !isToday(v) && !isTomorrow(v);
         if (!ok) return false;
       }
       if (filtroResponsavel === "sem" && it.responsavel_id) return false;
@@ -174,7 +174,7 @@ export default function Controladoria() {
       if (it.status === "concluido" || it.status === "cancelado") return;
       total++;
       const v = new Date(it.data_vencimento);
-      if (isPast(v) && !isToday(v)) atrasados++;
+      if (isBefore(startOfDay(v), hoje)) atrasados++;
       else if (isToday(v)) hojeC++;
       else if (isWithinInterval(v, { start: hoje, end: em7 })) semana++;
     });
@@ -187,7 +187,7 @@ export default function Controladoria() {
     filtrados.forEach((it) => {
       if (it.status === "concluido") { g.concluidos.push(it); return; }
       const v = new Date(it.data_vencimento);
-      if (isPast(v) && !isToday(v)) g.atrasados.push(it);
+      if (isBefore(startOfDay(v), startOfDay(new Date()))) g.atrasados.push(it);
       else if (isToday(v)) g.hoje.push(it);
       else if (isTomorrow(v)) g.amanha.push(it);
       else if (isThisWeek(v, { weekStartsOn: 1 })) g.semana.push(it);

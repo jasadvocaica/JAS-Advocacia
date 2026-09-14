@@ -14,6 +14,7 @@ import { ArrowLeft, Save, Loader2, AlertCircle, RotateCcw, Sparkles, FileCheck2 
 import { Badge } from "@/components/ui/badge";
 import { formatCpfCnpj, formatPhone, formatCEP, onlyDigits, formatBRL } from "@/lib/format";
 import { isValidCpfCnpj } from "@/lib/cpf";
+import { parseValorMonetarioBR } from "@/lib/valor-monetario";
 import { buscarCep } from "@/lib/cep";
 import {
   ESTADOS_BR, ESTADO_CIVIL_OPTS, ESCOLARIDADE_OPTS, ORIGEM_OPTS, STATUS_OPTS,
@@ -222,7 +223,7 @@ export default function ClienteForm() {
 
   const idade = calcularIdade(form.nascimento);
   const rendaPC = (() => {
-    const r = parseFloat(form.renda_mensal.replace(",", ".")) || 0;
+    const r = parseValorMonetarioBR(form.renda_mensal) ?? 0;
     const m = parseInt(form.membros_familia) || 0;
     return m > 0 ? r / m : 0;
   })();
@@ -287,7 +288,17 @@ export default function ClienteForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (cpfErro) { toast.error(cpfErro); return; }
+    const documento = onlyDigits(form.cpf_cnpj);
+    if (!form.nome.trim()) { toast.error("Informe o nome ou razão social"); return; }
+    if (documento && (documento.length !== (form.tipo_pessoa === "fisica" ? 11 : 14) || !isValidCpfCnpj(documento))) {
+      toast.error(form.tipo_pessoa === "fisica" ? "CPF inválido" : "CNPJ inválido");
+      return;
+    }
+    const rendaMensal = parseValorMonetarioBR(form.renda_mensal);
+    if (form.renda_mensal.trim() && rendaMensal === null) {
+      toast.error("Informe uma renda mensal válida, por exemplo 1.234,56");
+      return;
+    }
     if (duplicados.length > 0) {
       toast.error("Este CPF/CNPJ já está cadastrado", { description: "Abra o cadastro existente para atualizar os dados." });
       return;
@@ -295,7 +306,7 @@ export default function ClienteForm() {
     setSaving(true);
 
     const payload: any = {
-      nome: form.nome,
+      nome: form.nome.trim(),
       nome_social: form.nome_social || null,
       cpf_cnpj: form.cpf_cnpj ? onlyDigits(form.cpf_cnpj) : null,
       tipo_pessoa: form.tipo_pessoa,
@@ -312,7 +323,7 @@ export default function ClienteForm() {
       profissao: form.profissao || null,
       cbo: form.cbo || null,
       ultimo_vinculo_emprego: form.ultimo_vinculo_emprego || null,
-      renda_mensal: form.renda_mensal ? parseFloat(form.renda_mensal.replace(",", ".")) : null,
+      renda_mensal: rendaMensal,
       membros_familia: parseInt(form.membros_familia) || 1,
       whatsapp: form.whatsapp ? onlyDigits(form.whatsapp) : null,
       telefone_adicional: form.telefone_adicional ? onlyDigits(form.telefone_adicional) : null,
@@ -349,10 +360,10 @@ export default function ClienteForm() {
       : await supabase.from("clientes").insert(payload).select("id").maybeSingle();
 
     setSaving(false);
-    if (error) {
-      const duplicado = error.code === "23505";
+    if (error || !saved?.id) {
+      const duplicado = error?.code === "23505";
       toast.error(duplicado ? "CPF/CNPJ já cadastrado" : "Erro ao salvar", {
-        description: duplicado ? "Use o cadastro existente para evitar duplicidade." : error.message,
+        description: duplicado ? "Use o cadastro existente para evitar duplicidade." : (error?.message ?? "A operação não retornou o cliente salvo. Verifique suas permissões e tente novamente."),
       });
       return;
     }
