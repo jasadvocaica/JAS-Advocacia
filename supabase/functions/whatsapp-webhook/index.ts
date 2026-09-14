@@ -369,10 +369,10 @@ Deno.serve(async (request: Request) => {
         }
 
         if (conexao) {
+          // Callback assinado comprova entrega do evento, não a homologação do canal.
+          // Somente whatsapp-homologar pode mudar o status para "conectado".
           await db.from("whatsapp_conexoes").update({
-            status: "conectado",
             ultima_sincronizacao_em: new Date().toISOString(),
-            erro_ultima_sincronizacao: null,
             atualizado_em: new Date().toISOString(),
           }).eq("id", conexao.id);
         }
