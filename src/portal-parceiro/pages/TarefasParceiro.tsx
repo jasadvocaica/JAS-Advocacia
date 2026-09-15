@@ -56,9 +56,10 @@ export default function TarefasParceiro() {
     if (novoStatus === "concluido" && ehFatal) {
       if (!confirm("Esta tarefa é um PRAZO FATAL. Confirmar conclusão?")) return;
     }
-    const updates: any = { status: novoStatus };
-    if (novoStatus === "concluido") updates.concluido_em = new Date().toISOString();
-    const { error } = await supabase.from("controladoria_itens").update(updates).eq("id", id);
+    const { error } = await supabase.rpc("controladoria_parceiro_definir_status", {
+      _item_id: id,
+      _status: novoStatus,
+    });
     if (error) { toast.error(error.message); return; }
     if (novoStatus === "concluido") {
       void registrarAcaoParceiro({
