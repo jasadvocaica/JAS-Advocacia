@@ -259,54 +259,40 @@ export default function ProcessoForm() {
       datajud_ativo: datajudPodeUsar ? form.datajud_ativo : false,
     };
 
-    let processoId = id;
-    if (isEdit) {
-      const { error } = await comRetry(async () =>
-        await supabase.from("processos").update(payload).eq("id", id!).select("id").single(),
-      );
-      if (error) {
-        setSaving(false);
-        return toast.error(error.code === "23505" ? "Número CNJ já cadastrado" : "Erro ao salvar", {
-          description: error.code === "23505" ? "Use o processo existente para evitar duplicidade." : error.message,
-        });
-      }
-    } else {
-      payload.criado_por = user?.id;
-      const { data, error } = await comRetry(async () =>
-        await supabase.from("processos").insert(payload).select("id").single(),
-      );
-      if (error) {
-        setSaving(false);
-        return toast.error(error.code === "23505" ? "Número CNJ já cadastrado" : "Erro ao criar", {
-          description: error.code === "23505" ? "Use o processo existente para evitar duplicidade." : error.message,
-        });
-      }
-      processoId = data.id;
-    }
+    const partesValidas = partes
+      .filter((parte) => parte.nome.trim())
+      .map((parte) => ({
+        tipo: parte.tipo,
+        nome: parte.nome.trim(),
+        cpf_cnpj: parte.cpf_cnpj || null,
+        advogado_nome: parte.advogado_nome.trim() || null,
+        advogado_oab: parte.advogado_oab.trim() || null,
+      }));
 
-    // Sincronizar partes (manuais — preserva as importadas via DataJud apenas para edição existente)
-    if (processoId) {
-      // Apaga as manuais e reinserir; mantém origem datajud
-      await supabase.from("processo_partes").delete().eq("processo_id", processoId).eq("origem", "manual");
-      const validas = partes.filter((p) => p.nome.trim());
-      if (validas.length > 0) {
-        const rows = validas.map((p) => ({
-          processo_id: processoId,
-          tipo: p.tipo,
-          nome: p.nome.trim(),
-          cpf_cnpj: p.cpf_cnpj || null,
-          advogado_nome: p.advogado_nome || null,
-          advogado_oab: p.advogado_oab || null,
-          origem: "manual" as const,
-        }));
-        const { error: pErr } = await supabase.from("processo_partes").insert(rows);
-        if (pErr) toast.error("Erro ao salvar partes", { description: pErr.message });
-      }
-    }
+    const { data: processoId, error } = await comRetry(async () =>
+      await supabase.rpc("salvar_processo_com_partes", {
+        _processo_id: id ?? null,
+        _processo: payload,
+        _partes: partesValidas,
+      }),
+    );
 
     setSaving(false);
+    if (error || !processoId) {
+      const duplicado = error?.code === "23505";
+      toast.error(
+        duplicado ? "Número CNJ já cadastrado" : (isEdit ? "Erro ao salvar processo" : "Erro ao criar processo"),
+        {
+          description: duplicado
+            ? "Use o processo existente para evitar duplicidade."
+            : (error?.message ?? "O processo e suas partes não foram salvos."),
+        },
+      );
+      return;
+    }
+
     clearDraft();
-    toast.success(isEdit ? "Processo atualizado" : "Processo cadastrado");
+    toast.success(isEdit ? "Processo e partes atualizados" : "Processo e partes cadastrados");
     navigate(`/processos/${processoId}`);
   };
 
