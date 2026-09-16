@@ -20,6 +20,8 @@ import {
   cepBrasileiroOpcionalValido,
   erroResponsavelLegal,
   telefoneBrasileiroOpcionalValido,
+  temContatoPrincipal,
+  normalizarNomeCliente,
 } from "@/lib/validacoes-cadastro-cliente";
 import {
   ESTADOS_BR, ESTADO_CIVIL_OPTS, ESCOLARIDADE_OPTS, ORIGEM_OPTS, STATUS_OPTS,
@@ -39,6 +41,8 @@ export default function ClienteForm() {
   const [advogados, setAdvogados] = useState<Profile[]>([]);
   const [cpfErro, setCpfErro] = useState<string | null>(null);
   const [duplicados, setDuplicados] = useState<Array<{ id: string; nome: string; cpf_cnpj: string | null; whatsapp: string | null; status: string }>>([]);
+  const [homonimos, setHomonimos] = useState<Array<{ id: string; nome: string; cpf_cnpj: string | null; status: string }>>([]);
+  const [confirmouHomonimo, setConfirmouHomonimo] = useState(false);
   const [rascunhoRestaurado, setRascunhoRestaurado] = useState(false);
   const [rascunhoSalvoEm, setRascunhoSalvoEm] = useState<Date | null>(null);
 
@@ -226,6 +230,28 @@ export default function ClienteForm() {
     return () => clearTimeout(t);
   }, [form.cpf_cnpj, id]);
 
+  // Homônimos não são unificados: apenas exigem conferência explícita em novos cadastros.
+  useEffect(() => {
+    const nome = form.nome.trim();
+    setConfirmouHomonimo(false);
+    if (nome.length < 5) { setHomonimos([]); return; }
+    const primeiroTermo = nome.split(/\s+/)[0].replace(/[%_,]/g, "");
+    if (!primeiroTermo) { setHomonimos([]); return; }
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("clientes")
+        .select("id, nome, cpf_cnpj, status")
+        .ilike("nome", `${primeiroTermo}%`)
+        .limit(30);
+      const nomeNormalizado = normalizarNomeCliente(nome);
+      const lista = ((data ?? []) as any[]).filter(
+        (cliente) => cliente.id !== id && normalizarNomeCliente(cliente.nome ?? "") === nomeNormalizado,
+      );
+      setHomonimos(lista);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.nome, id]);
+
   const idade = calcularIdade(form.nascimento);
   const rendaPC = (() => {
     const r = parseValorMonetarioBR(form.renda_mensal) ?? 0;
@@ -324,8 +350,16 @@ export default function ClienteForm() {
       toast.error("Informe uma renda mensal válida, por exemplo 1.234,56");
       return;
     }
+    if (!isEdit && form.status === "ativo" && !temContatoPrincipal(form.whatsapp, form.email)) {
+      toast.error("Informe ao menos um contato do cliente", { description: "Preencha o WhatsApp ou o e-mail antes de ativar o cadastro." });
+      return;
+    }
     if (duplicados.length > 0) {
       toast.error("Este CPF/CNPJ já está cadastrado", { description: "Abra o cadastro existente para atualizar os dados." });
+      return;
+    }
+    if (!isEdit && homonimos.length > 0 && !confirmouHomonimo) {
+      toast.error("Confirme o possível homônimo", { description: "Confira os cadastros encontrados antes de criar um novo cliente." });
       return;
     }
     setSaving(true);
@@ -447,6 +481,28 @@ export default function ClienteForm() {
           <div className="sm:col-span-4 space-y-2">
             <Label>Nome / Razão social *</Label>
             <Input required value={form.nome} onChange={(e) => update({ nome: e.target.value })} />
+            {!isEdit && homonimos.length > 0 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs space-y-2">
+                <p className="font-semibold text-amber-700 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Encontramos {homonimos.length === 1 ? "um cadastro com o mesmo nome" : `${homonimos.length} cadastros com o mesmo nome`}
+                </p>
+                {homonimos.map((cliente) => (
+                  <div key={cliente.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{cliente.nome} <span className="text-muted-foreground">({cliente.status})</span></span>
+                    <a href={`/clientes/${cliente.id}`} target="_blank" rel="noreferrer" className="text-primary underline shrink-0">conferir</a>
+                  </div>
+                ))}
+                <label className="flex items-start gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={confirmouHomonimo}
+                    onChange={(e) => setConfirmouHomonimo(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>Conferi os registros e esta é uma pessoa diferente.</span>
+                </label>
+              </div>
+            )}
           </div>
           {isFisica && (
             <div className="sm:col-span-3 space-y-2">
@@ -687,7 +743,7 @@ export default function ClienteForm() {
         <h3 className="font-display text-xl">Contato</h3>
         <div className="grid sm:grid-cols-6 gap-4">
           <div className="sm:col-span-2 space-y-2">
-            <Label>WhatsApp</Label>
+            <Label>WhatsApp {!isEdit && form.status === "ativo" ? "(WhatsApp ou e-mail obrigatório)" : ""}</Label>
             <Input value={formatPhone(form.whatsapp)} onChange={(e) => update({ whatsapp: e.target.value })} placeholder="(00) 00000-0000" />
           </div>
           <div className="sm:col-span-2 space-y-2">
@@ -695,7 +751,7 @@ export default function ClienteForm() {
             <Input value={formatPhone(form.telefone_adicional)} onChange={(e) => update({ telefone_adicional: e.target.value })} />
           </div>
           <div className="sm:col-span-2 space-y-2">
-            <Label>E-mail</Label>
+            <Label>E-mail {!isEdit && form.status === "ativo" ? "(WhatsApp ou e-mail obrigatório)" : ""}</Label>
             <Input type="email" value={form.email} onChange={(e) => update({ email: e.target.value })} />
           </div>
 
