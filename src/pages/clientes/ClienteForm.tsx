@@ -371,26 +371,7 @@ export default function ClienteForm() {
     try { localStorage.removeItem(rascunhoKey); } catch { /* ignore */ }
     toast.success(isEdit ? "Cliente atualizado" : "Cliente cadastrado");
 
-    // Ativação automática do portal: para novos clientes PF ativos com CPF válido (11 dígitos).
-    // Falha silenciosa — o portal pode ser ativado manualmente em /clientes/:id depois.
-    const cpfDigits = onlyDigits(form.cpf_cnpj);
-    if (!isEdit && saved?.id && form.tipo_pessoa === "fisica" && form.status === "ativo" && cpfDigits.length === 11) {
-      try {
-        const { data: ativ, error: ativErr } = await supabase.functions.invoke("ativar-portal-cliente", {
-          body: { cliente_ids: [saved.id] },
-        });
-        const r = (ativ as any)?.resultados?.[0];
-        if (ativErr) {
-          toast.message("Portal do cliente não ativado", { description: ativErr.message });
-        } else if (r?.status === "ativado") {
-          toast.success("Portal do cliente ativado", { description: `${r.email} • senha: ${r.senha}` });
-        }
-      } catch (e) {
-        // não bloqueia o fluxo
-        console.warn("ativar-portal-cliente falhou:", e);
-      }
-    }
-
+    // O portal é ativado somente pela ação explícita na ficha do cliente, após a conferência dos dados.
     navigate(`/clientes/${saved?.id ?? id}`);
   }
 
