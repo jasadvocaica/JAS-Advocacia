@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, Search, Loader2, Calendar as CalendarIcon, LayoutGrid, List, AlertTriangle, Clock, Workflow, CalendarCheck, BarChart3, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { Plus, Search, Loader2, Calendar as CalendarIcon, LayoutGrid, List, AlertTriangle, Clock, Workflow, CalendarCheck, BarChart3, ChevronDown, ChevronRight, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { isToday, isTomorrow, isBefore, isThisWeek, isWithinInterval, addDays, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -499,6 +499,22 @@ function ItemRow({ item, onClick, onAcaoBia, currentUserId, onDelete, podeExclui
   const venc = new Date(item.data_vencimento);
   const atrasado = isPast(venc) && !isToday(venc) && item.status !== "concluido";
   const isMine = !!currentUserId && item.responsavel_id === currentUserId;
+  const [reagendandoAgenda, setReagendandoAgenda] = useState(false);
+
+  async function reagendarAgenda(e: React.MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation();
+    if (reagendandoAgenda) return;
+    setReagendandoAgenda(true);
+    const { error } = await supabase.rpc("reagendar_sync_google_calendar", { _item_id: item.id });
+    setReagendandoAgenda(false);
+    if (error) {
+      toast.error("Não foi possível reagendar o Google Calendar", { description: error.message });
+      return;
+    }
+    toast.success("Sincronização com a agenda reagendada");
+    window.setTimeout(onAcaoBia, 1800);
+  }
+
   return (
     <div
       role="button"
@@ -545,11 +561,28 @@ function ItemRow({ item, onClick, onAcaoBia, currentUserId, onDelete, podeExclui
           {item.responsavel?.nome && <span>· {item.responsavel.nome.split(" ")[0]}</span>}
           {item.cliente && <span>· {item.cliente.nome}</span>}
           {item.processo?.numero_cnj && <span>· {item.processo.numero_cnj}</span>}
-          {item.google_evento?.google_event_id && (
+          {item.google_evento?.google_event_id ? (
             <span className="inline-flex items-center gap-1 text-success" title={`Sincronizado com Google Calendar em ${new Date(item.google_evento.ultimo_sync).toLocaleString("pt-BR")}`}>
-              <CalendarCheck className="w-3 h-3" /> Agenda
+              <CalendarCheck className="w-3 h-3" /> Agenda sincronizada
             </span>
-          )}
+          ) : item.google_evento?.ultimo_erro ? (
+            <span className="inline-flex items-center gap-1 text-destructive" title={item.google_evento.ultimo_erro}>
+              <AlertTriangle className="w-3 h-3" /> Erro na agenda
+              <button
+                type="button"
+                onClick={reagendarAgenda}
+                disabled={reagendandoAgenda}
+                className="inline-flex items-center gap-1 underline underline-offset-2 disabled:opacity-50"
+              >
+                <RefreshCw className={cn("w-3 h-3", reagendandoAgenda && "animate-spin")} />
+                Tentar novamente
+              </button>
+            </span>
+          ) : item.status !== "concluido" && item.status !== "cancelado" ? (
+            <span className="inline-flex items-center gap-1 text-warning" title="Aguardando retorno da integração com o Google Calendar">
+              <Clock className="w-3 h-3" /> Agenda pendente
+            </span>
+          ) : null}
         </div>
       </div>
       <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
