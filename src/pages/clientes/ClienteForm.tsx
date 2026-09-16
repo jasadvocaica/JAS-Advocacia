@@ -17,6 +17,11 @@ import { isValidCpfCnpj } from "@/lib/cpf";
 import { parseValorMonetarioBR } from "@/lib/valor-monetario";
 import { buscarCep } from "@/lib/cep";
 import {
+  cepBrasileiroOpcionalValido,
+  erroResponsavelLegal,
+  telefoneBrasileiroOpcionalValido,
+} from "@/lib/validacoes-cadastro-cliente";
+import {
   ESTADOS_BR, ESTADO_CIVIL_OPTS, ESCOLARIDADE_OPTS, ORIGEM_OPTS, STATUS_OPTS,
   calcularIdade, SALARIO_MINIMO_2025,
 } from "./types";
@@ -294,6 +299,26 @@ export default function ClienteForm() {
       toast.error(form.tipo_pessoa === "fisica" ? "CPF inválido" : "CNPJ inválido");
       return;
     }
+    const contatos = [
+      ["WhatsApp", form.whatsapp],
+      ["telefone adicional", form.telefone_adicional],
+      ["telefone de emergência", form.contato_emergencia_telefone],
+      ["telefone do responsável legal", form.responsavel_legal_telefone],
+    ] as const;
+    const contatoInvalido = contatos.find(([, valor]) => !telefoneBrasileiroOpcionalValido(valor));
+    if (contatoInvalido) {
+      toast.error(`Informe um ${contatoInvalido[0]} válido, com DDD`);
+      return;
+    }
+    if (!cepBrasileiroOpcionalValido(form.cep)) {
+      toast.error("Informe um CEP válido com 8 dígitos");
+      return;
+    }
+    const erroDoResponsavel = erroResponsavelLegal(idade, form.responsavel_legal_nome, form.responsavel_legal_cpf);
+    if (erroDoResponsavel) {
+      toast.error(erroDoResponsavel);
+      return;
+    }
     const rendaMensal = parseValorMonetarioBR(form.renda_mensal);
     if (form.renda_mensal.trim() && rendaMensal === null) {
       toast.error("Informe uma renda mensal válida, por exemplo 1.234,56");
@@ -307,7 +332,7 @@ export default function ClienteForm() {
 
     const payload: any = {
       nome: form.nome.trim(),
-      nome_social: form.nome_social || null,
+      nome_social: form.nome_social.trim() || null,
       cpf_cnpj: form.cpf_cnpj ? onlyDigits(form.cpf_cnpj) : null,
       tipo_pessoa: form.tipo_pessoa,
       nascimento: form.nascimento || null,
@@ -329,7 +354,7 @@ export default function ClienteForm() {
       telefone_adicional: form.telefone_adicional ? onlyDigits(form.telefone_adicional) : null,
       // Mantém retrocompatibilidade com o campo array existente
       telefones: [form.whatsapp, form.telefone_adicional].filter(Boolean).map(onlyDigits),
-      email: form.email || null,
+      email: form.email.trim().toLowerCase() || null,
       cep: form.cep ? onlyDigits(form.cep) : null,
       endereco: form.endereco || null,
       numero: form.numero || null,
@@ -340,7 +365,7 @@ export default function ClienteForm() {
       contato_emergencia_nome: form.contato_emergencia_nome || null,
       contato_emergencia_parentesco: form.contato_emergencia_parentesco || null,
       contato_emergencia_telefone: form.contato_emergencia_telefone ? onlyDigits(form.contato_emergencia_telefone) : null,
-      responsavel_legal_nome: form.responsavel_legal_nome || null,
+      responsavel_legal_nome: form.responsavel_legal_nome.trim() || null,
       responsavel_legal_cpf: form.responsavel_legal_cpf ? onlyDigits(form.responsavel_legal_cpf) : null,
       responsavel_legal_parentesco: form.responsavel_legal_parentesco || null,
       responsavel_legal_telefone: form.responsavel_legal_telefone ? onlyDigits(form.responsavel_legal_telefone) : null,
