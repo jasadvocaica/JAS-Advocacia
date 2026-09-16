@@ -151,6 +151,12 @@ export interface ControladoriaItem {
   data_vencimento: string;
   data_inicio: string | null;
   data_intimacao: string | null;
+  data_prazo_judicial?: string | null;
+  data_prazo_interno?: string | null;
+  antecedencia_interna_dias?: number;
+  prazo_conferido?: boolean;
+  prazo_conferido_por?: string | null;
+  prazo_conferido_em?: string | null;
   cliente_id: string | null;
   processo_id: string | null;
   tipo_prazo_id: string | null;
