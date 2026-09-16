@@ -24,3 +24,16 @@ export function erroResponsavelLegal(
   }
   return null;
 }
+
+export function temContatoPrincipal(whatsapp: string, email: string): boolean {
+  return onlyDigits(whatsapp).length > 0 || email.trim().length > 0;
+}
+
+export function normalizarNomeCliente(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
