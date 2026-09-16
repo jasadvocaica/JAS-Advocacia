@@ -12,13 +12,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Loader2, Merge, ShieldAlert, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { formatCpfCnpj } from "@/lib/format";
+import { formatCpfCnpj, onlyDigits } from "@/lib/format";
+import { normalizarNomeCliente } from "@/lib/validacoes-cadastro-cliente";
 
 interface Dup {
   id: string;
   nome: string;
   cpf_cnpj: string | null;
-  doc_norm: string;
+  doc_norm?: string;
   whatsapp: string | null;
   email: string | null;
   criado_em: string;
@@ -42,15 +43,41 @@ export default function ClientesDuplicados() {
   async function carregar() {
     setLoading(true);
     const { data, error } = await supabase
-      .from("v_clientes_duplicados" as any)
-      .select("*")
-      .returns<Dup[]>();
-    if (error) toast.error("Erro ao listar duplicados");
-    const map: Record<string, Dup[]> = {};
-    (data ?? []).forEach((d) => {
-      map[d.doc_norm] = map[d.doc_norm] ?? [];
-      map[d.doc_norm].push(d);
+      .from("clientes")
+      .select("id, nome, cpf_cnpj, whatsapp, email, criado_em, ativo")
+      .order("criado_em", { ascending: true });
+    if (error) {
+      toast.error("Erro ao listar possíveis duplicidades");
+      setLoading(false);
+      return;
+    }
+
+    const porDocumento: Record<string, Dup[]> = {};
+    const porNome: Record<string, Dup[]> = {};
+
+    ((data ?? []) as any[]).forEach((cliente) => {
+      const item = cliente as Dup;
+      const documento = onlyDigits(cliente.cpf_cnpj ?? "");
+      const nome = normalizarNomeCliente(cliente.nome ?? "");
+
+      if (documento) {
+        porDocumento[documento] = porDocumento[documento] ?? [];
+        porDocumento[documento].push({ ...item, doc_norm: documento });
+      }
+      if (nome) {
+        porNome[nome] = porNome[nome] ?? [];
+        porNome[nome].push(item);
+      }
     });
+
+    const map: Record<string, Dup[]> = {};
+    Object.entries(porDocumento).forEach(([documento, lista]) => {
+      if (lista.length > 1) map[`documento:${documento}`] = lista;
+    });
+    Object.entries(porNome).forEach(([nome, lista]) => {
+      if (lista.length > 1) map[`nome:${nome}`] = lista;
+    });
+
     setGrupos(map);
     setLoading(false);
   }
@@ -58,7 +85,7 @@ export default function ClientesDuplicados() {
   useEffect(() => { carregar(); }, []);
 
   async function unificar(a: Dup, b: Dup) {
-    setUnificando(a.doc_norm);
+    setUnificando(a.doc_norm ?? a.id);
     const { error } = await supabase.rpc("unificar_clientes", { _id_a: a.id, _id_b: b.id });
     setUnificando(null);
     setConfirma(null);
@@ -88,7 +115,7 @@ export default function ClientesDuplicados() {
     <div className="space-y-6">
       <PageHeader
         title="Clientes duplicados"
-        description={loading ? "Carregando..." : `${totalGrupos} documento${totalGrupos !== 1 ? "s" : ""} com cadastros repetidos`}
+        description={loading ? "Carregando..." : `${totalGrupos} grupo${totalGrupos !== 1 ? "s" : ""} para conferência`}
       >
         <Button variant="outline" asChild>
           <Link to="/clientes"><ArrowLeft className="w-4 h-4" /> Voltar</Link>
@@ -98,15 +125,22 @@ export default function ClientesDuplicados() {
       {loading ? (
         <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
       ) : totalGrupos === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground">Nenhum CPF/CNPJ duplicado encontrado.</Card>
+        <Card className="p-8 text-center text-muted-foreground">Nenhum documento repetido ou homônimo exato encontrado.</Card>
       ) : (
         <div className="space-y-4">
-          {Object.entries(grupos).map(([doc, lista]) => (
-            <Card key={doc} className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Documento</p>
-                  <p className="font-mono font-semibold">{formatCpfCnpj(doc)}</p>
+          {Object.entries(grupos).map(([chave, lista]) => {
+            const [criterio, valor] = chave.split(":", 2);
+            const documentoDuplicado = criterio === "documento";
+            return (
+            <Card key={chave} className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    {documentoDuplicado ? "CPF/CNPJ repetido" : "Mesmo nome — possível homônimo"}
+                  </p>
+                  <p className={documentoDuplicado ? "font-mono font-semibold" : "font-semibold truncate"}>
+                    {documentoDuplicado ? formatCpfCnpj(valor) : lista[0]?.nome}
+                  </p>
                 </div>
                 <Badge variant="outline">{lista.length} cadastros</Badge>
               </div>
@@ -127,24 +161,30 @@ export default function ClientesDuplicados() {
                   </div>
                 ))}
               </div>
-              {lista.length === 2 && (
+              {documentoDuplicado && lista.length === 2 && (
                 <div className="flex justify-end">
                   <Button
                     variant="gold"
                     size="sm"
-                    disabled={unificando === doc}
+                    disabled={unificando === valor}
                     onClick={() => setConfirma({ a: lista[0], b: lista[1] })}
                   >
-                    {unificando === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Merge className="w-4 h-4" />}
+                    {unificando === valor ? <Loader2 className="w-4 h-4 animate-spin" /> : <Merge className="w-4 h-4" />}
                     Unificar os 2
                   </Button>
                 </div>
               )}
-              {lista.length > 2 && (
-                <p className="text-xs text-muted-foreground">3+ cadastros: unifique de 2 em 2 (use o botão "Unificar com outro" no detalhe do cliente).</p>
+              {documentoDuplicado && lista.length > 2 && (
+                <p className="text-xs text-muted-foreground">3+ cadastros com o mesmo documento: confira cada ficha antes de unificar de 2 em 2.</p>
+              )}
+              {!documentoDuplicado && (
+                <p className="text-xs text-amber-700">
+                  Nomes iguais não comprovam duplicidade. Abra as fichas e confira CPF, contato, processos e documentos; nenhuma unificação é executada automaticamente.
+                </p>
               )}
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
