@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Save, Wifi, WifiOff, Plus, Trash2, Users } from "lucide-react";
 import { formatCNJ, onlyDigits } from "@/lib/format";
+import { parseValorMonetarioBR } from "@/lib/valor-monetario";
 import { TRIBUNAIS, derivarTribunalDoCNJ, validarCNJ, tribunalSuportado } from "@/lib/datajud";
 import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
@@ -221,6 +222,12 @@ export default function ProcessoForm() {
         return;
       }
     }
+    const valorCausa = parseValorMonetarioBR(form.valor_causa);
+    if (form.valor_causa.trim() && valorCausa === null) {
+      toast.error("Informe um valor da causa válido", { description: "Use, por exemplo, 1.234,56." });
+      return;
+    }
+
     setSaving(true);
     const tribunalInfo = form.tribunal_sigla ? TRIBUNAIS[form.tribunal_sigla] : null;
     const datajudPodeUsar = form.tipo === "judicial" && tribunalSuportado(form.tribunal_sigla);
@@ -244,7 +251,7 @@ export default function ProcessoForm() {
       vara: form.vara || null,
       comarca: form.comarca || null,
       juiz: form.juiz || null,
-      valor_causa: form.valor_causa ? parseFloat(form.valor_causa) : null,
+      valor_causa: valorCausa,
       data_distribuicao: form.data_distribuicao || null,
       parceiro_id: form.parceiro_id || null,
       responsavel_id: form.responsavel_id || null,
