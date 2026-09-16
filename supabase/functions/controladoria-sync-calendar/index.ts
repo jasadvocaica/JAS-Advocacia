@@ -52,7 +52,7 @@ const TZ = "America/Cuiaba";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-calendar-sync-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -148,6 +148,21 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // O JWT público atende ao gateway, mas somente o gatilho do banco conhece
+    // o segredo rotativo guardado no Vault.
+    const syncSecret = req.headers.get("x-calendar-sync-secret");
+    const { data: syncAutorizado, error: syncAuthError } = await admin.rpc(
+      "validar_calendar_sync_secret",
+      { _secret: syncSecret ?? "" },
+    );
+    if (syncAuthError || syncAutorizado !== true) {
+      return new Response(JSON.stringify({ error: "Chamada de sincronização não autorizada" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const payload = (await req.json()) as Payload;
     const calId = encodeURIComponent(CALENDAR_ID);
 
@@ -245,12 +260,14 @@ Deno.serve(async (req) => {
     } catch (e) {
       const msg = (e as Error).message;
       console.error("[sync] erro upsert:", msg);
-      // grava erro pro mapping (se existir) p/ debug
-      if (mapping) {
-        await admin.from("controladoria_google_eventos").update({
-          ultimo_erro: msg, ultimo_sync: new Date().toISOString(),
-        }).eq("item_id", item.id);
-      }
+      // Registra também a primeira falha, antes de existir um evento no Google.
+      await admin.from("controladoria_google_eventos").upsert({
+        item_id: item.id,
+        google_event_id: mapping?.google_event_id ?? null,
+        google_calendar_id: mapping?.google_calendar_id ?? CALENDAR_ID,
+        ultimo_erro: msg,
+        ultimo_sync: new Date().toISOString(),
+      });
       return new Response(JSON.stringify({ error: msg }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
