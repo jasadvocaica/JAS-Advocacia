@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { comRetry } from "@/lib/supabase-retry";
 import { enviarEmailSilencioso } from "@/lib/email";
+import { limitarAntecedenciaInterna, prazoInternoNaoUltrapassaJudicial } from "@/lib/prazos-controladoria";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -294,7 +295,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
     if (!titulo.trim()) return toast.error("Informe um título");
     if (!dataVencimento) return toast.error(isAuto ? "Informe o prazo interno" : "Informe a data de vencimento");
     if (isAuto && !dataPrazoJudicial) return toast.error("Informe o prazo judicial");
-    if (isAuto && dataPrazoJudicial && dataVencimento > dataPrazoJudicial) {
+    if (isAuto && !prazoInternoNaoUltrapassaJudicial(dataPrazoJudicial, dataVencimento)) {
       return toast.error("O prazo interno não pode ser posterior ao prazo judicial");
     }
     if (!responsavelId) return toast.error("Selecione o responsável pelo item");
@@ -753,7 +754,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
                     min={0}
                     max={30}
                     value={antecedenciaInternaDias}
-                    onChange={(e) => setAntecedenciaInternaDias(Math.min(30, Math.max(0, Number(e.target.value) || 0)))}
+                    onChange={(e) => setAntecedenciaInternaDias(limitarAntecedenciaInterna(Number(e.target.value)))}
                   />
                 </div>
               </div>
