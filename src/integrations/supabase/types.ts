@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1550,6 +1550,7 @@ export type Database = {
           tipo_pessoa: string
           ultimo_vinculo_emprego: string | null
           whatsapp: string | null
+          whatsapp_normalizado: string | null
         }
         Insert: {
           advogado_responsavel_id?: string | null
@@ -1608,6 +1609,7 @@ export type Database = {
           tipo_pessoa?: string
           ultimo_vinculo_emprego?: string | null
           whatsapp?: string | null
+          whatsapp_normalizado?: string | null
         }
         Update: {
           advogado_responsavel_id?: string | null
@@ -1666,6 +1668,7 @@ export type Database = {
           tipo_pessoa?: string
           ultimo_vinculo_emprego?: string | null
           whatsapp?: string | null
+          whatsapp_normalizado?: string | null
         }
         Relationships: [
           {
@@ -2087,6 +2090,7 @@ export type Database = {
           alerta_3dias_enviado: boolean
           alerta_atraso_enviado: boolean
           anotacoes_revisao: string | null
+          antecedencia_interna_dias: number
           atualizado_em: string
           cancelado_motivo: string | null
           cliente_confirmado: boolean
@@ -2100,6 +2104,8 @@ export type Database = {
           criado_por: string | null
           data_inicio: string | null
           data_intimacao: string | null
+          data_prazo_interno: string | null
+          data_prazo_judicial: string | null
           data_vencimento: string
           descricao: string | null
           documentos_entregues: string | null
@@ -2116,6 +2122,9 @@ export type Database = {
           orientacoes: string | null
           origem: string
           origem_atendimento_id: string | null
+          prazo_conferido: boolean
+          prazo_conferido_em: string | null
+          prazo_conferido_por: string | null
           prioridade: Database["public"]["Enums"]["prioridade"]
           processo_id: string | null
           protocolador_id: string | null
@@ -2142,6 +2151,7 @@ export type Database = {
           alerta_3dias_enviado?: boolean
           alerta_atraso_enviado?: boolean
           anotacoes_revisao?: string | null
+          antecedencia_interna_dias?: number
           atualizado_em?: string
           cancelado_motivo?: string | null
           cliente_confirmado?: boolean
@@ -2155,6 +2165,8 @@ export type Database = {
           criado_por?: string | null
           data_inicio?: string | null
           data_intimacao?: string | null
+          data_prazo_interno?: string | null
+          data_prazo_judicial?: string | null
           data_vencimento: string
           descricao?: string | null
           documentos_entregues?: string | null
@@ -2171,6 +2183,9 @@ export type Database = {
           orientacoes?: string | null
           origem?: string
           origem_atendimento_id?: string | null
+          prazo_conferido?: boolean
+          prazo_conferido_em?: string | null
+          prazo_conferido_por?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade"]
           processo_id?: string | null
           protocolador_id?: string | null
@@ -2197,6 +2212,7 @@ export type Database = {
           alerta_3dias_enviado?: boolean
           alerta_atraso_enviado?: boolean
           anotacoes_revisao?: string | null
+          antecedencia_interna_dias?: number
           atualizado_em?: string
           cancelado_motivo?: string | null
           cliente_confirmado?: boolean
@@ -2210,6 +2226,8 @@ export type Database = {
           criado_por?: string | null
           data_inicio?: string | null
           data_intimacao?: string | null
+          data_prazo_interno?: string | null
+          data_prazo_judicial?: string | null
           data_vencimento?: string
           descricao?: string | null
           documentos_entregues?: string | null
@@ -2226,6 +2244,9 @@ export type Database = {
           orientacoes?: string | null
           origem?: string
           origem_atendimento_id?: string | null
+          prazo_conferido?: boolean
+          prazo_conferido_em?: string | null
+          prazo_conferido_por?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade"]
           processo_id?: string | null
           protocolador_id?: string | null
@@ -2260,6 +2281,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "v_clientes_duplicados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "controladoria_itens_prazo_conferido_por_fkey"
+            columns: ["prazo_conferido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -6455,6 +6483,112 @@ export type Database = {
           },
         ]
       }
+      mkt_automacao_execucoes: {
+        Row: {
+          agendada_para: string
+          automacao_id: string
+          chave_idempotencia: string | null
+          conversa_id: string | null
+          criado_em: string
+          erro_resumo: string | null
+          executada_em: string | null
+          id: string
+          lead_id: string | null
+          provider_message_id: string | null
+          status: string
+        }
+        Insert: {
+          agendada_para: string
+          automacao_id: string
+          chave_idempotencia?: string | null
+          conversa_id?: string | null
+          criado_em?: string
+          erro_resumo?: string | null
+          executada_em?: string | null
+          id?: string
+          lead_id?: string | null
+          provider_message_id?: string | null
+          status?: string
+        }
+        Update: {
+          agendada_para?: string
+          automacao_id?: string
+          chave_idempotencia?: string | null
+          conversa_id?: string | null
+          criado_em?: string
+          erro_resumo?: string | null
+          executada_em?: string | null
+          id?: string
+          lead_id?: string | null
+          provider_message_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_automacao_execucoes_automacao_id_fkey"
+            columns: ["automacao_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_automacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_automacao_execucoes_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_automacao_execucoes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_automacoes: {
+        Row: {
+          atraso_minutos: number
+          atualizado_em: string
+          atualizado_por: string | null
+          categoria: string
+          criado_em: string
+          criado_por: string | null
+          gatilho: string
+          id: string
+          mensagem_template: string
+          nome: string
+          status: string
+        }
+        Insert: {
+          atraso_minutos?: number
+          atualizado_em?: string
+          atualizado_por?: string | null
+          categoria?: string
+          criado_em?: string
+          criado_por?: string | null
+          gatilho: string
+          id?: string
+          mensagem_template: string
+          nome: string
+          status?: string
+        }
+        Update: {
+          atraso_minutos?: number
+          atualizado_em?: string
+          atualizado_por?: string | null
+          categoria?: string
+          criado_em?: string
+          criado_por?: string | null
+          gatilho?: string
+          id?: string
+          mensagem_template?: string
+          nome?: string
+          status?: string
+        }
+        Relationships: []
+      }
       mkt_campanhas: {
         Row: {
           area_direito: string | null
@@ -6590,6 +6724,100 @@ export type Database = {
         }
         Relationships: []
       }
+      mkt_lead_atividades: {
+        Row: {
+          agendado_para: string
+          atualizado_em: string
+          cancelado_em: string | null
+          cancelado_por: string | null
+          concluido_em: string | null
+          concluido_por: string | null
+          criado_em: string
+          criado_por: string
+          descricao: string
+          id: string
+          lead_id: string
+          responsavel_id: string | null
+          status: string
+        }
+        Insert: {
+          agendado_para: string
+          atualizado_em?: string
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          concluido_em?: string | null
+          concluido_por?: string | null
+          criado_em?: string
+          criado_por: string
+          descricao: string
+          id?: string
+          lead_id: string
+          responsavel_id?: string | null
+          status?: string
+        }
+        Update: {
+          agendado_para?: string
+          atualizado_em?: string
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          concluido_em?: string | null
+          concluido_por?: string | null
+          criado_em?: string
+          criado_por?: string
+          descricao?: string
+          id?: string
+          lead_id?: string
+          responsavel_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_lead_atividades_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_lead_historico: {
+        Row: {
+          alterado_por: string | null
+          criado_em: string
+          estado_anterior: Json | null
+          estado_novo: Json
+          evento: string
+          id: string
+          lead_id: string
+        }
+        Insert: {
+          alterado_por?: string | null
+          criado_em?: string
+          estado_anterior?: Json | null
+          estado_novo: Json
+          evento: string
+          id?: string
+          lead_id: string
+        }
+        Update: {
+          alterado_por?: string | null
+          criado_em?: string
+          estado_anterior?: Json | null
+          estado_novo?: Json
+          evento?: string
+          id?: string
+          lead_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_lead_historico_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mkt_leads: {
         Row: {
           area_direito: string | null
@@ -6613,6 +6841,7 @@ export type Database = {
           status: string
           valor_contrato: number | null
           whatsapp: string | null
+          whatsapp_normalizado: string | null
         }
         Insert: {
           area_direito?: string | null
@@ -6636,6 +6865,7 @@ export type Database = {
           status?: string
           valor_contrato?: number | null
           whatsapp?: string | null
+          whatsapp_normalizado?: string | null
         }
         Update: {
           area_direito?: string | null
@@ -6659,6 +6889,7 @@ export type Database = {
           status?: string
           valor_contrato?: number | null
           whatsapp?: string | null
+          whatsapp_normalizado?: string | null
         }
         Relationships: [
           {
@@ -8582,6 +8813,66 @@ export type Database = {
         }
         Relationships: []
       }
+      user_access_scopes: {
+        Row: {
+          atualizado_em: string
+          atualizado_por: string | null
+          clientes_scope: string
+          processos_scope: string
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          atualizado_por?: string | null
+          clientes_scope?: string
+          processos_scope?: string
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          atualizado_por?: string | null
+          clientes_scope?: string
+          processos_scope?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_client_links: {
+        Row: {
+          cliente_id: string
+          criado_em: string
+          criado_por: string | null
+          user_id: string
+        }
+        Insert: {
+          cliente_id: string
+          criado_em?: string
+          criado_por?: string | null
+          user_id: string
+        }
+        Update: {
+          cliente_id?: string
+          criado_em?: string
+          criado_por?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_client_links_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_client_links_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "v_clientes_duplicados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_log_atividade: {
         Row: {
           acao: string
@@ -8766,6 +9057,604 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_conexoes: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          business_account_id: string | null
+          criado_em: string
+          criado_por: string | null
+          erro_ultima_sincronizacao: string | null
+          id: string
+          nome: string
+          numero_exibicao: string | null
+          phone_number_id: string | null
+          provedor: string
+          status: string
+          ultima_sincronizacao_em: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          business_account_id?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          erro_ultima_sincronizacao?: string | null
+          id?: string
+          nome: string
+          numero_exibicao?: string | null
+          phone_number_id?: string | null
+          provedor?: string
+          status?: string
+          ultima_sincronizacao_em?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          business_account_id?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          erro_ultima_sincronizacao?: string | null
+          id?: string
+          nome?: string
+          numero_exibicao?: string | null
+          phone_number_id?: string | null
+          provedor?: string
+          status?: string
+          ultima_sincronizacao_em?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_consentimento_eventos: {
+        Row: {
+          conversa_id: string
+          id: string
+          mensagem_id: string | null
+          ocorrido_em: string
+          origem: string
+          realizado_por: string | null
+          termo: string | null
+          tipo: string
+        }
+        Insert: {
+          conversa_id: string
+          id?: string
+          mensagem_id?: string | null
+          ocorrido_em?: string
+          origem: string
+          realizado_por?: string | null
+          termo?: string | null
+          tipo: string
+        }
+        Update: {
+          conversa_id?: string
+          id?: string
+          mensagem_id?: string | null
+          ocorrido_em?: string
+          origem?: string
+          realizado_por?: string | null
+          termo?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_consentimento_eventos_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_consentimento_eventos_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_mensagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_contatos_bloqueados: {
+        Row: {
+          atualizado_em: string
+          conversa_origem_id: string | null
+          mensagem_origem_id: string | null
+          restaurado_em: string | null
+          restaurado_por: string | null
+          revogado_em: string
+          telefone_normalizado: string
+          termo: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          conversa_origem_id?: string | null
+          mensagem_origem_id?: string | null
+          restaurado_em?: string | null
+          restaurado_por?: string | null
+          revogado_em: string
+          telefone_normalizado: string
+          termo?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          conversa_origem_id?: string | null
+          mensagem_origem_id?: string | null
+          restaurado_em?: string | null
+          restaurado_por?: string | null
+          revogado_em?: string
+          telefone_normalizado?: string
+          termo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_contatos_bloqueados_conversa_origem_id_fkey"
+            columns: ["conversa_origem_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_contatos_bloqueados_mensagem_origem_id_fkey"
+            columns: ["mensagem_origem_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_mensagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversa_followups: {
+        Row: {
+          agendado_para: string
+          atualizado_em: string
+          concluido_em: string | null
+          concluido_por: string | null
+          conversa_id: string
+          criado_em: string
+          criado_por: string
+          descricao: string
+          id: string
+          responsavel_id: string | null
+          status: string
+        }
+        Insert: {
+          agendado_para: string
+          atualizado_em?: string
+          concluido_em?: string | null
+          concluido_por?: string | null
+          conversa_id: string
+          criado_em?: string
+          criado_por?: string
+          descricao: string
+          id?: string
+          responsavel_id?: string | null
+          status?: string
+        }
+        Update: {
+          agendado_para?: string
+          atualizado_em?: string
+          concluido_em?: string | null
+          concluido_por?: string | null
+          conversa_id?: string
+          criado_em?: string
+          criado_por?: string
+          descricao?: string
+          id?: string
+          responsavel_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversa_followups_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversa_historico: {
+        Row: {
+          alterado_por: string | null
+          conversa_id: string
+          evento: string
+          id: string
+          ocorrido_em: string
+          responsavel_anterior_id: string | null
+          responsavel_novo_id: string | null
+          status_anterior: string | null
+          status_novo: string | null
+        }
+        Insert: {
+          alterado_por?: string | null
+          conversa_id: string
+          evento: string
+          id?: string
+          ocorrido_em?: string
+          responsavel_anterior_id?: string | null
+          responsavel_novo_id?: string | null
+          status_anterior?: string | null
+          status_novo?: string | null
+        }
+        Update: {
+          alterado_por?: string | null
+          conversa_id?: string
+          evento?: string
+          id?: string
+          ocorrido_em?: string
+          responsavel_anterior_id?: string | null
+          responsavel_novo_id?: string | null
+          status_anterior?: string | null
+          status_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversa_historico_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversa_notas: {
+        Row: {
+          atualizado_em: string
+          conteudo: string
+          conversa_id: string
+          criado_em: string
+          criado_por: string
+          id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conteudo: string
+          conversa_id: string
+          criado_em?: string
+          criado_por?: string
+          id?: string
+        }
+        Update: {
+          atualizado_em?: string
+          conteudo?: string
+          conversa_id?: string
+          criado_em?: string
+          criado_por?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversa_notas_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversas: {
+        Row: {
+          atualizado_em: string
+          cliente_id: string | null
+          conexao_id: string | null
+          criado_em: string
+          id: string
+          lead_id: string | null
+          nao_lidas: number
+          nome_contato: string | null
+          opt_out_em: string | null
+          opt_out_mensagem_id: string | null
+          opt_out_termo: string | null
+          primeira_entrada_em: string | null
+          primeira_resposta_humana_em: string | null
+          responsavel_id: string | null
+          sla_primeira_resposta_limite_em: string | null
+          sla_primeira_resposta_minutos: number | null
+          status: string
+          telefone: string
+          telefone_normalizado: string | null
+          ultima_mensagem_em: string | null
+          ultima_mensagem_resumo: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          cliente_id?: string | null
+          conexao_id?: string | null
+          criado_em?: string
+          id?: string
+          lead_id?: string | null
+          nao_lidas?: number
+          nome_contato?: string | null
+          opt_out_em?: string | null
+          opt_out_mensagem_id?: string | null
+          opt_out_termo?: string | null
+          primeira_entrada_em?: string | null
+          primeira_resposta_humana_em?: string | null
+          responsavel_id?: string | null
+          sla_primeira_resposta_limite_em?: string | null
+          sla_primeira_resposta_minutos?: number | null
+          status?: string
+          telefone: string
+          telefone_normalizado?: string | null
+          ultima_mensagem_em?: string | null
+          ultima_mensagem_resumo?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          cliente_id?: string | null
+          conexao_id?: string | null
+          criado_em?: string
+          id?: string
+          lead_id?: string | null
+          nao_lidas?: number
+          nome_contato?: string | null
+          opt_out_em?: string | null
+          opt_out_mensagem_id?: string | null
+          opt_out_termo?: string | null
+          primeira_entrada_em?: string | null
+          primeira_resposta_humana_em?: string | null
+          responsavel_id?: string | null
+          sla_primeira_resposta_limite_em?: string | null
+          sla_primeira_resposta_minutos?: number | null
+          status?: string
+          telefone?: string
+          telefone_normalizado?: string | null
+          ultima_mensagem_em?: string | null
+          ultima_mensagem_resumo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "v_clientes_duplicados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversas_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conexoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversas_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversas_opt_out_mensagem_id_fkey"
+            columns: ["opt_out_mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_mensagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_mensagens: {
+        Row: {
+          conteudo: string | null
+          conversa_id: string
+          criado_em: string
+          direcao: string
+          enviada_por: string | null
+          erro_codigo: string | null
+          erro_detalhe: string | null
+          erro_titulo: string | null
+          id: string
+          midia_url: string | null
+          mime_type: string | null
+          nome_arquivo: string | null
+          ocorrida_em: string
+          provider_media_id: string | null
+          provider_message_id: string | null
+          reenvio_de: string | null
+          status: string
+          tipo: string
+        }
+        Insert: {
+          conteudo?: string | null
+          conversa_id: string
+          criado_em?: string
+          direcao: string
+          enviada_por?: string | null
+          erro_codigo?: string | null
+          erro_detalhe?: string | null
+          erro_titulo?: string | null
+          id?: string
+          midia_url?: string | null
+          mime_type?: string | null
+          nome_arquivo?: string | null
+          ocorrida_em?: string
+          provider_media_id?: string | null
+          provider_message_id?: string | null
+          reenvio_de?: string | null
+          status?: string
+          tipo?: string
+        }
+        Update: {
+          conteudo?: string | null
+          conversa_id?: string
+          criado_em?: string
+          direcao?: string
+          enviada_por?: string | null
+          erro_codigo?: string | null
+          erro_detalhe?: string | null
+          erro_titulo?: string | null
+          id?: string
+          midia_url?: string | null
+          mime_type?: string | null
+          nome_arquivo?: string | null
+          ocorrida_em?: string
+          provider_media_id?: string | null
+          provider_message_id?: string | null
+          reenvio_de?: string | null
+          status?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_mensagens_reenvio_de_fkey"
+            columns: ["reenvio_de"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_mensagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_respostas_rapidas: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          atualizado_por: string | null
+          conteudo: string
+          criado_em: string
+          criado_por: string | null
+          id: string
+          titulo: string
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          atualizado_por?: string | null
+          conteudo: string
+          criado_em?: string
+          criado_por?: string | null
+          id?: string
+          titulo: string
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          atualizado_por?: string | null
+          conteudo?: string
+          criado_em?: string
+          criado_por?: string | null
+          id?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
+      whatsapp_templates: {
+        Row: {
+          atualizado_em: string
+          categoria: string | null
+          componentes: Json
+          conexao_id: string
+          criado_em: string
+          id: string
+          idioma: string
+          nome: string
+          presente_meta: boolean
+          provider_template_id: string | null
+          sincronizado_em: string
+          status: string
+        }
+        Insert: {
+          atualizado_em?: string
+          categoria?: string | null
+          componentes?: Json
+          conexao_id: string
+          criado_em?: string
+          id?: string
+          idioma: string
+          nome: string
+          presente_meta?: boolean
+          provider_template_id?: string | null
+          sincronizado_em?: string
+          status: string
+        }
+        Update: {
+          atualizado_em?: string
+          categoria?: string | null
+          componentes?: Json
+          conexao_id?: string
+          criado_em?: string
+          id?: string
+          idioma?: string
+          nome?: string
+          presente_meta?: boolean
+          provider_template_id?: string | null
+          sincronizado_em?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_templates_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conexoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_webhook_eventos: {
+        Row: {
+          conexao_id: string | null
+          criado_em: string
+          erro: string | null
+          id: string
+          processado_em: string | null
+          provedor: string
+          provedor_evento_id: string
+          recebido_em: string
+          status: string
+          tentativa_iniciada_em: string | null
+          tentativas: number
+          tipo: string
+        }
+        Insert: {
+          conexao_id?: string | null
+          criado_em?: string
+          erro?: string | null
+          id?: string
+          processado_em?: string | null
+          provedor?: string
+          provedor_evento_id: string
+          recebido_em?: string
+          status?: string
+          tentativa_iniciada_em?: string | null
+          tentativas?: number
+          tipo: string
+        }
+        Update: {
+          conexao_id?: string | null
+          criado_em?: string
+          erro?: string | null
+          id?: string
+          processado_em?: string | null
+          provedor?: string
+          provedor_evento_id?: string
+          recebido_em?: string
+          status?: string
+          tentativa_iniciada_em?: string | null
+          tentativas?: number
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_webhook_eventos_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conexoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       gp_banco_horas_saldo: {
@@ -8889,6 +9778,19 @@ export type Database = {
           whatsapp: string
         }[]
       }
+      comercial_converter_conversa_em_lead: {
+        Args: { p_conversa_id: string }
+        Returns: string
+      }
+      comercial_responsaveis_autorizados: {
+        Args: never
+        Returns: {
+          ativo: boolean
+          gestor: boolean
+          nome: string
+          user_id: string
+        }[]
+      }
       comercial_responsavel_comunicacao: { Args: never; Returns: Json }
       comunicacao_marcar_comunicada: {
         Args: { _id: string; _observacao?: string }
@@ -8920,6 +9822,10 @@ export type Database = {
         Returns: string
       }
       confirmar_ativacao_conta: { Args: { _codigo: string }; Returns: Json }
+      controladoria_parceiro_definir_status: {
+        Args: { _item_id: string; _status: string }
+        Returns: undefined
+      }
       controladoria_transicionar_etapa: {
         Args: {
           _item_id: string
@@ -8932,6 +9838,7 @@ export type Database = {
           alerta_3dias_enviado: boolean
           alerta_atraso_enviado: boolean
           anotacoes_revisao: string | null
+          antecedencia_interna_dias: number
           atualizado_em: string
           cancelado_motivo: string | null
           cliente_confirmado: boolean
@@ -8945,6 +9852,8 @@ export type Database = {
           criado_por: string | null
           data_inicio: string | null
           data_intimacao: string | null
+          data_prazo_interno: string | null
+          data_prazo_judicial: string | null
           data_vencimento: string
           descricao: string | null
           documentos_entregues: string | null
@@ -8961,6 +9870,9 @@ export type Database = {
           orientacoes: string | null
           origem: string
           origem_atendimento_id: string | null
+          prazo_conferido: boolean
+          prazo_conferido_em: string | null
+          prazo_conferido_por: string | null
           prioridade: Database["public"]["Enums"]["prioridade"]
           processo_id: string | null
           protocolador_id: string | null
@@ -9066,8 +9978,22 @@ export type Database = {
       is_gestor: { Args: { _user_id: string }; Returns: boolean }
       is_interno_ativo: { Args: { _user_id: string }; Returns: boolean }
       marcar_etapas_fluxo_atrasadas: { Args: never; Returns: number }
+      mkt_automacao_definir_status: {
+        Args: { _id: string; _status: string }
+        Returns: undefined
+      }
+      mkt_automacoes_enfileirar: {
+        Args: {
+          _chave_evento?: string
+          _conversa_id?: string
+          _gatilho: string
+          _lead_id?: string
+        }
+        Returns: number
+      }
       mural_marcar_lido: { Args: { _aviso_id: string }; Returns: undefined }
       mural_marcar_todos_lidos: { Args: never; Returns: number }
+      normalizar_whatsapp: { Args: { numero: string }; Returns: string }
       notificar_comentario_controladoria: {
         Args: {
           _descricao: string
@@ -9150,6 +10076,7 @@ export type Database = {
           alerta_3dias_enviado: boolean
           alerta_atraso_enviado: boolean
           anotacoes_revisao: string | null
+          antecedencia_interna_dias: number
           atualizado_em: string
           cancelado_motivo: string | null
           cliente_confirmado: boolean
@@ -9163,6 +10090,8 @@ export type Database = {
           criado_por: string | null
           data_inicio: string | null
           data_intimacao: string | null
+          data_prazo_interno: string | null
+          data_prazo_judicial: string | null
           data_vencimento: string
           descricao: string | null
           documentos_entregues: string | null
@@ -9179,6 +10108,9 @@ export type Database = {
           orientacoes: string | null
           origem: string
           origem_atendimento_id: string | null
+          prazo_conferido: boolean
+          prazo_conferido_em: string | null
+          prazo_conferido_por: string | null
           prioridade: Database["public"]["Enums"]["prioridade"]
           processo_id: string | null
           protocolador_id: string | null
@@ -9218,6 +10150,7 @@ export type Database = {
           alerta_3dias_enviado: boolean
           alerta_atraso_enviado: boolean
           anotacoes_revisao: string | null
+          antecedencia_interna_dias: number
           atualizado_em: string
           cancelado_motivo: string | null
           cliente_confirmado: boolean
@@ -9231,6 +10164,8 @@ export type Database = {
           criado_por: string | null
           data_inicio: string | null
           data_intimacao: string | null
+          data_prazo_interno: string | null
+          data_prazo_judicial: string | null
           data_vencimento: string
           descricao: string | null
           documentos_entregues: string | null
@@ -9247,6 +10182,9 @@ export type Database = {
           orientacoes: string | null
           origem: string
           origem_atendimento_id: string | null
+          prazo_conferido: boolean
+          prazo_conferido_em: string | null
+          prazo_conferido_por: string | null
           prioridade: Database["public"]["Enums"]["prioridade"]
           processo_id: string | null
           protocolador_id: string | null
@@ -9302,6 +10240,10 @@ export type Database = {
       revogar_token_mcp: { Args: { _id: string }; Returns: undefined }
       seguranca_resumo: { Args: never; Returns: Json }
       seguranca_verificar_alertas: { Args: never; Returns: Json }
+      subtrair_dias_uteis: {
+        Args: { _data_fim: string; _dias: number }
+        Returns: string
+      }
       unificar_clientes: {
         Args: { _id_a: string; _id_b: string }
         Returns: string
@@ -9323,6 +10265,22 @@ export type Database = {
         Returns: boolean
       }
       validar_djen_cron_secret: { Args: { _secret: string }; Returns: boolean }
+      whatsapp_assumir_conversa: {
+        Args: { _conversa_id: string }
+        Returns: boolean
+      }
+      whatsapp_reivindicar_evento: {
+        Args: {
+          _conexao_id: string
+          _provedor_evento_id: string
+          _tipo: string
+        }
+        Returns: string
+      }
+      whatsapp_restaurar_consentimento: {
+        Args: { _conversa_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       acao_permissao: "visualizar" | "criar" | "editar" | "excluir" | "exportar"
@@ -9484,12 +10442,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9513,11 +10471,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9538,11 +10496,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9563,11 +10521,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9580,11 +10538,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
