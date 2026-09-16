@@ -2053,7 +2053,7 @@ export type Database = {
         Row: {
           criado_em: string
           google_calendar_id: string
-          google_event_id: string
+          google_event_id: string | null
           item_id: string
           ultimo_erro: string | null
           ultimo_sync: string
@@ -2061,7 +2061,7 @@ export type Database = {
         Insert: {
           criado_em?: string
           google_calendar_id?: string
-          google_event_id: string
+          google_event_id?: string | null
           item_id: string
           ultimo_erro?: string | null
           ultimo_sync?: string
@@ -2069,7 +2069,7 @@ export type Database = {
         Update: {
           criado_em?: string
           google_calendar_id?: string
-          google_event_id?: string
+          google_event_id?: string | null
           item_id?: string
           ultimo_erro?: string | null
           ultimo_sync?: string
@@ -10214,6 +10214,10 @@ export type Database = {
         }
       }
       producao_revisor_padrao: { Args: never; Returns: Json }
+      reagendar_sync_google_calendar: {
+        Args: { _item_id: string }
+        Returns: number
+      }
       recalcular_progresso_fluxo: {
         Args: { _instancia_id: string }
         Returns: number
@@ -10258,6 +10262,10 @@ export type Database = {
       }
       usuario_ve_processo: {
         Args: { _processo_id: string; _user_id: string }
+        Returns: boolean
+      }
+      validar_calendar_sync_secret: {
+        Args: { _secret: string }
         Returns: boolean
       }
       validar_datajud_cron_secret: {
