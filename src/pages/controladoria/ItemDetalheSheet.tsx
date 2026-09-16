@@ -16,7 +16,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import {
   ControladoriaItem, TIPO_LABELS, STATUS_LABELS, PRIORIDADE_LABELS,
@@ -540,15 +540,43 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
                     href={item.processo?.id ? `/processos/${item.processo.id}` : undefined}
                   />
                   <ContextoCampo label="Responsável" value={item.responsavel?.nome ?? "Sem responsável"} />
-                  <ContextoCampo
-                    label="Prazo"
-                    value={formatDateTime(item.data_vencimento)}
-                    tone={
-                      item.status === "concluido" ? undefined
-                      : new Date(item.data_vencimento) < new Date() ? "destructive"
-                      : "warningSoon"
-                    }
-                  />
+                  {item.tipo === "prazo_fatal" || item.tipo === "prazo_processual" ? (
+                    <>
+                      <ContextoCampo
+                        label="Prazo interno"
+                        value={formatDate(item.data_prazo_interno ?? item.data_vencimento)}
+                        tone={
+                          item.status === "concluido" ? undefined
+                          : new Date(item.data_prazo_interno ?? item.data_vencimento) < new Date() ? "destructive"
+                          : "warningSoon"
+                        }
+                      />
+                      <ContextoCampo
+                        label="Prazo judicial"
+                        value={item.data_prazo_judicial ? formatDate(item.data_prazo_judicial) : "Não informado"}
+                      />
+                      <ContextoCampo
+                        label="Conferência"
+                        value={
+                          item.prazo_conferido
+                            ? item.prazo_conferido_em
+                              ? `Conferido em ${formatDateTime(item.prazo_conferido_em)}`
+                              : "Conferido"
+                            : "A conferir"
+                        }
+                      />
+                    </>
+                  ) : (
+                    <ContextoCampo
+                      label="Prazo"
+                      value={item.tipo === "audiencia" ? formatDateTime(item.data_vencimento) : formatDate(item.data_vencimento)}
+                      tone={
+                        item.status === "concluido" ? undefined
+                        : new Date(item.data_vencimento) < new Date() ? "destructive"
+                        : "warningSoon"
+                      }
+                    />
+                  )}
                 </div>
               </div>
 

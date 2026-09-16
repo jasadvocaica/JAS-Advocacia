@@ -531,7 +531,17 @@ function ItemRow({ item, onClick, onAcaoBia, currentUserId, onDelete, podeExclui
         </div>
         <p className="text-sm font-medium truncate">{item.titulo}</p>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-1">
-          <span>{item.tipo === "audiencia" ? formatDateTime(item.data_vencimento) : formatDate(item.data_vencimento)}</span>
+          {item.tipo === "prazo_fatal" || item.tipo === "prazo_processual" ? (
+            <>
+              <span className="font-medium">Interno {formatDate(item.data_prazo_interno ?? item.data_vencimento)}</span>
+              {item.data_prazo_judicial && <span>· Judicial {formatDate(item.data_prazo_judicial)}</span>}
+              <span className={item.prazo_conferido ? "text-success" : "text-warning"}>
+                · {item.prazo_conferido ? "Conferido" : "A conferir"}
+              </span>
+            </>
+          ) : (
+            <span>{item.tipo === "audiencia" ? formatDateTime(item.data_vencimento) : formatDate(item.data_vencimento)}</span>
+          )}
           {item.responsavel?.nome && <span>· {item.responsavel.nome.split(" ")[0]}</span>}
           {item.cliente && <span>· {item.cliente.nome}</span>}
           {item.processo?.numero_cnj && <span>· {item.processo.numero_cnj}</span>}
