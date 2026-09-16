@@ -191,5 +191,5 @@ export interface ControladoriaItem {
   cliente?: { id: string; nome: string } | null;
   processo?: { id: string; numero_cnj: string | null; tipo_acao: string | null } | null;
   responsavel?: { id: string; nome: string; email: string | null } | null;
-  google_evento?: { google_event_id: string; ultimo_sync: string; ultimo_erro: string | null } | null;
+  google_evento?: { google_event_id: string | null; ultimo_sync: string; ultimo_erro: string | null } | null;
 }
