@@ -75,6 +75,9 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
   const [tipoPrazoId, setTipoPrazoId] = useState<string>("");
   const [dataIntimacao, setDataIntimacao] = useState<Date | undefined>();
   const [dataVencimento, setDataVencimento] = useState<Date | undefined>();
+  const [dataPrazoJudicial, setDataPrazoJudicial] = useState<Date | undefined>();
+  const [antecedenciaInternaDias, setAntecedenciaInternaDias] = useState(2);
+  const [prazoConferido, setPrazoConferido] = useState(false);
   const [vara, setVara] = useState("");
   const [juiz, setJuiz] = useState("");
   const [local, setLocal] = useState("");
@@ -138,6 +141,15 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       setTipoPrazoId(item.tipo_prazo_id ?? "");
       setDataIntimacao(item.data_intimacao ? new Date(item.data_intimacao + "T00:00:00") : undefined);
       setDataVencimento(item.data_vencimento ? new Date(item.data_vencimento) : undefined);
+      setDataPrazoJudicial(
+        (item as any).data_prazo_judicial
+          ? new Date((item as any).data_prazo_judicial + "T00:00:00")
+          : item.data_vencimento
+            ? new Date(item.data_vencimento)
+            : undefined,
+      );
+      setAntecedenciaInternaDias((item as any).antecedencia_interna_dias ?? 2);
+      setPrazoConferido((item as any).prazo_conferido ?? false);
       setVara(item.vara ?? "");
       setJuiz(item.juiz ?? "");
       setLocal(item.local ?? "");
@@ -166,6 +178,9 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       setTipoPrazoId("");
       setDataIntimacao(prefill?.dataIntimacao ? new Date(prefill.dataIntimacao + "T00:00:00") : undefined);
       setDataVencimento(undefined);
+      setDataPrazoJudicial(undefined);
+      setAntecedenciaInternaDias(2);
+      setPrazoConferido(false);
       setVara("");
       setJuiz("");
       setLocal("");
@@ -198,25 +213,41 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo, open, equipe.length]);
 
-  // Cálculo automático para prazos
+  // Sugere o prazo judicial. A contagem continua sujeita a conferência humana.
   useEffect(() => {
     if (!isAuto || !dataIntimacao || !tipoPrazoId) return;
     const tp = tiposPrazo.find((t) => t.id === tipoPrazoId);
     if (!tp) return;
+    let ativo = true;
     (async () => {
       if (tp.dias_uteis) {
         const { data, error } = await supabase.rpc("adicionar_dias_uteis", {
           _data_inicio: format(dataIntimacao, "yyyy-MM-dd"),
           _dias: tp.dias,
         });
-        if (!error && data) setDataVencimento(new Date(data + "T00:00:00"));
+        if (ativo && !error && data) setDataPrazoJudicial(new Date(data + "T00:00:00"));
       } else {
         const d = new Date(dataIntimacao);
         d.setDate(d.getDate() + tp.dias);
-        setDataVencimento(d);
+        if (ativo) setDataPrazoJudicial(d);
       }
     })();
+    return () => { ativo = false; };
   }, [dataIntimacao, tipoPrazoId, isAuto, tiposPrazo]);
+
+  // A meta interna nasce antes do prazo judicial e alimenta os alertas operacionais existentes.
+  useEffect(() => {
+    if (!isAuto || !dataPrazoJudicial) return;
+    let ativo = true;
+    (async () => {
+      const { data, error } = await (supabase as any).rpc("subtrair_dias_uteis", {
+        _data_fim: format(dataPrazoJudicial, "yyyy-MM-dd"),
+        _dias: antecedenciaInternaDias,
+      });
+      if (ativo && !error && data) setDataVencimento(new Date(data + "T00:00:00"));
+    })();
+    return () => { ativo = false; };
+  }, [isAuto, dataPrazoJudicial, antecedenciaInternaDias]);
 
   const processosFiltrados = useMemo(
     () => (clienteId ? processos.filter((p) => p.cliente_id === clienteId) : processos),
@@ -230,6 +261,8 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
     clienteId, processoId, tipoPrazoId,
     dataIntimacao: dataIntimacao?.toISOString() ?? null,
     dataVencimento: dataVencimento?.toISOString() ?? null,
+    dataPrazoJudicial: dataPrazoJudicial?.toISOString() ?? null,
+    antecedenciaInternaDias, prazoConferido,
     vara, juiz, local, linkVirtual, visivelParceiro,
   };
   const { clear: clearDraft } = useFormDraft(draftKey, draftValues, {
@@ -246,6 +279,9 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       setTipoPrazoId(d.tipoPrazoId ?? "");
       setDataIntimacao(d.dataIntimacao ? new Date(d.dataIntimacao) : undefined);
       setDataVencimento(d.dataVencimento ? new Date(d.dataVencimento) : undefined);
+      setDataPrazoJudicial(d.dataPrazoJudicial ? new Date(d.dataPrazoJudicial) : undefined);
+      setAntecedenciaInternaDias(d.antecedenciaInternaDias ?? 2);
+      setPrazoConferido(Boolean(d.prazoConferido));
       setVara(d.vara ?? "");
       setJuiz(d.juiz ?? "");
       setLocal(d.local ?? "");
@@ -256,7 +292,11 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
 
   async function handleSubmit() {
     if (!titulo.trim()) return toast.error("Informe um título");
-    if (!dataVencimento) return toast.error("Informe a data de vencimento");
+    if (!dataVencimento) return toast.error(isAuto ? "Informe o prazo interno" : "Informe a data de vencimento");
+    if (isAuto && !dataPrazoJudicial) return toast.error("Informe o prazo judicial");
+    if (isAuto && dataPrazoJudicial && dataVencimento > dataPrazoJudicial) {
+      return toast.error("O prazo interno não pode ser posterior ao prazo judicial");
+    }
     if (!responsavelId) return toast.error("Selecione o responsável pelo item");
     if (!clienteId && !processoId) {
       return toast.error("Toda tarefa precisa estar vinculada a um cliente ou processo.");
@@ -275,6 +315,10 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       tipo_prazo_id: isAuto ? (tipoPrazoId || null) : null,
       data_intimacao: isAuto && dataIntimacao ? format(dataIntimacao, "yyyy-MM-dd") : null,
       data_vencimento: dataVencimento.toISOString(),
+      data_prazo_judicial: isAuto && dataPrazoJudicial ? format(dataPrazoJudicial, "yyyy-MM-dd") : null,
+      data_prazo_interno: isAuto ? format(dataVencimento, "yyyy-MM-dd") : null,
+      antecedencia_interna_dias: isAuto ? antecedenciaInternaDias : 2,
+      prazo_conferido: isAuto ? prazoConferido : false,
       vara: vara.trim() || null,
       juiz: juiz.trim() || null,
       local: local.trim() || null,
@@ -653,6 +697,9 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
                   Cálculo automático em dias úteis
                 </Badge>
               </div>
+              <p className="text-xs text-muted-foreground">
+                O cálculo é uma sugestão operacional. Confira a publicação, o termo inicial, feriados locais e a regra aplicável antes de confirmar.
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Tipo de prazo</Label>
@@ -684,12 +731,38 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
                   </Popover>
                 </div>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Prazo judicial (data-limite) *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start font-normal", !dataPrazoJudicial && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dataPrazoJudicial ? format(dataPrazoJudicial, "dd/MM/yyyy") : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dataPrazoJudicial} onSelect={setDataPrazoJudicial} initialFocus className={cn("p-3 pointer-events-auto")} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Antecedência interna (dias úteis)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={antecedenciaInternaDias}
+                    onChange={(e) => setAntecedenciaInternaDias(Math.min(30, Math.max(0, Number(e.target.value) || 0)))}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Vencimento */}
+          {/* Vencimento operacional */}
           <div className="space-y-1.5">
-            <Label>Data de vencimento *</Label>
+            <Label>{isAuto ? "Prazo interno da equipe *" : "Data de vencimento *"}</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className={cn("w-full sm:w-[280px] justify-start font-normal", !dataVencimento && "text-muted-foreground")}>
@@ -702,6 +775,22 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
               </PopoverContent>
             </Popover>
           </div>
+
+          {isAuto && (
+            <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/40 transition-colors">
+              <Checkbox
+                checked={prazoConferido}
+                onCheckedChange={(v) => setPrazoConferido(v === true)}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="text-sm font-medium">Contagem conferida manualmente</p>
+                <p className="text-xs text-muted-foreground">
+                  Marque somente após revisar o termo inicial, a publicação e os feriados aplicáveis. O sistema registra usuário e horário da conferência.
+                </p>
+              </div>
+            </label>
+          )}
 
           {/* Vínculos — obrigatório vincular a cliente OU processo */}
           <div className="space-y-1.5">
