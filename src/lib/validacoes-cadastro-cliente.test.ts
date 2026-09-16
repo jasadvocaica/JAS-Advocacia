@@ -3,6 +3,8 @@ import {
   cepBrasileiroOpcionalValido,
   erroResponsavelLegal,
   telefoneBrasileiroOpcionalValido,
+  temContatoPrincipal,
+  normalizarNomeCliente,
 } from "./validacoes-cadastro-cliente";
 
 describe("validações do cadastro de clientes", () => {
@@ -28,5 +30,15 @@ describe("validações do cadastro de clientes", () => {
     expect(erroResponsavelLegal(16, "", "")).toBe("Informe o nome do responsável legal");
     expect(erroResponsavelLegal(16, "Maria", "123")).toBe("Informe um CPF válido para o responsável legal");
     expect(erroResponsavelLegal(16, "Maria", "529.982.247-25")).toBeNull();
+  });
+  it("exige ao menos um contato principal quando solicitado pelo cadastro", () => {
+    expect(temContatoPrincipal("(65) 99999-4444", "")).toBe(true);
+    expect(temContatoPrincipal("", "cliente@exemplo.com")).toBe(true);
+    expect(temContatoPrincipal("", "   ")).toBe(false);
+  });
+
+  it("normaliza nomes para identificar homônimos sem alterar os registros", () => {
+    expect(normalizarNomeCliente("  Ênio   Ferreira de Miranda ")).toBe("enio ferreira de miranda");
+    expect(normalizarNomeCliente("ENIO FERREIRA DE MIRANDA")).toBe("enio ferreira de miranda");
   });
 });
