@@ -16,6 +16,13 @@ describe("textoLegivelPublicacao", () => {
     expect(textoLegivelPublicacao(original)).toBe("Prazo de 15 dias");
   });
 
+  it("limpa HTML mesmo quando a origem não foi classificada como PJe", () => {
+    const original = "<header><div></div></header><section><b>PROCEDIMENTO DO JUIZADO ESPECIAL C&Iacute;VEL</b></section><section><p align=\"center\">DESPACHO/DECIS&Atilde;O</p></section>";
+    expect(textoLegivelPublicacao(original)).toBe(
+      "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL\nDESPACHO/DECISÃO",
+    );
+  });
+
   it("preserva texto comum e não inventa prazo", () => {
     expect(textoLegivelPublicacao("Intimação recebida. Prazo a conferir.")).toBe(
       "Intimação recebida. Prazo a conferir.",

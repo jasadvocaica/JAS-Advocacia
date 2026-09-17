@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 
 interface Andamento {
   id: string;
@@ -66,7 +67,7 @@ export function AndamentosRecentesCard({ profileId }: { profileId: string | null
                     to={`/processos/${a.processo_id}`}
                     className="block min-w-0 flex-1 truncate text-sm font-medium text-foreground hover:underline"
                   >
-                    {a.descricao}
+                    {textoLegivelPublicacao(a.descricao)}
                   </Link>
                   <Badge
                     variant="outline"

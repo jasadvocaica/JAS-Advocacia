@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, FileText, MessageCircle, Clock, CheckSquare, DollarSign, Lock } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatDate, formatBRL } from "@/lib/format";
+import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import type { PortalParceiroContext } from "../PortalParceiroLayout";
 import { ChatProcessoParceiro } from "../components/ChatProcessoParceiro";
 import { registrarAcaoParceiro } from "../auditLog";
@@ -151,7 +152,7 @@ export default function ProcessoDetalheParceiro() {
                   <li key={a.id} className="pl-4 relative">
                     <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-gold" />
                     <p className="text-xs text-muted-foreground">{formatDate(a.data)}</p>
-                    <p className="text-sm">{a.descricao}</p>
+                    <p className="text-sm">{textoLegivelPublicacao(a.descricao)}</p>
                   </li>
                 ))}
               </ul>

@@ -133,9 +133,7 @@ export function LinhaDoTempoProcesso({ processoId }: Props) {
         const lista: EventoTimeline[] = [];
 
         (resAnd.data ?? []).forEach((a: any) => {
-          const descricao = a.fonte === "pje_comunica"
-            ? textoLegivelPublicacao(a.descricao)
-            : (a.descricao ?? "");
+          const descricao = textoLegivelPublicacao(a.descricao);
           lista.push({
             id: `and-${a.id}`,
             tipo: "andamento",

@@ -521,8 +521,8 @@ export default function ProcessoDetalhe() {
             {ultimaMov ? (
               <>
                 <div className="text-[11px] font-medium leading-tight">{formatDate(ultimaMov.data)}</div>
-                <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2" title={ultimaMov.fonte === "pje_comunica" ? textoLegivelPublicacao(ultimaMov.descricao) : ultimaMov.descricao}>
-                  {ultimaMov.fonte === "pje_comunica" ? textoLegivelPublicacao(ultimaMov.descricao) : ultimaMov.descricao}
+                <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2" title={textoLegivelPublicacao(ultimaMov.descricao)}>
+                  {textoLegivelPublicacao(ultimaMov.descricao)}
                 </p>
               </>
             ) : (
@@ -761,7 +761,7 @@ export default function ProcessoDetalhe() {
                                 {a.codigo_movimento ?? "—"}
                               </TableCell>
                               <TableCell className="text-xs whitespace-pre-wrap">
-                                {a.descricao}
+                                {textoLegivelPublicacao(a.descricao)}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -838,7 +838,7 @@ export default function ProcessoDetalhe() {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-sm whitespace-pre-wrap break-words">{a.fonte === "pje_comunica" ? textoLegivelPublicacao(a.descricao) : a.descricao}</p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{textoLegivelPublicacao(a.descricao)}</p>
                           </div>
                           {a.fonte === "manual" && hasPermission("processos", "excluir") && (
                             <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" onClick={() => handleDeleteAndamento(a.id)}>
