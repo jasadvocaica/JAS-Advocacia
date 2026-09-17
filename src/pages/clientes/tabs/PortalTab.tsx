@@ -118,8 +118,8 @@ export default function PortalTab({ clienteId, clienteNome }: Props) {
       setCredenciaisGeradas({ cpf: r.cpf, senha: r.senha });
     }
     toast.success(
-      r.status === "ativado" ? "Portal ativado!"
-      : r.status === "senha_resetada" ? "Senha resetada!"
+      r.status === "ativado" ? "Portal ativado com senha temporária!"
+      : r.status === "senha_resetada" ? "Nova senha temporária gerada!"
       : "Portal já estava ativo"
     );
     await carregar();
@@ -241,7 +241,7 @@ export default function PortalTab({ clienteId, clienteNome }: Props) {
 
         {credenciaisGeradas && (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4 space-y-2">
-            <p className="text-sm font-medium">Credenciais geradas — copie e envie ao cliente:</p>
+            <p className="text-sm font-medium">Credenciais temporárias — copie e envie ao cliente por um canal seguro:</p>
             <div className="grid sm:grid-cols-2 gap-2 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">CPF:</span>
@@ -249,12 +249,12 @@ export default function PortalTab({ clienteId, clienteNome }: Props) {
                 <Button size="sm" variant="ghost" onClick={() => copiar(credenciaisGeradas.cpf)}><Copy className="w-3.5 h-3.5" /></Button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Senha:</span>
+                <span className="text-muted-foreground">Senha temporária:</span>
                 <span className="font-mono">{credenciaisGeradas.senha}</span>
                 <Button size="sm" variant="ghost" onClick={() => copiar(credenciaisGeradas.senha)}><Copy className="w-3.5 h-3.5" /></Button>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">No primeiro acesso o cliente será solicitado a alterar a senha.</p>
+            <p className="text-xs text-muted-foreground">Esta senha aleatória é exibida somente agora. No primeiro acesso, o cliente deverá alterá-la.</p>
           </div>
         )}
 

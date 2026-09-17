@@ -108,7 +108,7 @@ export default function AtivacaoPortalLoteDialog({ open, onClose }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><KeyRound className="w-5 h-5" /> Ativar portal em lote</DialogTitle>
           <DialogDescription>
-            {resultados ? "Credenciais geradas — copie e envie aos clientes." : "Selecione os clientes para gerar acesso (CPF como login, senha primeironome+123#)."}
+            {resultados ? "Credenciais temporárias — copie e envie aos clientes por um canal seguro." : "Selecione os clientes para gerar acesso com CPF e senha temporária aleatória."}
           </DialogDescription>
         </DialogHeader>
 
@@ -124,7 +124,7 @@ export default function AtivacaoPortalLoteDialog({ open, onClose }: Props) {
                     ? <p className="text-destructive text-xs">Erro: {r.mensagem}</p>
                     : <div className="grid grid-cols-2 gap-2 mt-1 text-xs">
                         <p><span className="text-muted-foreground">CPF:</span> <span className="font-mono">{r.cpf}</span></p>
-                        {r.senha && <p><span className="text-muted-foreground">Senha:</span> <span className="font-mono">{r.senha}</span></p>}
+                        {r.senha && <p><span className="text-muted-foreground">Senha temporária:</span> <span className="font-mono">{r.senha}</span></p>}
                       </div>}
                 </div>
               ))}
