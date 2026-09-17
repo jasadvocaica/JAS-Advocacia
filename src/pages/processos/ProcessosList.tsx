@@ -24,6 +24,7 @@ import { Plus, Search, Eye, Pencil, Trash2, Briefcase, Scale, Wifi, WifiOff, Wan
 import { ProcessosKanban } from "./ProcessosKanban";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatBRL, formatCNJ } from "@/lib/format";
+import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import { TRIBUNAIS } from "@/lib/datajud";
 import type { ProcessoListItem, ProcessoStatus } from "./types";
 import { CadastroAssistidoDialog } from "./CadastroAssistidoDialog";
@@ -102,7 +103,7 @@ export default function ProcessosList() {
         .order("data", { ascending: false });
       const ultimoMap = new Map<string, { data: string; descricao: string }>();
       (ands ?? []).forEach((a: any) => {
-        if (!ultimoMap.has(a.processo_id)) ultimoMap.set(a.processo_id, { data: a.data, descricao: a.descricao });
+        if (!ultimoMap.has(a.processo_id)) ultimoMap.set(a.processo_id, { data: a.data, descricao: textoLegivelPublicacao(a.descricao) });
       });
       procs.forEach((p) => { p.ultimo_andamento = ultimoMap.get(p.id) ?? null; });
     }
