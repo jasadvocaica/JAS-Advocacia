@@ -246,39 +246,66 @@ export function FichaAtendimentoConteudo({
       );
       return;
     }
+
+    const enviados: { path: string; registroId?: string }[] = [];
     setEnviandoArquivo(true);
     try {
       for (const file of arr) {
-        const ext = file.name.split(".").pop() ?? "bin";
+        const ext =
+          (file.name.split(".").pop() ?? "bin")
+            .replace(/[^a-z0-9]/gi, "")
+            .slice(0, 10) || "bin";
         const path = `${clienteId}/${ficha.id}/${crypto.randomUUID()}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("fichas-atendimento")
           .upload(path, file, {
             contentType: file.type || "application/octet-stream",
-            upsert: true,
+            upsert: false,
           });
         if (upErr) throw upErr;
-        const { error: insErr } = await supabase.from("cliente_ficha_documentos").insert({
-          atendimento_id: ficha.id,
-          cliente_id: clienteId,
-          nome: file.name,
-          tipo: detectarTipoDoc(file.name),
-          storage_path: path,
-          mime_type: file.type || null,
-          tamanho_bytes: file.size,
-          enviado_por: user?.id ?? null,
-        });
+
+        enviados.push({ path });
+        const { data: registro, error: insErr } = await supabase
+          .from("cliente_ficha_documentos")
+          .insert({
+            atendimento_id: ficha.id,
+            cliente_id: clienteId,
+            nome: file.name,
+            tipo: detectarTipoDoc(file.name),
+            storage_path: path,
+            mime_type: file.type || null,
+            tamanho_bytes: file.size,
+            enviado_por: user?.id ?? null,
+          })
+          .select("id")
+          .single();
         if (insErr) throw insErr;
+        enviados[enviados.length - 1].registroId = registro.id;
       }
+
       toast.success(`${arr.length} arquivo(s) enviado(s) — analisando...`);
       await carregar();
       void analisarComIA();
     } catch (err) {
+      // Compensação do lote: se qualquer arquivo falhar, remove todos os
+      // registros e objetos que esta tentativa acabou de criar.
+      const ids = enviados
+        .map((item) => item.registroId)
+        .filter((id): id is string => Boolean(id));
+      if (ids.length > 0) {
+        await supabase.from("cliente_ficha_documentos").delete().in("id", ids);
+      }
+      if (enviados.length > 0) {
+        await supabase.storage
+          .from("fichas-atendimento")
+          .remove(enviados.map((item) => item.path));
+      }
+
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(
         msg.includes("Failed to fetch")
-          ? "Falha de conexão. Tente um arquivo menor (≤25 MB) ou verifique sua internet."
-          : msg,
+          ? "Falha de conexão. O envio foi cancelado sem deixar documentos parciais."
+          : `${msg}. O envio foi cancelado sem deixar documentos parciais.`,
       );
     } finally {
       setEnviandoArquivo(false);
@@ -288,13 +315,29 @@ export function FichaAtendimentoConteudo({
 
   async function excluirDoc(d: FichaDoc) {
     if (!confirm(`Excluir "${d.nome}"?`)) return;
-    await supabase.storage.from("fichas-atendimento").remove([d.storage_path]);
-    const { error } = await supabase.from("cliente_ficha_documentos").delete().eq("id", d.id);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Documento removido");
-      await carregar();
+
+    // Primeiro remove o vínculo do banco. Assim, uma eventual falha do Storage
+    // nunca deixa a ficha apontando para um arquivo que já não existe.
+    const { error: dbError } = await supabase
+      .from("cliente_ficha_documentos")
+      .delete()
+      .eq("id", d.id);
+    if (dbError) {
+      toast.error(dbError.message);
+      return;
     }
+
+    const { error: storageError } = await supabase.storage
+      .from("fichas-atendimento")
+      .remove([d.storage_path]);
+    if (storageError) {
+      toast.warning(
+        "Documento removido da ficha. O arquivo físico ficou pendente de limpeza segura.",
+      );
+    } else {
+      toast.success("Documento removido");
+    }
+    await carregar();
   }
 
   async function abrirDoc(d: FichaDoc) {
