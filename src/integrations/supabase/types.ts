@@ -1672,6 +1672,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "clientes_advogado_responsavel_id_fkey"
+            columns: ["advogado_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "clientes_campanha_origem_fkey"
             columns: ["campanha_origem"]
             isOneToOne: false
