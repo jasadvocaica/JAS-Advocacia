@@ -28,7 +28,7 @@ import {
   TIPO_LABELS, PRIORIDADE_LABELS, STATUS_LABELS, TIPO_ICON, TipoItem, StatusItem, Prioridade,
   ControladoriaItem, TIPOS_EVENTO, ORIENTACOES_PADRAO,
 } from "./types";
-import { useEquipeInterna, responsavelPadrao } from "./equipe";
+import { useEquipeInterna } from "./equipe";
 import { ResponsavelAvatar } from "./ResponsavelAvatar";
 
 interface Props {
@@ -204,16 +204,6 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo, open, isEdit, isEvento]);
 
-  // Default por tipo: aplica quando ainda não há responsável escolhido
-  useEffect(() => {
-    if (!open || isEdit) return;
-    if (responsavelId) return;
-    if (equipe.length === 0) return;
-    const padrao = responsavelPadrao(tipo, equipe);
-    if (padrao) setResponsavelId(padrao);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipo, open, equipe.length]);
-
   // Sugere o prazo judicial. A contagem continua sujeita a conferência humana.
   useEffect(() => {
     if (!isAuto || !dataIntimacao || !tipoPrazoId) return;
@@ -330,76 +320,35 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       origem: prefill?.origem ?? (isEdit ? (item as any)?.origem : "controladoria"),
     };
 
-    let savedId: string | null = null;
-    if (isEdit && item) {
-      const { data, error } = await comRetry(async () =>
-        await supabase.from("controladoria_itens").update(payload).eq("id", item.id).select().single(),
+    const { data: savedId, error } = await comRetry(async () =>
+      await (supabase as any).rpc("salvar_item_controladoria", {
+        _item_id: isEdit && item ? item.id : null,
+        _item: payload,
+        _corresponsaveis: coResponsaveis,
+      }),
+    );
+    setSaving(false);
+    if (error || !savedId) {
+      return toast.error(
+        `${isEdit ? "Erro ao salvar" : "Erro ao criar"}: ${error?.message ?? "nenhum registro foi confirmado"}`,
       );
-      setSaving(false);
-      if (error) return toast.error("Erro ao salvar: " + error.message);
-      savedId = (data as any)?.id ?? item.id;
-      toast.success("Item atualizado");
-    } else {
-      const newId = crypto.randomUUID();
-      const { error } = await comRetry(async () =>
-        await supabase
-          .from("controladoria_itens")
-          .insert({ id: newId, ...payload, criado_por: user?.id ?? null }),
-      );
-      setSaving(false);
-      if (error) return toast.error("Erro ao criar: " + error.message);
-       savedId = newId;
-      toast.success("Item criado");
     }
+    toast.success(isEdit ? "Item e responsáveis atualizados" : "Item e responsáveis criados");
 
-    // Sincroniza co-responsáveis (tabela controladoria_responsaveis)
-    if (savedId) {
-      try {
-        const todos = Array.from(new Set([responsavelId, ...coResponsaveis].filter(Boolean)));
-        await supabase.from("controladoria_responsaveis").delete().eq("item_id", savedId);
-        if (todos.length) {
-          await supabase.from("controladoria_responsaveis").insert(
-            todos.map((uid) => ({
-              item_id: savedId!,
-              user_id: uid,
-              papel: uid === responsavelId ? "principal" as const : "apoio" as const,
-            }))
-          );
-        }
-        // Notifica novos co-responsáveis (best-effort)
-        const novos = coResponsaveis.filter((id) => id !== user?.id && id !== responsavelId);
-        for (const uid of novos) {
-          await supabase.from("notificacoes").insert({
-            user_id: uid,
-            tipo: "tarefa_atribuida",
-            titulo: "Você foi adicionado(a) como colaborador(a)",
-            descricao: titulo.trim(),
-            link: `/controladoria?item=${savedId}`,
-            item_id: savedId,
-          });
-        }
-      } catch (err) {
-        console.warn("[ItemFormDialog] sincronizar co-responsáveis falhou", err);
-      }
-    }
-
-    try {
-      const responsavel = equipe.find((m) => m.id === responsavelId);
-      const responsavelUserId = (responsavel as any)?.user_id ?? null;
-      const criadorNome = user?.user_metadata?.nome ?? user?.email ?? "Alguém da equipe";
-      if (responsavelUserId && responsavelId !== user?.id && savedId) {
-        // notificacoes.user_id referencia profiles.id (que = responsavelId)
-        await supabase.from("notificacoes").insert({
-          user_id: responsavelId,
-          tipo: "tarefa_atribuida",
-          titulo: `Nova tarefa atribuída a você por ${criadorNome}`,
-          descricao: titulo.trim(),
-          link: `/controladoria?item=${savedId}`,
-          item_id: savedId,
-        });
-      }
-    } catch {
-      // notificação é best-effort, não bloqueia o fluxo
+    // O responsável principal já é notificado pelo gatilho canônico do banco.
+    // Colaboradores de apoio recebem aviso best-effort, sem duplicar a atribuição principal.
+    const novosApoios = coResponsaveis.filter(
+      (id) => id !== user?.id && id !== responsavelId,
+    );
+    for (const uid of novosApoios) {
+      await supabase.from("notificacoes").insert({
+        user_id: uid,
+        tipo: "tarefa_atribuida",
+        titulo: "Você foi adicionado(a) como colaborador(a)",
+        descricao: titulo.trim(),
+        link: `/controladoria?item=${savedId}`,
+        item_id: savedId,
+      });
     }
 
     // Disparo de emails (best-effort)
