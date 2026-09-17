@@ -279,7 +279,9 @@ export function FichaAtendimentoConteudo({
           })
           .select("id")
           .single();
-        if (insErr) throw insErr;
+        if (insErr || !registro) {
+          throw insErr ?? new Error("O documento não recebeu um registro válido");
+        }
         enviados[enviados.length - 1].registroId = registro.id;
       }
 
@@ -292,20 +294,29 @@ export function FichaAtendimentoConteudo({
       const ids = enviados
         .map((item) => item.registroId)
         .filter((id): id is string => Boolean(id));
+      let limpezaCompleta = true;
       if (ids.length > 0) {
-        await supabase.from("cliente_ficha_documentos").delete().in("id", ids);
+        const { error: limparDbError } = await supabase
+          .from("cliente_ficha_documentos")
+          .delete()
+          .in("id", ids);
+        limpezaCompleta = limpezaCompleta && !limparDbError;
       }
       if (enviados.length > 0) {
-        await supabase.storage
+        const { error: limparStorageError } = await supabase.storage
           .from("fichas-atendimento")
           .remove(enviados.map((item) => item.path));
+        limpezaCompleta = limpezaCompleta && !limparStorageError;
       }
 
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(
-        msg.includes("Failed to fetch")
-          ? "Falha de conexão. O envio foi cancelado sem deixar documentos parciais."
-          : `${msg}. O envio foi cancelado sem deixar documentos parciais.`,
+        msg.includes("Failed to fetch") ? "Falha de conexão durante o envio." : msg,
+        {
+          description: limpezaCompleta
+            ? "O lote foi cancelado e os registros parciais foram removidos."
+            : "O lote foi cancelado, mas a limpeza técnica precisa ser conferida pela gestão.",
+        },
       );
     } finally {
       setEnviandoArquivo(false);
