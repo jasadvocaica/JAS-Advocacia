@@ -10247,6 +10247,10 @@ export type Database = {
         Returns: undefined
       }
       revogar_token_mcp: { Args: { _id: string }; Returns: undefined }
+      salvar_item_controladoria: {
+        Args: { _corresponsaveis?: string[]; _item: Json; _item_id: string }
+        Returns: string
+      }
       salvar_processo_com_partes: {
         Args: { _partes?: Json; _processo: Json; _processo_id: string }
         Returns: string

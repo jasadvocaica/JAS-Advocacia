@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { TipoItem } from "./types";
 
 export interface MembroEquipe {
   id: string;
@@ -33,39 +32,6 @@ export function corAvatar(id: string): string {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   return cores[Math.abs(h) % cores.length];
-}
-
-/**
- * Resolve o responsável padrão para um tipo de item, com base nos perfis cadastrados.
- * Tenta casar pelo nome (Lana / Esther / Valeska / Juliana). Se não encontrar,
- * cai para o primeiro membro com o role esperado, ou null.
- */
-export function responsavelPadrao(tipo: TipoItem, equipe: MembroEquipe[]): string | null {
-  if (equipe.length === 0) return null;
-  const por = (substr: string) =>
-    equipe.find((m) => m.nome.toLowerCase().includes(substr.toLowerCase()))?.id ?? null;
-  const primeiroDoRole = (role: string) =>
-    equipe.find((m) => m.role === role)?.id ?? null;
-
-  switch (tipo) {
-    case "prazo_processual":
-    case "prazo_fatal":
-      return por("lana") ?? primeiroDoRole("estagiario") ?? primeiroDoRole("advogado");
-    case "tarefa":
-      return por("esther") ?? primeiroDoRole("estagiario");
-    case "audiencia":
-      return por("valeska") ?? primeiroDoRole("estagiario");
-    case "pericia":
-      return por("valeska") ?? primeiroDoRole("estagiario");
-    case "conciliacao":
-      return por("valeska") ?? primeiroDoRole("estagiario");
-    case "diligencia":
-      return por("valeska") ?? primeiroDoRole("estagiario");
-    case "reuniao":
-      return por("valeska") ?? primeiroDoRole("estagiario");
-    default:
-      return null;
-  }
 }
 
 /** Carrega membros internos da equipe (qualquer role exceto cliente/parceiro). */
