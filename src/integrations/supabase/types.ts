@@ -9901,6 +9901,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      converter_ficha_atendimento: {
+        Args: { _atendimento_id: string; _processo?: Json; _tipo: string }
+        Returns: Json
+      }
       converter_lead_em_cliente: {
         Args: {
           _advogado_responsavel?: string
