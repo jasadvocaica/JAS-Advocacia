@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,7 +100,6 @@ export default function ProcessoForm() {
   const navigate = useNavigate();
   const location = useLocation();
   const prefill = (location.state as { prefill?: Partial<typeof initialForm> } | null)?.prefill;
-  const { user } = useAuth();
 
   const [clientes, setClientes] = useState<ClienteOpt[]>([]);
   const [parceiros, setParceiros] = useState<ParceiroOpt[]>([]);
