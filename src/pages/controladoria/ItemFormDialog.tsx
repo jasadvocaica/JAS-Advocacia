@@ -321,7 +321,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
     };
 
     const { data: savedId, error } = await comRetry(async () =>
-      await (supabase as any).rpc("salvar_item_controladoria", {
+      await supabase.rpc("salvar_item_controladoria", {
         _item_id: isEdit && item ? item.id : null,
         _item: payload,
         _corresponsaveis: coResponsaveis,
