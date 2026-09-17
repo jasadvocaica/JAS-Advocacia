@@ -333,7 +333,7 @@ export function FichaAtendimentoConteudo({
             }
           : {};
 
-      const { data, error } = await (supabase as any).rpc("converter_ficha_atendimento", {
+      const { data, error } = await supabase.rpc("converter_ficha_atendimento", {
         _atendimento_id: ficha.id,
         _tipo: tipo,
         _processo: processoPayload,
