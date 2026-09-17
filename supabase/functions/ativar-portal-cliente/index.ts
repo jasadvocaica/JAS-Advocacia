@@ -1,86 +1,100 @@
-// Edge function: ativa o portal de um (ou vários) clientes.
-// - Exige usuário autenticado da equipe com permissão em "clientes".
-// - Para cada cliente_id recebido:
-//   * gera email fictício "<cpf>@cliente.local"
-//   * gera senha "<primeironome>123#"
-//   * cria/atualiza usuário no auth (admin)
-//   * upsert em cliente_usuarios
-// - Retorna lista com {cliente_id, cpf, senha, status}.
+// Ativa o portal de um ou vários clientes com credencial temporária forte.
+// Exige sessão interna e permissão de edição no módulo Clientes.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { gerarSenhaTemporaria } from "../_shared/senha-temporaria.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const LIMITE_LOTE = 100;
+
+function responder(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 function limparCpf(cpf: string): string {
   return (cpf ?? "").replace(/\D/g, "");
 }
 
-function senhaPadrao(nome: string): string {
-  const primeiro = (nome ?? "").trim().split(/\s+/)[0] ?? "";
-  const semAcento = primeiro
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z]/g, "")
-    .toLowerCase();
-  return `${semAcento || "cliente"}123#`;
-}
-
 interface AtivarBody {
   cliente_ids: string[];
   mostrar_financeiro?: boolean;
-  resetar_senha?: boolean; // se true, força reset para senha padrão mesmo se já existir
+  resetar_senha?: boolean;
+}
+
+type AdminClient = ReturnType<typeof createClient>;
+
+async function localizarUsuarioPorEmail(admin: AdminClient, email: string): Promise<string | null> {
+  const porPagina = 1000;
+  for (let pagina = 1; pagina <= 20; pagina += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page: pagina, perPage: porPagina });
+    if (error) throw error;
+
+    const encontrado = data.users.find(
+      (usuario) => usuario.email?.toLowerCase() === email.toLowerCase(),
+    );
+    if (encontrado) return encontrado.id;
+    if (data.users.length < porPagina) return null;
+  }
+  throw new Error("Não foi possível concluir a busca segura do usuário");
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return responder({ error: "Método não permitido" }, 405);
 
   try {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY");
+    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!SUPABASE_URL || !SUPABASE_ANON || !SERVICE_ROLE) {
+      return responder({ error: "Configuração interna indisponível" }, 500);
+    }
 
-    // 1. valida sessão da equipe
     const authHeader = req.headers.get("Authorization") ?? "";
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: userRes, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userRes.user) {
-      return new Response(JSON.stringify({ error: "Não autenticado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (userErr || !userRes.user) return responder({ error: "Não autenticado" }, 401);
     const uid = userRes.user.id;
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const [{ data: internoAtivo }, { data: temPerm }] = await Promise.all([
+      admin.rpc("is_interno_ativo", { _user_id: uid }),
+      admin.rpc("has_permission", {
+        _user_id: uid,
+        _modulo: "clientes",
+        _acao: "editar",
+      }),
+    ]);
+    if (!internoAtivo || !temPerm) return responder({ error: "Sem permissão" }, 403);
 
-    const { data: temPerm } = await admin.rpc("has_permission", {
-      _user_id: uid,
-      _modulo: "clientes",
-      _acao: "editar",
-    });
-    if (!temPerm) {
-      return new Response(JSON.stringify({ error: "Sem permissão" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let body: AtivarBody;
+    try {
+      body = (await req.json()) as AtivarBody;
+    } catch {
+      return responder({ error: "Corpo JSON inválido" }, 400);
     }
 
-    // 2. valida payload
-    const body = (await req.json()) as AtivarBody;
     if (!Array.isArray(body.cliente_ids) || body.cliente_ids.length === 0) {
-      return new Response(JSON.stringify({ error: "cliente_ids vazio" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return responder({ error: "cliente_ids vazio" }, 400);
+    }
+
+    const clienteIds = [...new Set(body.cliente_ids)];
+    if (clienteIds.length > LIMITE_LOTE) {
+      return responder({ error: `O lote aceita no máximo ${LIMITE_LOTE} clientes` }, 400);
+    }
+    if (clienteIds.some((id) => typeof id !== "string" || !UUID_RE.test(id))) {
+      return responder({ error: "Há identificador de cliente inválido" }, 400);
     }
 
     const resultados: Array<{
@@ -93,32 +107,24 @@ Deno.serve(async (req: Request) => {
       mensagem?: string;
     }> = [];
 
-    for (const cliente_id of body.cliente_ids) {
-      // busca dados do cliente
+    for (const cliente_id of clienteIds) {
       const { data: cliente, error: cliErr } = await admin
         .from("clientes")
-        .select("id, nome, cpf_cnpj, email")
+        .select("id, nome, cpf_cnpj")
         .eq("id", cliente_id)
         .maybeSingle();
 
       if (cliErr || !cliente) {
-        resultados.push({
-          cliente_id,
-          nome: "",
-          cpf: "",
-          email: "",
-          status: "erro",
-          mensagem: "Cliente não encontrado",
-        });
+        resultados.push({ cliente_id, nome: "", cpf: "", email: "", status: "erro", mensagem: "Cliente não encontrado" });
         continue;
       }
 
       const cpf = limparCpf(cliente.cpf_cnpj ?? "");
-      if (!cpf || cpf.length < 11) {
+      if (cpf.length !== 11) {
         resultados.push({
           cliente_id,
           nome: cliente.nome,
-          cpf: cpf,
+          cpf,
           email: "",
           status: "erro",
           mensagem: "Cliente sem CPF válido (precisa ter 11 dígitos)",
@@ -126,143 +132,184 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      const email = `${cpf}@cliente.local`;
-      const senha = senhaPadrao(cliente.nome);
-
-      // verifica se já existe vínculo
-      const { data: vinculo } = await admin
+      const emailDerivado = `${cpf}@cliente.local`;
+      const { data: vinculo, error: vinculoErr } = await admin
         .from("cliente_usuarios")
-        .select("id, user_id, ativo")
+        .select("id, user_id, email, ativo, mostrar_financeiro")
         .eq("cliente_id", cliente_id)
         .maybeSingle();
 
-      let userId = vinculo?.user_id ?? null;
+      if (vinculoErr) {
+        resultados.push({ cliente_id, nome: cliente.nome, cpf, email: emailDerivado, status: "erro", mensagem: "Falha ao consultar o acesso existente" });
+        continue;
+      }
 
-      // procura usuário existente pelo email (caso o vínculo tenha sido removido)
-      if (!userId) {
-        const { data: existing } = await admin.auth.admin.listUsers({
-          page: 1,
-          perPage: 200,
-        });
-        const found = existing?.users.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase(),
-        );
-        if (found) userId = found.id;
+      let userId = vinculo?.user_id ?? null;
+      let emailAcesso = vinculo?.email || emailDerivado;
+
+      if (userId) {
+        const { data: usuarioVinculado, error: usuarioVinculadoErr } =
+          await admin.auth.admin.getUserById(userId);
+        if (usuarioVinculadoErr || !usuarioVinculado.user) {
+          userId = null;
+        } else if (usuarioVinculado.user.email) {
+          emailAcesso = usuarioVinculado.user.email;
+        }
       }
 
       if (!userId) {
-        // cria novo usuário no auth
+        try {
+          userId = await localizarUsuarioPorEmail(admin, emailDerivado);
+          emailAcesso = emailDerivado;
+        } catch (erro) {
+          resultados.push({
+            cliente_id,
+            nome: cliente.nome,
+            cpf,
+            email: emailDerivado,
+            status: "erro",
+            mensagem: erro instanceof Error ? erro.message : "Falha ao localizar usuário",
+          });
+          continue;
+        }
+      }
+
+      const mostrarFinanceiro =
+        typeof body.mostrar_financeiro === "boolean"
+          ? body.mostrar_financeiro
+          : (vinculo?.mostrar_financeiro ?? false);
+
+      if (!userId) {
+        const senha = gerarSenhaTemporaria();
         const { data: novo, error: criarErr } = await admin.auth.admin.createUser({
-          email,
+          email: emailDerivado,
           password: senha,
           email_confirm: true,
-          user_metadata: {
-            nome: cliente.nome,
-            cliente_id: cliente.id,
-            tipo: "cliente_portal",
-          },
+          user_metadata: { nome: cliente.nome },
+          app_metadata: { cliente_id: cliente.id, tipo: "cliente_portal" },
         });
+
         if (criarErr || !novo.user) {
           resultados.push({
             cliente_id,
             nome: cliente.nome,
             cpf,
-            email,
+            email: emailDerivado,
             status: "erro",
             mensagem: criarErr?.message ?? "Erro ao criar usuário",
           });
           continue;
         }
-        userId = novo.user.id;
 
-        await admin.from("cliente_usuarios").upsert(
+        const { error: associarErr } = await admin.from("cliente_usuarios").upsert(
           {
             cliente_id,
-            user_id: userId,
-            email,
+            user_id: novo.user.id,
+            email: emailDerivado,
             primeiro_acesso: true,
             ativo: true,
-            mostrar_financeiro: !!body.mostrar_financeiro,
+            mostrar_financeiro: mostrarFinanceiro,
             criado_por: uid,
           },
           { onConflict: "cliente_id" },
         );
 
-        resultados.push({
-          cliente_id,
-          nome: cliente.nome,
-          cpf,
-          email,
-          senha,
-          status: "ativado",
-        });
-      } else if (body.resetar_senha) {
-        // reseta para senha padrão
-        const { error: updErr } = await admin.auth.admin.updateUserById(userId, {
-          password: senha,
-        });
-        if (updErr) {
+        if (associarErr) {
+          const { error: compensarErr } = await admin.auth.admin.deleteUser(novo.user.id);
+          console.error("[ativar-portal-cliente] vínculo falhou; compensação auth", {
+            cliente_id,
+            associar: associarErr.message,
+            compensar: compensarErr?.message ?? null,
+          });
           resultados.push({
             cliente_id,
             nome: cliente.nome,
             cpf,
-            email,
+            email: emailDerivado,
             status: "erro",
-            mensagem: updErr.message,
+            mensagem: compensarErr
+              ? "Falha ao vincular o portal; intervenção administrativa necessária"
+              : "Falha ao vincular o portal; criação desfeita",
           });
           continue;
         }
-        await admin.from("cliente_usuarios").upsert(
+
+        resultados.push({ cliente_id, nome: cliente.nome, cpf, email: emailDerivado, senha, status: "ativado" });
+        continue;
+      }
+
+      if (body.resetar_senha) {
+        const senha = gerarSenhaTemporaria();
+        const { error: atualizarSenhaErr } = await admin.auth.admin.updateUserById(userId, {
+          password: senha,
+        });
+        if (atualizarSenhaErr) {
+          resultados.push({
+            cliente_id,
+            nome: cliente.nome,
+            cpf,
+            email: emailAcesso,
+            status: "erro",
+            mensagem: atualizarSenhaErr.message,
+          });
+          continue;
+        }
+
+        const { error: associarErr } = await admin.from("cliente_usuarios").upsert(
           {
             cliente_id,
             user_id: userId,
-            email,
+            email: emailAcesso,
             primeiro_acesso: true,
             ativo: true,
-            mostrar_financeiro: !!body.mostrar_financeiro,
+            mostrar_financeiro: mostrarFinanceiro,
           },
           { onConflict: "cliente_id" },
         );
-        resultados.push({
-          cliente_id,
-          nome: cliente.nome,
-          cpf,
-          email,
-          senha,
-          status: "senha_resetada",
-        });
-      } else {
-        // já existe, garante vínculo ativo
-        await admin.from("cliente_usuarios").upsert(
-          {
+        if (associarErr) {
+          resultados.push({
             cliente_id,
-            user_id: userId,
-            email,
-            ativo: true,
-            mostrar_financeiro: !!body.mostrar_financeiro,
-          },
-          { onConflict: "cliente_id" },
-        );
+            nome: cliente.nome,
+            cpf,
+            email: emailAcesso,
+            status: "erro",
+            mensagem: "A senha foi alterada, mas o vínculo do portal requer conferência administrativa",
+          });
+          continue;
+        }
+
+        resultados.push({ cliente_id, nome: cliente.nome, cpf, email: emailAcesso, senha, status: "senha_resetada" });
+        continue;
+      }
+
+      const { error: associarErr } = await admin.from("cliente_usuarios").upsert(
+        {
+          cliente_id,
+          user_id: userId,
+          email: emailAcesso,
+          ativo: true,
+          mostrar_financeiro: mostrarFinanceiro,
+        },
+        { onConflict: "cliente_id" },
+      );
+      if (associarErr) {
         resultados.push({
           cliente_id,
           nome: cliente.nome,
           cpf,
-          email,
-          status: "ja_existia",
+          email: emailAcesso,
+          status: "erro",
+          mensagem: "Falha ao reativar o vínculo do portal",
         });
+        continue;
       }
+
+      resultados.push({ cliente_id, nome: cliente.nome, cpf, email: emailAcesso, status: "ja_existia" });
     }
 
-    return new Response(JSON.stringify({ resultados }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return responder({ resultados });
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: (err as Error).message ?? "erro interno" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    console.error("[ativar-portal-cliente] erro não tratado", err);
+    return responder({ error: "Erro interno ao ativar o portal" }, 500);
   }
 });
