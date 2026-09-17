@@ -45,7 +45,8 @@ import {
   ShieldAlert,
   CheckCircle2,
 } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { formatCNJ, formatDateTime, onlyDigits } from "@/lib/format";
+import { TRIBUNAIS, derivarTribunalDoCNJ, tribunalSuportado, validarCNJ } from "@/lib/datajud";
 import { ProcessoDoClientePicker } from "@/components/clientes/ProcessoDoClientePicker";
 import { iniciarProducaoJuridica } from "@/lib/producao-juridica";
 
@@ -152,6 +153,7 @@ export function FichaAtendimentoConteudo({
   const [confirmarConverter, setConfirmarConverter] =
     useState<null | "processo" | "processo_administrativo" | "diligencia">(null);
   const [convertendo, setConvertendo] = useState(false);
+  const [cnjConversao, setCnjConversao] = useState("");
   const [arrastando, setArrastando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -308,78 +310,49 @@ export function FichaAtendimentoConteudo({
 
   async function converter(tipo: NonNullable<typeof confirmarConverter>) {
     if (!ficha) return;
+
+    const cnjLimpo = tipo === "processo" ? onlyDigits(cnjConversao) : "";
+    if (tipo === "processo" && !validarCNJ(cnjLimpo)) {
+      toast.error("Informe um número CNJ válido para criar o processo judicial");
+      return;
+    }
+
     setConvertendo(true);
     try {
-      const tituloFicha = ficha.titulo ?? "Atendimento";
-      const descricao = [
-        ficha.resumo,
-        ficha.tese_juridica ? `\n\n**Tese:**\n${ficha.tese_juridica}` : "",
-      ]
-        .filter(Boolean)
-        .join("");
+      const tribunalSigla = cnjLimpo ? derivarTribunalDoCNJ(cnjLimpo) : null;
+      const tribunalInfo = tribunalSigla ? TRIBUNAIS[tribunalSigla] : null;
+      const processoPayload =
+        tipo === "processo"
+          ? {
+              numero_cnj: cnjLimpo,
+              numero_cnj_limpo: cnjLimpo,
+              tribunal_sigla: tribunalSigla,
+              tribunal_nome: tribunalInfo?.nome ?? null,
+              datajud_alias: tribunalInfo?.alias ?? null,
+              datajud_ativo: tribunalSigla ? tribunalSuportado(tribunalSigla) : false,
+            }
+          : {};
 
-      let novoProcessoId: string | null = null;
-      let novoItemId: string | null = null;
+      const { data, error } = await supabase.rpc("converter_ficha_atendimento", {
+        _atendimento_id: ficha.id,
+        _tipo: tipo,
+        _processo: processoPayload,
+      });
+      if (error) throw error;
 
-      if (tipo === "processo" || tipo === "processo_administrativo") {
-        const { data: p, error: pErr } = await supabase
-          .from("processos")
-          .insert({
-            cliente_id: clienteId,
-            tipo: tipo === "processo_administrativo" ? "administrativo" : "judicial",
-            area_direito: ficha.area ?? null,
-            observacoes_internas:
-              `Originado da ficha de atendimento "${tituloFicha}".\n\n` + (descricao || ""),
-            status: "ativo",
-            criado_por: user?.id ?? null,
-          })
-          .select("id")
-          .maybeSingle();
-        if (pErr) throw pErr;
-        novoProcessoId = p?.id ?? null;
-      } else if (tipo === "diligencia") {
-        const { data: i, error: iErr } = await supabase
-          .from("controladoria_itens")
-          .insert({
-            tipo: "diligencia",
-            titulo: tituloFicha,
-            descricao: descricao || ficha.informacoes_brutas || "",
-            prioridade: "media",
-            data_vencimento: new Date(Date.now() + 86400000 * 5).toISOString(),
-            cliente_id: clienteId,
-            origem: "controladoria",
-            criado_por: user?.id ?? null,
-          })
-          .select("id")
-          .maybeSingle();
-        if (iErr) throw iErr;
-        novoItemId = i?.id ?? null;
-      }
+      const resultado = (data ?? {}) as {
+        status?: string;
+        processo_id?: string | null;
+        item_controladoria_id?: string | null;
+      };
+      const novoProcessoId = resultado.processo_id ?? ficha.processo_id ?? null;
+      const novoItemId = resultado.item_controladoria_id ?? ficha.item_controladoria_id ?? null;
 
-      const { error: upErr } = await supabase
-        .from("cliente_atendimentos")
-        .update({
-          status: "convertido",
-          convertido_em: new Date().toISOString(),
-          convertido_tipo: tipo,
-          processo_id: novoProcessoId ?? ficha.processo_id,
-          item_controladoria_id: novoItemId ?? ficha.item_controladoria_id,
-          link: novoProcessoId
-            ? `/processos/${novoProcessoId}`
-            : novoItemId
-              ? `/controladoria`
-              : ficha.processo_id
-                ? `/processos/${ficha.processo_id}`
-                : null,
-        })
-        .eq("id", ficha.id);
-      if (upErr) throw upErr;
-
-      // Produção jurídica (POP): só dispara nesta conversão nova e explícita.
-      // Nunca bloqueia a conversão — no máximo avisa e registra pendência.
+      // A produção é idempotente e não bloqueia a conversão. Se faltar regra ou
+      // responsável explícito, registra pendência para a gestão.
       const producao = await iniciarProducaoJuridica({
         atendimentoId: ficha.id,
-        processoId: novoProcessoId ?? ficha.processo_id ?? null,
+        processoId: novoProcessoId,
       });
       if (producao.criouFluxo) {
         toast.success("Fluxo de produção jurídica iniciado na Controladoria");
@@ -387,18 +360,21 @@ export function FichaAtendimentoConteudo({
         toast.warning(producao.aviso, { duration: 10000 });
       }
 
-
-      toast.success("Atendimento convertido com sucesso");
+      toast.success(
+        resultado.status === "ja_convertida"
+          ? "Esta ficha já estava convertida"
+          : "Atendimento convertido com sucesso",
+      );
       onChanged?.();
       onClose?.();
       if (novoProcessoId) navigate(`/processos/${novoProcessoId}`);
-      else if (novoItemId) navigate(`/controladoria`);
-
+      else if (novoItemId) navigate("/controladoria");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha na conversão");
     } finally {
       setConvertendo(false);
       setConfirmarConverter(null);
+      setCnjConversao("");
     }
   }
 
@@ -1065,10 +1041,29 @@ export function FichaAtendimentoConteudo({
               será criado, vinculado ao cliente.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmarConverter === "processo" && (
+            <div className="space-y-2 py-2">
+              <Label htmlFor="cnj-conversao">Número CNJ *</Label>
+              <Input
+                id="cnj-conversao"
+                value={cnjConversao ? formatCNJ(cnjConversao) : ""}
+                onChange={(e) => setCnjConversao(onlyDigits(e.target.value))}
+                placeholder="0000000-00.0000.0.00.0000"
+                className="font-mono"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                O processo judicial só será criado após a validação do número CNJ.
+              </p>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={convertendo}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              disabled={convertendo}
+              disabled={
+                convertendo ||
+                (confirmarConverter === "processo" && !validarCNJ(cnjConversao))
+              }
               onClick={() => confirmarConverter && converter(confirmarConverter)}
             >
               {convertendo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Converter"}
