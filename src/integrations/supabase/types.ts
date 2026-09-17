@@ -10069,6 +10069,7 @@ export type Database = {
         }
       }
       ponto_verificar_vinculo: { Args: never; Returns: Json }
+      processar_alertas_controladoria: { Args: never; Returns: Json }
       producao_aguardar_documentos: {
         Args: { _item_id: string; _motivo: string }
         Returns: {
@@ -10242,6 +10243,10 @@ export type Database = {
         Returns: undefined
       }
       revogar_token_mcp: { Args: { _id: string }; Returns: undefined }
+      salvar_processo_com_partes: {
+        Args: { _partes?: Json; _processo: Json; _processo_id: string }
+        Returns: string
+      }
       seguranca_resumo: { Args: never; Returns: Json }
       seguranca_verificar_alertas: { Args: never; Returns: Json }
       subtrair_dias_uteis: {
