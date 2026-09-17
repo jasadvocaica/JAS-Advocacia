@@ -38,7 +38,7 @@ export default function ClienteForm() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [advogados, setAdvogados] = useState<Profile[]>([]);
+  const [responsaveisJuridicos, setResponsaveisJuridicos] = useState<Profile[]>([]);
   const [cpfErro, setCpfErro] = useState<string | null>(null);
   const [duplicados, setDuplicados] = useState<Array<{ id: string; nome: string; cpf_cnpj: string | null; whatsapp: string | null; status: string }>>([]);
   const [homonimos, setHomonimos] = useState<Array<{ id: string; nome: string; cpf_cnpj: string | null; status: string }>>([]);
@@ -83,8 +83,45 @@ export default function ClienteForm() {
   });
 
   useEffect(() => {
-    supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome")
-      .then(({ data }) => setAdvogados((data ?? []) as Profile[]));
+    let cancelado = false;
+
+    (async () => {
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["gestor", "advogado"]);
+
+      if (cancelado) return;
+      if (rolesError) {
+        console.error("[ClienteForm] Falha ao carregar responsáveis jurídicos", rolesError);
+        setResponsaveisJuridicos([]);
+        return;
+      }
+
+      const ids = Array.from(new Set((roles ?? []).map((r) => r.user_id).filter(Boolean)));
+      if (!ids.length) {
+        setResponsaveisJuridicos([]);
+        return;
+      }
+
+      const { data: perfis, error: perfisError } = await supabase
+        .from("profiles")
+        .select("id, nome")
+        .in("id", ids)
+        .eq("ativo", true)
+        .order("nome");
+
+      if (cancelado) return;
+      if (perfisError) {
+        console.error("[ClienteForm] Falha ao carregar perfis jurídicos", perfisError);
+        setResponsaveisJuridicos([]);
+        return;
+      }
+
+      setResponsaveisJuridicos((perfis ?? []) as Profile[]);
+    })();
+
+    return () => { cancelado = true; };
   }, []);
 
   useEffect(() => {
@@ -851,12 +888,12 @@ export default function ClienteForm() {
             <Input value={form.origem_detalhe} onChange={(e) => update({ origem_detalhe: e.target.value })} placeholder="Quem indicou, qual campanha..." />
           </div>
           <div className="sm:col-span-3 space-y-2">
-            <Label>Advogado responsável</Label>
+            <Label>Responsável jurídico</Label>
             <Select value={form.advogado_responsavel_id || "_none"} onValueChange={(v) => update({ advogado_responsavel_id: v === "_none" ? "" : v })}>
               <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="_none">— Sem responsável —</SelectItem>
-                {advogados.map((a) => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
+                {responsaveisJuridicos.map((a) => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
