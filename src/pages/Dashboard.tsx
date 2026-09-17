@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatBRL, formatDate } from "@/lib/format";
+import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import { cn } from "@/lib/utils";
 import { MapaBrasilClientes } from "@/components/dashboard/MapaBrasilClientes";
 import { UF_NOMES } from "@/components/dashboard/brasil-uf-paths";
@@ -768,7 +769,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
                       <Gavel className="h-3.5 w-3.5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{a.descricao}</p>
+                      <p className="truncate text-sm">{textoLegivelPublicacao(a.descricao)}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {a.processos?.numero_cnj ?? "—"} • {a.processos?.clientes?.nome ?? "—"}
                       </p>
