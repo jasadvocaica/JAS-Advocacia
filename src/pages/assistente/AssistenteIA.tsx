@@ -1,6 +1,7 @@
+import { ConsumoAssistente } from "@/components/assistente/ConsumoAssistente";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
+import { MensagemAssistente } from "@/components/assistente/MensagemAssistente";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAssistenteChat } from "./useAssistenteChat";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-const BIA_HABILITADA = import.meta.env.VITE_BIA_ENABLED === "true";
+const BIA_HABILITADA = true;
 
 const SUGESTOES = [
   "Quais prazos vencem nos próximos 7 dias?",
@@ -29,8 +30,8 @@ const SUGESTOES = [
 ];
 
 export default function AssistenteIA() {
-  const { roles, isGestor, loading } = useAuth();
-  const podeAcessar = isGestor || roles.includes("advogado");
+  const { roles, isGestor, loading, profile, hasPermission } = useAuth();
+  const podeAcessar = profile?.ativo && (profile.tipo_portal ?? "interno") === "interno" && (isGestor || roles.some(r=>["advogado","controladoria"].includes(r)) || ["clientes","processos","controladoria","financeiro"].some(m=>hasPermission(m as "clientes", "visualizar")));
   const {
     conversas,
     conversaAtual,
@@ -87,9 +88,10 @@ export default function AssistenteIA() {
     <div className="space-y-4">
       <PageHeader
         title="Assistente IA"
-        description="Chat com contexto real do escritório — clientes, processos, prazos e financeiro."
+        description="Consultas autorizadas e recomendações, sem alterações automáticas."
       />
 
+      <ConsumoAssistente />
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
         {/* Sidebar de conversas */}
         <Card className="p-3 space-y-2 h-[calc(100vh-220px)] flex flex-col">
@@ -120,7 +122,7 @@ export default function AssistenteIA() {
                   <button
                     onClick={() => void arquivar(c.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 mr-1 hover:text-destructive"
-                    title="Arquivar"
+                    title="Excluir conversa" aria-label="Excluir conversa"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -178,7 +180,7 @@ export default function AssistenteIA() {
                 >
                   {m.role === "assistant" ? (
                     <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1">
-                      <ReactMarkdown>{m.content || "…"}</ReactMarkdown>
+                      <MensagemAssistente mensagem={m} />
                     </div>
                   ) : (
                     <span className="whitespace-pre-wrap">{m.content}</span>
@@ -206,16 +208,16 @@ export default function AssistenteIA() {
                   submit();
                 }
               }}
-              placeholder="Pergunte algo sobre o escritório..."
+              placeholder="Pergunte algo sobre o escritório..." aria-label="Mensagem para Bia"
               className="min-h-[44px] max-h-[160px] resize-none"
               disabled={enviando}
             />
             {enviando ? (
-              <Button variant="outline" onClick={cancelar} title="Cancelar">
+              <Button variant="outline" onClick={cancelar} title="Cancelar" aria-label="Interromper geração">
                 <StopCircle className="w-4 h-4" />
               </Button>
             ) : (
-              <Button onClick={submit} disabled={!input.trim()}>
+              <Button onClick={submit} disabled={!input.trim()} aria-label="Enviar mensagem">
                 <Send className="w-4 h-4" />
               </Button>
             )}

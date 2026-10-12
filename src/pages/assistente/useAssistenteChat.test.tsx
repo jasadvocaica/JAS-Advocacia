@@ -1,0 +1,15 @@
+import {renderHook,act,waitFor} from '@testing-library/react';
+import {beforeEach,describe,it,expect,vi} from 'vitest';
+const auth=vi.hoisted(()=>({user:{id:'usuario-a'},session:{access_token:'jwt-sintetico'}}));
+vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>auth}));
+vi.mock('@/hooks/use-toast',()=>({toast:vi.fn()}));
+vi.mock('@/integrations/supabase/client',()=>({supabase:{from:()=>{const q:any={};for(const k of ['select','eq','order','limit','delete'])q[k]=()=>q;q.then=(resolve:any)=>resolve({data:[],error:null});return q;}}}));
+import {useAssistenteChat} from './useAssistenteChat';
+const conversa={id:'conversa-a',titulo:'Pergunta',mensagens:[{role:'user',content:'Pergunta'},{role:'assistant',content:'Resposta autorizada',fontes:[]}],arquivada:false,criado_em:'2026-10-12',atualizado_em:'2026-10-12'};
+beforeEach(()=>{auth.user={id:'usuario-a'};vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({conversa})}));});
+describe('conversação segura',()=>{
+ it('inicia conversa, recebe resposta e usa apenas texto/id no backend',async()=>{const {result}=renderHook(()=>useAssistenteChat());await act(async()=>{await result.current.enviar('Pergunta');});expect(result.current.conversaAtual?.mensagens[1].content).toBe('Resposta autorizada');const payload=JSON.parse((fetch as any).mock.calls[0][1].body);expect(payload.texto).toBe('Pergunta');expect(payload).not.toHaveProperty('mensagens');act(()=>result.current.novaConversa());expect(result.current.conversaAtual?.mensagens).toEqual([]);});
+ it('trata falha da API como resposta incompleta',async()=>{vi.mocked(fetch).mockResolvedValue({ok:false,json:async()=>({error:'Falha da API'})} as Response);const {result}=renderHook(()=>useAssistenteChat());await act(async()=>{await result.current.enviar('Pergunta');});expect(result.current.conversaAtual?.mensagens.at(-1)?.incompleta).toBe(true);expect(result.current.enviando).toBe(false);});
+ it('limpa histórico ao trocar de usuário',async()=>{const {result,rerender}=renderHook(()=>useAssistenteChat());await act(async()=>{await result.current.enviar('Pergunta');});auth.user={id:'usuario-b'};rerender();await waitFor(()=>expect(result.current.conversaAtual).toBe(null));});
+ it('interrompe a chamada e notifica o backend',async()=>{vi.mocked(fetch).mockImplementation(async(_url,init)=>{const p=JSON.parse(String(init?.body));if(p.acao==='cancelar')return {ok:true,json:async()=>({cancelado:true})} as Response;return new Promise((_resolve,reject)=>init?.signal?.addEventListener('abort',()=>reject(new DOMException('cancelado','AbortError'))));});const {result}=renderHook(()=>useAssistenteChat());let envio:Promise<void>;act(()=>{envio=result.current.enviar('Pergunta');});await waitFor(()=>expect(result.current.enviando).toBe(true));await act(async()=>{result.current.cancelar();await envio!;});expect(result.current.conversaAtual?.mensagens.at(-1)?.incompleta).toBe(true);expect((fetch as any).mock.calls.some((c:any)=>JSON.parse(c[1].body).acao==='cancelar')).toBe(true);});
+});

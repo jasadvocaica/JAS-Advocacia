@@ -380,7 +380,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      {!location.pathname.startsWith("/marketing") && <AssistenteFlutuante />}
+      <AssistenteFlutuante />
     </div>
   );
 }

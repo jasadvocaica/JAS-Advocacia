@@ -54,7 +54,8 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.assistente-chat]
-verify_jwt = true
+# A função valida cada JWT por getUser e aplica autorização por ferramenta.
+verify_jwt = false
 
 [functions.ativar-portal-cliente]
 verify_jwt = true

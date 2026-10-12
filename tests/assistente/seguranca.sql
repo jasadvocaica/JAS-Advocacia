@@ -1,0 +1,42 @@
+BEGIN;
+DO $$ DECLARE gestor uuid:=gen_random_uuid(); equipe uuid:=gen_random_uuid(); escopo text; BEGIN
+ INSERT INTO auth.users(id,aud,role,email,raw_user_meta_data) VALUES(gestor,'authenticated','authenticated','ia-test-'||gestor||'@example.invalid','{"nome":"Teste Gestor IA"}'),(equipe,'authenticated','authenticated','ia-test-'||equipe||'@example.invalid','{"nome":"Teste Equipe IA"}');
+ UPDATE public.profiles SET ativo=true,tipo_portal='interno' WHERE id IN (gestor,equipe);
+ DELETE FROM public.user_roles WHERE user_id IN (gestor,equipe);
+ INSERT INTO public.user_roles(user_id,role) VALUES(gestor,'gestor');
+ INSERT INTO public.user_permissions(user_id,modulo,acao,permitido) VALUES(equipe,'clientes','visualizar',true),(equipe,'processos','visualizar',true),(equipe,'controladoria','visualizar',true) ON CONFLICT(user_id,modulo,acao) DO UPDATE SET permitido=true;
+ PERFORM set_config('test.ia_gestor',gestor::text,true);PERFORM set_config('test.ia_equipe',equipe::text,true);
+ PERFORM set_config('request.jwt.claim.sub',gestor::text,true);
+ INSERT INTO public.assistente_conversas(user_id,titulo,escopo_hash,expira_em) VALUES(gestor,'Conversa privada da gestão',public.assistente_escopo(),now()+interval '1 day');
+ PERFORM set_config('request.jwt.claim.sub',equipe::text,true);
+ escopo:=public.assistente_escopo();
+ INSERT INTO public.assistente_conversas(user_id,titulo,escopo_hash,expira_em) VALUES(equipe,'Conversa própria',escopo,now()+interval '1 day');
+END $$;
+SET LOCAL ROLE authenticated;
+DO $$ DECLARE negado boolean:=false; BEGIN
+ IF (SELECT count(*) FROM public.assistente_conversas)<>1 THEN RAISE EXCEPTION 'Histórico de outro usuário exposto'; END IF;
+ IF EXISTS(SELECT 1 FROM public.assistente_conversas WHERE titulo='Conversa privada da gestão') THEN RAISE EXCEPTION 'Conversa da gestão exposta'; END IF;
+ IF public.has_permission(auth.uid(),'financeiro','visualizar') THEN RAISE EXCEPTION 'Financeiro concedido indevidamente'; END IF;
+ IF EXISTS(SELECT 1 FROM public.processos) THEN RAISE EXCEPTION 'Processos fora da carteira expostos'; END IF;
+ BEGIN INSERT INTO public.assistente_conversas(user_id,titulo) VALUES(auth.uid(),'Histórico adulterado'); EXCEPTION WHEN insufficient_privilege THEN negado:=true; END;
+ IF NOT negado THEN RAISE EXCEPTION 'Cliente pode adulterar histórico'; END IF;
+ negado:=false;BEGIN PERFORM public.assistente_reservar(gen_random_uuid(),auth.uid(),'gpt-4.1-mini-2025-04-14');EXCEPTION WHEN insufficient_privilege THEN negado:=true;END;
+ IF NOT negado THEN RAISE EXCEPTION 'Cliente pode contornar limites'; END IF;
+ UPDATE public.assistente_config SET habilitado=true WHERE id=true;
+ IF FOUND THEN RAISE EXCEPTION 'Equipe alterou configuração'; END IF;
+END $$;
+RESET ROLE;
+UPDATE public.user_permissions SET permitido=false WHERE user_id=current_setting('test.ia_equipe')::uuid AND modulo='processos';
+SET LOCAL ROLE authenticated;
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM public.assistente_conversas) THEN RAISE EXCEPTION 'Histórico acessível após mudança de permissão'; END IF; END $$;
+RESET ROLE;
+UPDATE public.assistente_config SET habilitado=true WHERE id=true;
+SET LOCAL ROLE service_role;
+DO $$ DECLARE id uuid:=gen_random_uuid(); uid uuid:=current_setting('test.ia_equipe')::uuid; negado boolean:=false; BEGIN
+ IF NOT public.assistente_reservar(id,uid,'gpt-4.1-mini-2025-04-14') THEN RAISE EXCEPTION 'Primeira reserva falhou'; END IF;
+ IF public.assistente_reservar(id,uid,'gpt-4.1-mini-2025-04-14') THEN RAISE EXCEPTION 'Pedido duplicado aceito'; END IF;
+ BEGIN PERFORM public.assistente_reservar(gen_random_uuid(),uid,'gpt-4.1-mini-2025-04-14'); EXCEPTION WHEN OTHERS THEN negado:=true; END;
+ IF NOT negado THEN RAISE EXCEPTION 'Requisição concorrente aceita'; END IF;
+END $$;
+RESET ROLE;
+ROLLBACK;

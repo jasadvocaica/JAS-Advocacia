@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { MensagemAssistente } from "@/components/assistente/MensagemAssistente";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAssistenteChat } from "@/pages/assistente/useAssistenteChat";
 import { useAIContext } from "@/hooks/useAIContext";
 import { quickActionsParaModulo } from "@/components/assistente/quickActions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Send, X, Maximize2, Loader2, StopCircle } from "lucide-react";
+import { Sparkles, Send, X, Maximize2, Loader2, StopCircle, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 
-const BIA_HABILITADA = import.meta.env.VITE_BIA_ENABLED === "true";
+const BIA_HABILITADA = true;
 
 /**
  * Botão flutuante + painel de chat rápido (Assistente "Bia").
  * Visível apenas para gestores e advogados em qualquer página interna.
  */
 export function AssistenteFlutuante() {
-  const { roles, isGestor, user } = useAuth();
-  const podeAcessar = !!user && (isGestor || roles.includes("advogado"));
+  const { roles, isGestor, user, profile, hasPermission } = useAuth();
+  const podeAcessar = !!user && profile?.ativo && (profile.tipo_portal ?? "interno") === "interno" && (isGestor || roles.some(r=>["advogado","controladoria"].includes(r)) || ["clientes","processos","controladoria","financeiro"].some(m=>hasPermission(m as "clientes", "visualizar")));
 
   const [aberto, setAberto] = useState(false);
   const { conversaAtual, enviando, novaConversa, enviar, cancelar } = useAssistenteChat();
@@ -64,9 +64,9 @@ export function AssistenteFlutuante() {
 
       {/* Painel */}
       {aberto && (
-        <div
+        <div role="region" aria-label="Conversa com Bia"
           className={cn(
-            "fixed bottom-20 right-5 z-50 w-[min(420px,calc(100vw-2rem))] h-[560px]",
+            "fixed bottom-20 right-5 z-50 w-[min(420px,calc(100vw-2rem))] h-[min(560px,calc(100dvh-7rem))]",
             "bg-card border rounded-lg shadow-2xl flex flex-col overflow-hidden",
           )}
         >
@@ -82,6 +82,7 @@ export function AssistenteFlutuante() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button onClick={novaConversa} disabled={enviando} aria-label="Nova conversa" className="p-1.5 rounded hover:bg-accent"><Plus className="w-4 h-4" /></button>
               <Link
                 to="/assistente"
                 onClick={() => setAberto(false)}
@@ -105,7 +106,7 @@ export function AssistenteFlutuante() {
               <div className="text-center text-muted-foreground py-6 px-4">
                 <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary/60" />
                 <p className="text-xs">
-                  Olá! Sou a <strong>Bia</strong>, sua assistente jurídica. Tenho acesso aos dados do escritório.
+                  Olá! Sou a <strong>Bia</strong>, sua assistente jurídica. Consulto somente os dados autorizados para você.
                   Pergunte sobre clientes, processos, prazos ou financeiro — ou use um atalho abaixo.
                 </p>
               </div>
@@ -120,7 +121,7 @@ export function AssistenteFlutuante() {
                 >
                   {m.role === "assistant" ? (
                     <div className="prose prose-xs dark:prose-invert max-w-none [&_p]:my-0.5 [&_ul]:my-0.5 [&_ol]:my-0.5">
-                      <ReactMarkdown>{m.content || "…"}</ReactMarkdown>
+                      <MensagemAssistente mensagem={m} />
                     </div>
                   ) : (
                     <span className="whitespace-pre-wrap">{m.content}</span>
@@ -172,7 +173,7 @@ export function AssistenteFlutuante() {
                 <StopCircle className="w-3.5 h-3.5" />
               </Button>
             ) : (
-              <Button size="sm" onClick={() => submit()} disabled={!input.trim()}>
+              <Button size="sm" aria-label="Enviar mensagem" onClick={() => submit()} disabled={!input.trim()}>
                 <Send className="w-3.5 h-3.5" />
               </Button>
             )}
