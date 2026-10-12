@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -668,14 +668,6 @@ export default function Marketing() {
           )}
         </section>
       </div>
-      {(ctx.permissoes.demandas || ctx.permissoes.comercial) && (
-        <Link
-          to="/comercial/demandas"
-          className="inline-block text-sm underline text-primary"
-        >
-          Abrir vínculos comerciais de serviços
-        </Link>
-      )}
       {(novo || (editar && item)) && (
         <ItemForm
           key={item?.id ?? novo}

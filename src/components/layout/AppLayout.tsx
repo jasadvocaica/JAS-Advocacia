@@ -1,10 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { MENUS } from "@/pages/marketing/model";
-import { contexto } from "@/pages/marketing/api";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useResponsavelComunicacao } from "@/hooks/useResponsavelComunicacao";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
@@ -39,7 +36,7 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   modulo?: Modulo;
   badge?: string;
-  grupo: "Início" | "Produção jurídica" | "Comercial" | "Marketing" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
+  grupo: "Início" | "Produção jurídica" | "Clientes" | "Marketing" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
 }
 
 const NAV: NavItem[] = [
@@ -48,25 +45,13 @@ const NAV: NavItem[] = [
   { grupo: "Produção jurídica", to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
   { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
   { grupo: "Produção jurídica", to: "/diligencias", label: "Diligências", icon: Scale },
-  { grupo: "Produção jurídica", to: "/fluxos", label: "Fluxos e POPs", icon: Workflow, modulo: "controladoria" },
-  { grupo: "Produção jurídica", to: "/documentos", label: "Peças e documentos", icon: FileText, modulo: "documentos" },
-  { grupo: "Produção jurídica", to: "/parceiros", label: "Parceiros", icon: Handshake, modulo: "parceiros" },
-  { grupo: "Comercial", to: "/comercial/visao-geral", label: "Visão comercial", icon: BarChart3, modulo: "marketing" },
-  { grupo: "Comercial", to: "/comercial", label: "Conversas", icon: MessageCircle, modulo: "marketing" },
-  { grupo: "Comercial", to: "/comercial/crm", label: "CRM", icon: Users, modulo: "marketing" },
-  { grupo: "Comercial", to: "/comercial/automacoes", label: "Automações", icon: Workflow, modulo: "marketing" },
-  { grupo: "Comercial", to: "/comercial/campanhas", label: "Campanhas", icon: Megaphone, modulo: "marketing" },
-  { grupo: "Comercial", to: "/comercial/conexoes", label: "Conexões", icon: RefreshCw, modulo: "marketing" },
-  { grupo: "Comercial", to: "/atendimentos", label: "Fichas de atendimento", icon: ClipboardCheck, modulo: "clientes" },
-  { grupo: "Comercial", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
+  { grupo: "Clientes", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
   ...MENUS.map((menu, index): NavItem => ({ grupo: "Marketing", to: `/marketing?secao=${menu.itens[0][0]}`, label: menu.nome, icon: [LayoutDashboard, Calendar, FileText, ClipboardCheck, BarChart3][index], modulo: "marketing" })),
-  { grupo: "Comercial", to: "/comercial/demandas", label: "Serviços e oportunidades", icon: Briefcase, modulo: "clientes" },
-  { grupo: "Comercial", to: "/catalogo-juridico", label: "Catálogo jurídico", icon: FileText, modulo: "clientes" },
   { grupo: "Financeiro", to: "/financeiro", label: "Visão financeira", icon: DollarSign, modulo: "financeiro" },
   { grupo: "Gestão de pessoas / RH", to: "/equipe", label: "Equipe e RH", icon: UserCog, modulo: "equipe" },
   { grupo: "Sistema", to: "/ferramentas", label: "Ferramentas", icon: Wrench },
 ];
-const GRUPOS = ["Início", "Produção jurídica", "Comercial", "Marketing", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
+const GRUPOS = ["Início", "Clientes", "Produção jurídica", "Marketing", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
 
 /**
  * Item de menu adaptado a estado recolhido/expandido.
@@ -152,13 +137,7 @@ function SidebarContent({
   onNavigate?: () => void;
 }) {
   const { hasPermission, isGestor, profile, signOut, roles, user } = useAuth();
-  const {data:departamento}=useQuery({queryKey:["mkt-contexto",user?.id],queryFn:contexto,enabled:!!user?.id,retry:false});
   const isEstagiaria = roles.includes("estagiario");
-  // Painel comercial: visível para gestor (supervisão) e para a usuária
-  // definida na configuração explícita — sem UUID fixo no código.
-  const { data: respComunicacao } = useResponsavelComunicacao();
-  const podeVerComercial =
-    isGestor || (!!user?.id && respComunicacao?.user_id === user.id);
   const location = useLocation();
   const grupoDaRota = location.pathname === "/marketing" ? "Marketing" : GRUPOS.find((grupo) =>
     NAV.some((item) => item.grupo === grupo && (
@@ -167,7 +146,6 @@ function SidebarContent({
     )),
   ) ?? (
     location.pathname.startsWith("/painel-producao") ? "Produção jurídica" :
-    location.pathname.startsWith("/painel-comercial") ? "Comercial" :
     location.pathname.startsWith("/equipe") || location.pathname.startsWith("/ponto") ? "Gestão de pessoas / RH" :
     location.pathname.startsWith("/configuracoes") || location.pathname.startsWith("/usuarios") || location.pathname.startsWith("/importacao-exportacao") ? "Sistema" :
     "Início"
@@ -214,10 +192,6 @@ function SidebarContent({
           {GRUPOS.map((grupo) => {
             const itens = NAV.filter((item) => item.grupo === grupo).filter((item) => {
               if (isEstagiaria && item.to === "/") return false;
-              if (item.grupo === "Comercial" && item.modulo === "marketing") {
-                if (item.to === "/comercial/conexoes") return isGestor;
-                return podeVerComercial || !!departamento?.permissoes.comercial;
-              }
               return !item.modulo || hasPermission(item.modulo, "visualizar");
             });
             if (itens.length === 0) return null;
@@ -251,12 +225,7 @@ function SidebarContent({
                         : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
                       return <SidebarItem key={item.to} to={item.to} label={item.label} icon={item.icon} collapsed={collapsed} isActive={isActive} onNavigate={onNavigate} />;
                     })}
-                    {grupo === "Início" && isEstagiaria && <SidebarItem to="/painel-operacional" label="Visão operacional" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-operacional") || location.pathname === "/"} onNavigate={onNavigate} />}
-                    {grupo === "Início" && <MuralNavItem collapsed={collapsed} onNavigate={onNavigate} />}
                     {grupo === "Início" && isGestor && <SidebarItem to="/painel-juliana" label="Painel da Juliana" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-juliana")} onNavigate={onNavigate} />}
-                    {grupo === "Início" && isGestor && <SidebarItem to="/dashboard-gestor" label="Painel executivo" icon={BarChart3} collapsed={collapsed} isActive={location.pathname.startsWith("/dashboard-gestor")} onNavigate={onNavigate} />}
-                    {grupo === "Produção jurídica" && hasPermission("controladoria", "visualizar") && <SidebarItem to="/painel-producao" label="Minha produção" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-producao")} onNavigate={onNavigate} />}
-                    {grupo === "Comercial" && podeVerComercial && <SidebarItem to="/painel-comercial" label="Painel comercial" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-comercial")} onNavigate={onNavigate} />}
                     {grupo === "Gestão de pessoas / RH" && isEstagiaria && <SidebarItem to="/ponto" label="Meu ponto" icon={Clock} collapsed={collapsed} isActive={location.pathname.startsWith("/ponto")} onNavigate={onNavigate} />}
                     {grupo === "Sistema" && isGestor && <>
                       <SidebarItem to="/usuarios" label="Usuários e permissões" icon={Users} collapsed={collapsed} isActive={location.pathname.startsWith("/usuarios")} onNavigate={onNavigate} />

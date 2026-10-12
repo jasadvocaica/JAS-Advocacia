@@ -77,7 +77,8 @@ export function GlobalSearch() {
       const podeClientes = hasPermission("clientes", "visualizar");
       const podeProcessos = hasPermission("processos", "visualizar");
       const podeControladoria = hasPermission("controladoria", "visualizar");
-      const podeDocumentos = hasPermission("documentos", "visualizar");
+      // O módulo de peças fica fora da navegação comum nesta etapa.
+      const podeDocumentos = false;
 
       const ilike = `%${q}%`;
       const promessas = await Promise.all([
