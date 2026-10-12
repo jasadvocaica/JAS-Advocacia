@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { MENUS } from "@/pages/marketing/model";
 import { contexto } from "@/pages/marketing/api";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -58,7 +59,7 @@ const NAV: NavItem[] = [
   { grupo: "Comercial", to: "/comercial/conexoes", label: "Conexões", icon: RefreshCw, modulo: "marketing" },
   { grupo: "Comercial", to: "/atendimentos", label: "Fichas de atendimento", icon: ClipboardCheck, modulo: "clientes" },
   { grupo: "Comercial", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
-  { grupo: "Marketing", to: "/marketing", label: "Departamento de marketing", icon: Megaphone, modulo: "marketing" },
+  ...MENUS.map((menu, index): NavItem => ({ grupo: "Marketing", to: `/marketing?secao=${menu.itens[0][0]}`, label: menu.nome, icon: [LayoutDashboard, Calendar, FileText, ClipboardCheck, BarChart3][index], modulo: "marketing" })),
   { grupo: "Comercial", to: "/comercial/demandas", label: "Serviços e oportunidades", icon: Briefcase, modulo: "clientes" },
   { grupo: "Comercial", to: "/catalogo-juridico", label: "Catálogo jurídico", icon: FileText, modulo: "clientes" },
   { grupo: "Financeiro", to: "/financeiro", label: "Visão financeira", icon: DollarSign, modulo: "financeiro" },
@@ -93,6 +94,7 @@ function SidebarItem({
       to={to}
       onClick={onNavigate}
       aria-label={label}
+      aria-current={isActive ? "page" : false}
       className={cn(
         "flex items-center gap-3 rounded-md text-sm font-medium transition-all",
         collapsed ? "justify-center px-0 py-2.5 mx-1" : "px-3 py-2.5",
@@ -158,7 +160,7 @@ function SidebarContent({
   const podeVerComercial =
     isGestor || (!!user?.id && respComunicacao?.user_id === user.id);
   const location = useLocation();
-  const grupoDaRota = GRUPOS.find((grupo) =>
+  const grupoDaRota = location.pathname === "/marketing" ? "Marketing" : GRUPOS.find((grupo) =>
     NAV.some((item) => item.grupo === grupo && (
       item.to === "/" ? location.pathname === "/" :
       location.pathname === item.to || location.pathname.startsWith(item.to + "/")
@@ -175,7 +177,7 @@ function SidebarContent({
 
   useEffect(() => {
     setGrupoAberto(grupoDaRota);
-  }, [grupoDaRota]);
+  }, [grupoDaRota, location.pathname, location.search]);
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -242,7 +244,9 @@ function SidebarContent({
                 {aberto && (
                   <div className="space-y-1">
                     {itens.map((item) => {
-                      const isActive = item.to === "/" || item.to === "/comercial"
+                      const isActive = item.grupo === "Marketing"
+                        ? location.pathname === "/marketing" && MENUS.find((menu) => menu.itens.some(([id]) => id === (new URLSearchParams(location.search).get("secao") || "visao")))?.nome === item.label
+                        : item.to === "/" || item.to === "/comercial"
                         ? location.pathname === item.to
                         : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
                       return <SidebarItem key={item.to} to={item.to} label={item.label} icon={item.icon} collapsed={collapsed} isActive={isActive} onNavigate={onNavigate} />;

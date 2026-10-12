@@ -176,10 +176,12 @@ const fs = require("fs");
   await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/marketing`, {
     waitUntil: "networkidle",
   });
-  await page.getByRole("heading", { name: "Marketing", exact: true }).waitFor();
-  const menu = page.getByLabel("Menu do marketing");
-  if ((await menu.locator("summary").count()) !== 5)
-    throw new Error("Navegação não contém cinco grupos");
+  await page.getByRole("heading", { name: "Marketing · Visão Geral", exact: true }).waitFor();
+  const group = page.getByRole("button", {name: "Marketing", exact: true});
+  await group.waitFor();
+  for (const label of ["Visão Geral", "Planejamento", "Produção", "Aprovações", "Resultados"])
+    await page.getByRole("link", {name: label, exact: true}).waitFor();
+  if (await page.getByLabel("Menu do marketing").count()) throw new Error("Barra lateral interna permanece");
   await page.getByRole("button", { name: "Novo", exact: true }).click();
   await page.getByRole("menuitem", { name: "Ideia", exact: true }).click();
   await page
@@ -196,28 +198,24 @@ const fs = require("fs");
     })
     .waitFor();
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
-  for (const group of ["Planejamento", "Produção", "Aprovações", "Resultados"])
-    await menu.locator("summary").filter({ hasText: group }).click();
-  for (const label of [
-    "Pacotes de Conteúdo",
-    "Modelos de Conteúdo",
-    "Histórico de Aprovações",
-    "Análise de Demanda Jurídica",
-    "Relatórios de Marketing",
+  for (const [groupName, label] of [
+    ["Planejamento", "Pacotes de Conteúdo"], ["Produção", "Modelos de Conteúdo"],
+    ["Aprovações", "Histórico de Aprovações"], ["Resultados", "Análise de Demanda Jurídica"],
+    ["Resultados", "Relatórios de Marketing"]
   ]) {
-    const button = menu.getByRole("button", { name: label, exact: true });
-    await button.click();
+    await page.getByRole("link", {name: groupName, exact: true}).click();
+    await page.getByRole("navigation", {name: "Funcionalidades do marketing"}).getByRole("button", {name: label, exact: true}).click();
     await page.waitForTimeout(250);
-    const group = button.locator("xpath=ancestor::details");
-    if ((await group.getAttribute("open")) === null)
-      await group.locator("summary").click();
   }
+  await group.click();
+  if (await page.getByRole("link", {name: "Planejamento", exact: true}).count()) throw new Error("Grupo não recolheu");
+  await group.click();
   await page.screenshot({ path: "/tmp/marketing-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/marketing?secao=visao`, {
     waitUntil: "networkidle",
   });
-  await page.getByRole("heading", { name: "Marketing", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Marketing · Visão Geral", exact: true }).waitFor();
   const width = await page.evaluate(() => ({
     scroll: document.documentElement.scrollWidth,
     view: innerWidth,

@@ -17,7 +17,7 @@ O catálogo de áreas, serviços e teses é compartilhado com o comercial e o ju
 ## Validação
 
 - Testes transacionais em `tests/marketing/fluxos.sql`, sempre encerrados com ROLLBACK: publicação e aprovação, troca de versão, roteiro/vídeo, pacote idempotente, múltiplos serviços, recorrências, URLs e RLS. Nenhuma conta de teste permanece no banco.
-- 131 testes automatizados de marketing, catálogo e DataJud; tipagem de produção e build.
+- 396 testes automatizados do projeto; TypeScript e build de produção.
 - Teste de interface em `tests/marketing/interface.cjs`: cinco menus, criação e navegação, desktop e celular, sem dados reais ou chamadas ao backend real. Requer Vite em 4173, Chromium e Playwright Core. Para reproduzir sem alterar dependências do projeto: instale `playwright-core@1.56.1` em uma pasta temporária e configure NODE_PATH para seu node_modules.
 
 As migrations de marketing têm os mesmos números das versões aplicadas no Supabase JAS. Não reaplique scripts manualmente sobre o banco já migrado.
@@ -26,4 +26,4 @@ As migrations de marketing têm os mesmos números das versões aplicadas no Sup
 
 A branch main de `jasadvocaica/JAS-Advocacia` recebe esta integração, preservando a base `/`, o portal de clientes e as rotas comerciais existentes. A hospedagem externa acompanha o GitHub, conforme informado pela administradora.
 
-O ajuste adicional que separa a permissão de atendimento aos próprios clientes da permissão do CRM está pendente de autorização da revisão automática; não foi aplicado nem incluído nesta publicação.
+A separação entre o CRM e as demandas dos próprios clientes foi autorizada, aplicada e validada em transação com ROLLBACK. Consultar clientes não concede acesso aos leads comerciais.

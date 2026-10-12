@@ -87,4 +87,15 @@ DO $$ DECLARE negado boolean; BEGIN
  IF NOT negado THEN RAISE EXCEPTION 'TESTE: RPC privada acessível diretamente'; END IF;
  PERFORM public.mkt_contexto();
 END $$;
+RESET ROLE;
+DO $$ DECLARE uid uuid:=auth.uid(); ctx jsonb; BEGIN
+ INSERT INTO public.user_permissions(user_id,modulo,acao,permitido) VALUES(uid,'clientes','visualizar',true) ON CONFLICT(user_id,modulo,acao) DO UPDATE SET permitido=true;
+ ctx:=public.mkt_contexto();
+ IF NOT (ctx->'permissoes'->>'demandas')::boolean OR (ctx->'permissoes'->>'comercial')::boolean THEN RAISE EXCEPTION 'TESTE: consultar clientes concedeu CRM'; END IF;
+ IF public.has_permission(uid,'marketing','visualizar') THEN RAISE EXCEPTION 'TESTE: clientes liberou as rotas antigas do CRM'; END IF;
+END $$;
+SET LOCAL ROLE authenticated;
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM public.mkt_leads) THEN RAISE EXCEPTION 'TESTE: permissão de clientes expôs leads'; END IF;
+END $$;
 ROLLBACK;

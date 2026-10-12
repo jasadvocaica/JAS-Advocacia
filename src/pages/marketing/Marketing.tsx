@@ -244,7 +244,7 @@ export default function Marketing() {
   );
   return (
     <div className="space-y-5">
-      <PageHeader title="Marketing" description={unidade}>
+      <PageHeader title={`Marketing · ${MENUS.find((menu) => menu.itens.some(([id]) => id === secao))?.nome ?? "Configurações"}`} description={unidade}>
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -305,47 +305,19 @@ export default function Marketing() {
           )}
         </div>
       </PageHeader>
-      <div className="grid lg:grid-cols-[210px_minmax(0,1fr)] gap-5">
-        <aside
-          className="space-y-2 lg:sticky lg:top-4 self-start"
-          aria-label="Menu do marketing"
-        >
-          {MENUS.map((m) => (
-            <details
-              key={m.nome}
-              open={m.itens.some(([id]) => id === secao)}
-              className="rounded-lg border bg-card"
-            >
-              <summary className="cursor-pointer p-3 font-semibold text-sm">
-                {m.nome}
-              </summary>
-              <nav className="px-2 pb-2 space-y-1">
-                {m.itens
-                  .filter(
-                    ([id]) =>
-                      id !== "equipe" ||
-                      ctx.permissoes.gerenciar ||
-                      ctx.permissoes.gestor,
-                  )
-                  .map(([id, label]) => (
-                    <Button
-                      key={id}
-                      size="sm"
-                      variant={secao === id ? "default" : "ghost"}
-                      className="w-full justify-start h-auto whitespace-normal text-left"
-                      onClick={() => {
-                        setParams({ secao: id });
-                        setStatus("");
-                        setAbaGravacao(false);
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-              </nav>
-            </details>
-          ))}
-        </aside>
+      <div className="w-full min-w-0 space-y-5">
+        <nav aria-label="Funcionalidades do marketing" className="flex flex-wrap gap-2">
+          {(MENUS.find((menu) => menu.itens.some(([id]) => id === secao))?.itens ?? [])
+            .filter(([id]) => id !== "equipe" || ctx.permissoes.gerenciar || ctx.permissoes.gestor)
+            .map(([id, label]) => (
+              <Button key={id} size="sm" variant={secao === id ? "default" : "outline"}
+                aria-current={secao === id ? "page" : undefined}
+                className="h-auto whitespace-normal text-left"
+                onClick={() => { setParams({secao: id}); setStatus(""); setAbaGravacao(false); }}>
+                {label}
+              </Button>
+            ))}
+        </nav>
         <section className="space-y-5 min-w-0">
           <div className="flex gap-2">
             <Input
@@ -696,7 +668,7 @@ export default function Marketing() {
           )}
         </section>
       </div>
-      {(ctx.permissoes.demandas || (ctx.permissoes.demandas || ctx.permissoes.comercial)) && (
+      {(ctx.permissoes.demandas || ctx.permissoes.comercial) && (
         <Link
           to="/comercial/demandas"
           className="inline-block text-sm underline text-primary"
