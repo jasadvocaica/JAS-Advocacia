@@ -1,3 +1,4 @@
+import DemandasComerciais from "@/pages/marketing/DemandasComerciais";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -214,6 +215,7 @@ export default function ClienteDetalhe() {
               <TabsTrigger value="financeiro"><Wallet className="w-3.5 h-3.5 mr-1.5" /> Financeiro</TabsTrigger>
               <TabsTrigger value="saude"><Stethoscope className="w-3.5 h-3.5 mr-1.5" /> Saúde</TabsTrigger>
               <TabsTrigger value="atendimentos"><Headphones className="w-3.5 h-3.5 mr-1.5" /> Atendimentos</TabsTrigger>
+              <TabsTrigger value="servicos">Serviços e oportunidades</TabsTrigger>
               <TabsTrigger value="historico"><History className="w-3.5 h-3.5 mr-1.5" /> Histórico</TabsTrigger>
               <TabsTrigger value="portal"><KeyRound className="w-3.5 h-3.5 mr-1.5" /> Portal</TabsTrigger>
             </TabsList>
@@ -262,6 +264,7 @@ export default function ClienteDetalhe() {
               <AtendimentosTab clienteId={cliente.id} />
             </TabsContent>
 
+            <TabsContent value="servicos" className="mt-4"><DemandasComerciais compact clienteId={cliente.id} /></TabsContent>
             <TabsContent value="historico" className="mt-4">
               <HistoricoTab clienteId={cliente.id} />
             </TabsContent>

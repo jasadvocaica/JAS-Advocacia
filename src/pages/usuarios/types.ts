@@ -1,5 +1,5 @@
 export type AppRole = "gestor" | "advogado" | "controladoria" | "administrativo" | "estagiario";
-export type Modulo = "clientes" | "processos" | "controladoria" | "financeiro" | "documentos" | "parceiros" | "equipe" | "dashboard" | "usuarios" | "relatorios";
+export type Modulo = "clientes" | "processos" | "controladoria" | "financeiro" | "documentos" | "parceiros" | "equipe" | "dashboard" | "usuarios" | "relatorios" | "marketing";
 export type Acao = "visualizar" | "criar" | "editar" | "excluir" | "exportar";
 
 export interface UsuarioRow {
@@ -40,6 +40,7 @@ export const MODULOS: { value: Modulo; label: string }[] = [
   { value: "equipe", label: "Equipe" },
   { value: "usuarios", label: "Usuários" },
   { value: "relatorios", label: "Relatórios" },
+  { value: "marketing", label: "Marketing" },
 ];
 
 export const ACOES: { value: Acao; label: string }[] = [

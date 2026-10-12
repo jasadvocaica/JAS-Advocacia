@@ -32,6 +32,9 @@ const ComercialCRM = lazy(() => import("@/pages/comercial/ComercialCRM"));
 const ComercialAutomacoes = lazy(() => import("@/pages/comercial/ComercialAutomacoes"));
 const ComercialCampanhas = lazy(() => import("@/pages/comercial/ComercialCampanhas"));
 const ComercialConexoes = lazy(() => import("@/pages/comercial/ComercialConexoes"));
+const Marketing = lazy(() => import("@/pages/marketing/Marketing"));
+const DemandasComerciais = lazy(() => import("@/pages/marketing/DemandasComerciais"));
+const CatalogoJuridico = lazy(() => import("@/pages/marketing/CatalogoJuridico"));
 const PainelProducao = lazy(() => import("@/pages/painel-producao/PainelProducao"));
 const MuralAvisos = lazy(() => import("@/pages/mural/MuralAvisos"));
 const MeuPonto = lazy(() => import("@/pages/ponto/MeuPonto"));
@@ -287,6 +290,9 @@ const AppRoutes = () => {
         <Route path="/painel-juliana" element={<ProtectedRoute requireGestor><PainelJuliana /></ProtectedRoute>} />
         {/* Painel comercial: autorização por configuração explícita + gestor (checada no componente) */}
         <Route path="/painel-comercial" element={<ProtectedRoute><PainelValeska /></ProtectedRoute>} />
+        <Route path="/marketing" element={<ProtectedRoute requireModulo="marketing"><Marketing /></ProtectedRoute>} />
+        <Route path="/comercial/demandas" element={<ComercialRoute requireDemandas><DemandasComerciais /></ComercialRoute>} />
+        <Route path="/catalogo-juridico" element={<ProtectedRoute requireModulo="clientes"><CatalogoJuridico /></ProtectedRoute>} />
         <Route path="/comercial" element={<ComercialRoute><ComercialWhatsApp /></ComercialRoute>} />
         <Route path="/comercial/visao-geral" element={<ComercialRoute><ComercialVisaoGeral /></ComercialRoute>} />
         <Route path="/comercial/crm" element={<ComercialRoute><ComercialCRM /></ComercialRoute>} />

@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { contexto } from "@/pages/marketing/api";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,7 +38,7 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   modulo?: Modulo;
   badge?: string;
-  grupo: "Início" | "Produção jurídica" | "Comercial" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
+  grupo: "Início" | "Produção jurídica" | "Comercial" | "Marketing" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
 }
 
 const NAV: NavItem[] = [
@@ -56,11 +58,14 @@ const NAV: NavItem[] = [
   { grupo: "Comercial", to: "/comercial/conexoes", label: "Conexões", icon: RefreshCw, modulo: "marketing" },
   { grupo: "Comercial", to: "/atendimentos", label: "Fichas de atendimento", icon: ClipboardCheck, modulo: "clientes" },
   { grupo: "Comercial", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
+  { grupo: "Marketing", to: "/marketing", label: "Departamento de marketing", icon: Megaphone, modulo: "marketing" },
+  { grupo: "Comercial", to: "/comercial/demandas", label: "Serviços e oportunidades", icon: Briefcase, modulo: "clientes" },
+  { grupo: "Comercial", to: "/catalogo-juridico", label: "Catálogo jurídico", icon: FileText, modulo: "clientes" },
   { grupo: "Financeiro", to: "/financeiro", label: "Visão financeira", icon: DollarSign, modulo: "financeiro" },
   { grupo: "Gestão de pessoas / RH", to: "/equipe", label: "Equipe e RH", icon: UserCog, modulo: "equipe" },
   { grupo: "Sistema", to: "/ferramentas", label: "Ferramentas", icon: Wrench },
 ];
-const GRUPOS = ["Início", "Produção jurídica", "Comercial", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
+const GRUPOS = ["Início", "Produção jurídica", "Comercial", "Marketing", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
 
 /**
  * Item de menu adaptado a estado recolhido/expandido.
@@ -145,6 +150,7 @@ function SidebarContent({
   onNavigate?: () => void;
 }) {
   const { hasPermission, isGestor, profile, signOut, roles, user } = useAuth();
+  const {data:departamento}=useQuery({queryKey:["mkt-contexto",user?.id],queryFn:contexto,enabled:!!user?.id,retry:false});
   const isEstagiaria = roles.includes("estagiario");
   // Painel comercial: visível para gestor (supervisão) e para a usuária
   // definida na configuração explícita — sem UUID fixo no código.
@@ -208,7 +214,7 @@ function SidebarContent({
               if (isEstagiaria && item.to === "/") return false;
               if (item.grupo === "Comercial" && item.modulo === "marketing") {
                 if (item.to === "/comercial/conexoes") return isGestor;
-                return podeVerComercial || hasPermission("marketing", "visualizar");
+                return podeVerComercial || !!departamento?.permissoes.comercial;
               }
               return !item.modulo || hasPermission(item.modulo, "visualizar");
             });
@@ -401,7 +407,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      <AssistenteFlutuante />
+      {!location.pathname.startsWith("/marketing") && <AssistenteFlutuante />}
     </div>
   );
 }
