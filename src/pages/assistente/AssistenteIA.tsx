@@ -91,6 +91,7 @@ export default function AssistenteIA() {
         description="Consultas autorizadas e recomendações, sem alterações automáticas."
       />
 
+      <Button asChild variant="outline"><Link to="/conectar-claude">Conectar Claude por MCP</Link></Button>
       <ConsumoAssistente />
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
         {/* Sidebar de conversas */}

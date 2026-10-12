@@ -126,6 +126,8 @@ const PubliJusConfig = lazy(() => import("@/pages/ferramentas/PubliJusConfig"));
 const ImportacaoExportacaoHub = lazy(() => import("@/pages/importacao-exportacao/ImportacaoExportacaoHub"));
 const AssistenteIA = lazy(() => import("@/pages/assistente/AssistenteIA"));
 const AutomacoesIA = lazy(() => import("@/pages/ia/AutomacoesIA"));
+const ConectarClaude = lazy(() => import("@/pages/claude/ConectarClaude"));
+const OAuthConsent = lazy(() => import("@/pages/claude/OAuthConsent"));
 const MCPServer = lazy(() => import("@/pages/ia/MCPServer"));
 const HistoricoImportacoes = lazy(() => import("@/pages/importacao-exportacao/HistoricoImportacoes"));
 const MigracaoClientesProcessos = lazy(() => import("@/pages/importacao-exportacao/MigracaoClientesProcessos"));
@@ -282,6 +284,8 @@ const AppRoutes = () => {
         <Route path="sobre" element={<SobrePortalCliente />} />
       </Route>
 
+      <Route path="/oauth/consent" element={<OAuthConsent />} />
+      <Route path="/oauth/consent/:authorizationId" element={<OAuthConsent />} />
       {/* App interno */}
       <Route element={<ProtectedRoute requirePortal="interno"><AppLayout /></ProtectedRoute>}>
         <Route path="/" element={<Dashboard />} />
@@ -402,6 +406,7 @@ const AppRoutes = () => {
         <Route path="/ferramentas/calculadora-cnis" element={<CalculadoraCNIS />} />
         <Route path="/ferramentas/perdcomp-inss" element={<PerdcompInss />} />
         <Route path="/ferramentas/publijus" element={<ProtectedRoute requireGestor><PubliJusConfig /></ProtectedRoute>} />
+        <Route path="/conectar-claude" element={<ConectarClaude />} />
         <Route path="/assistente" element={<AssistenteIA />} />
         <Route path="/ia/automacoes" element={<ProtectedRoute requireGestor><AutomacoesIA /></ProtectedRoute>} />
         <Route path="/ia/mcp-server" element={<ProtectedRoute requireGestor><MCPServer /></ProtectedRoute>} />

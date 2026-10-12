@@ -178,3 +178,7 @@ verify_jwt = true
 # Reenvio de falhas exige sessão válida e preserva a tentativa anterior para auditoria.
 [functions.whatsapp-reenviar]
 verify_jwt = true
+
+# MCP remoto do Claude: autenticação e autorização verificadas no handler.
+[functions.claude-mcp]
+verify_jwt = false
