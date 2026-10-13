@@ -308,3 +308,16 @@
   .page-break { page-break-after: always; break-after: page; }
   .avoid-break { page-break-inside: avoid; break-inside: avoid; }
 }
+
+/* Identidade do menu principal, sem alterar os temas dos módulos. */
+.office-sidebar {
+  --sidebar-background: 232 80% 5%;
+  --sidebar-foreground: 220 25% 94%;
+  --sidebar-primary: 43 64% 72%;
+  --sidebar-primary-foreground: 232 80% 5%;
+  --sidebar-accent: 225 44% 18%;
+  --sidebar-accent-foreground: 43 64% 72%;
+  --sidebar-border: 226 30% 22%;
+  --sidebar-header: 232 80% 5%;
+  --sidebar-header-foreground: 220 25% 94%;
+}

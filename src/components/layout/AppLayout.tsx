@@ -159,7 +159,7 @@ function SidebarContent({
 
   return (
     <TooltipProvider delayDuration={100}>
-      <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground relative">
+      <div className="office-sidebar flex flex-col h-full bg-sidebar text-sidebar-foreground relative">
         {/* Header / Logo */}
         <div
           className={cn(
@@ -167,13 +167,13 @@ function SidebarContent({
             collapsed ? "p-2 flex justify-center" : "p-4",
           )}
         >
-          {collapsed ? (
-            <div className="h-12 w-12 rounded-md bg-primary/15 text-primary font-display text-lg flex items-center justify-center font-bold border border-primary/30">
-              JA
-            </div>
-          ) : (
-            <BrandLogo variant="light" size="h-16" />
-          )}
+          <NavLink to="/" aria-label="Juliana Araújo — início" className="block w-full">
+            <svg role="img" aria-label="Juliana Araújo Advocacia e Assessoria Jurídica"
+              viewBox={collapsed ? "800 565 380 480" : "315 565 1290 780"}
+              className={collapsed ? "h-12 w-full" : "h-32 w-full"}>
+              <image href={`${import.meta.env.BASE_URL}logo-juliana-araujo.png`} width="1920" height="1920" />
+            </svg>
+          </NavLink>
         </div>
 
         {/* Toggle button (desktop only) */}
@@ -311,8 +311,7 @@ export default function AppLayout() {
     if (typeof window === "undefined") return false;
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored !== null) return stored === "1";
-    // Em telas < 1280px inicia recolhido por padrão
-    return window.innerWidth < 1280;
+    return false;
   });
   const location = useLocation();
 
@@ -326,7 +325,7 @@ export default function AppLayout() {
     <div className="flex min-h-screen bg-muted/30">
       {/* Desktop sidebar */}
       <aside className={cn("hidden lg:block shrink-0 border-r border-sidebar-border transition-[width] duration-200", sidebarWidth)}>
-        <div className={cn("fixed top-0 left-0 bottom-0 transition-[width] duration-200", sidebarWidth)}>
+        <div className={cn("fixed top-0 left-0 bottom-0 z-40 transition-[width] duration-200", sidebarWidth)}>
           <SidebarContent collapsed={collapsed} onToggleCollapsed={() => setCollapsed((v) => !v)} />
         </div>
       </aside>
