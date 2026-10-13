@@ -21,10 +21,15 @@ export function useUserPortais() {
   const [motivo, setMotivo] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
+  const userId = user?.id;
+  const email = user?.email;
+  const profileAtivo = !!profile?.ativo;
+  const rolesCount = roles?.length ?? 0;
+
   useEffect(() => {
     let cancelado = false;
     if (authLoading) return () => { cancelado = true; };
-    if (!user) {
+    if (!userId) {
       setPortais([]);
       setMotivo("");
       setLoading(false);
@@ -38,22 +43,22 @@ export function useUserPortais() {
         supabase
           .from("parceiros")
           .select("id, nome")
-          .eq("email", user.email!)
+          .eq("email", email!)
           .eq("portal_ativo", true)
           .eq("ativo", true)
           .maybeSingle(),
         supabase
           .from("cliente_usuarios")
           .select("cliente_id, ativo, clientes(nome)")
-          .eq("email", user.email!)
+          .eq("email", email!)
           .eq("ativo", true)
           .maybeSingle(),
       ]);
 
       const ctx = {
-        email: user.email,
-        profileAtivo: !!profile?.ativo,
-        rolesCount: roles?.length ?? 0,
+        email,
+        profileAtivo,
+        rolesCount,
         parceiroNome: parceiroRes.data?.nome ?? null,
         clienteNome:
           (clienteRes.data as any)?.clientes?.nome ??
@@ -70,7 +75,7 @@ export function useUserPortais() {
     return () => {
       cancelado = true;
     };
-  }, [user, profile, roles, authLoading]);
+  }, [userId, email, profileAtivo, rolesCount, authLoading]);
 
   return { portais, motivo, loading: loading || authLoading };
 }

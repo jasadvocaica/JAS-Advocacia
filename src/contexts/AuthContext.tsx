@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { registrarEventoLogin } from "@/lib/auth-audit";
@@ -102,11 +102,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from("user_roles").select("role").eq("user_id", userId),
       supabase.from("user_permissions").select("modulo, acao, permitido").eq("user_id", userId).eq("permitido", true),
     ]);
-    setProfile(profileRes.data as Profile | null);
-    setRoles((rolesRes.data ?? []).map((r: any) => r.role));
+    // Falhas de rede não removem permissões já carregadas durante uma renovação.
+    if (profileRes.error || rolesRes.error || permsRes.error) return;
+    setProfile(prev => JSON.stringify(prev) === JSON.stringify(profileRes.data) ? prev : profileRes.data as Profile | null);
+    const nextRoles = (rolesRes.data ?? []).map((r: any) => r.role).sort();
+    setRoles(prev => JSON.stringify(prev) === JSON.stringify(nextRoles) ? prev : nextRoles);
     const permSet = new Set<string>();
     (permsRes.data ?? []).forEach((p: any) => permSet.add(`${p.modulo}:${p.acao}`));
-    setPermissions(permSet);
+    setPermissions(prev => prev.size === permSet.size && [...prev].every(p => permSet.has(p)) ? prev : permSet);
   };
 
   const clearLocalAuthArtifacts = () => {
@@ -125,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
-      setUser(newSession?.user ?? null);
+      setUser(prev => JSON.stringify(prev) === JSON.stringify(newSession?.user ?? null) ? prev : newSession?.user ?? null);
 
       if (newSession?.user) {
         setTimeout(() => loadUserData(newSession.user.id), 0);
@@ -235,10 +238,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const effectivePermissions = previewAtivo ? previewPermissions : permissions;
   const isGestor = effectiveRoles.includes("gestor");
 
-  const hasPermission = (modulo: Modulo, acao: Acao) => {
+  const hasPermission = useCallback((modulo: Modulo, acao: Acao) => {
     if (isGestor) return true;
     return effectivePermissions.has(`${modulo}:${acao}`);
-  };
+  }, [isGestor, effectivePermissions]);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
