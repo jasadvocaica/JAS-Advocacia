@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Briefcase, ClipboardCheck, DollarSign,
   FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock,
-  PanelLeftClose, PanelLeftOpen, BarChart3, Scale, MessageCircle,
+  PanelLeftClose, PanelLeftOpen, Bell, BarChart3, Scale, MessageCircle,
 } from "lucide-react";
 import { useMuralAvisos } from "@/hooks/useMuralAvisos";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -42,6 +42,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { grupo: "Início", to: "/", label: "Painel inicial", icon: LayoutDashboard },
   { grupo: "Produção jurídica", to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
+  { grupo: "Produção jurídica", to: "/ferramentas/publicacoes-pje", label: "Intimações", icon: Bell, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
   { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
   { grupo: "Produção jurídica", to: "/diligencias", label: "Diligências", icon: Scale },

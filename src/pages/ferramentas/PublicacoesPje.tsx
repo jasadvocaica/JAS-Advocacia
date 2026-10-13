@@ -1,3 +1,4 @@
+import { ConteudoPublicacao, textoPublicacao } from "./publicacoes-pje/ConteudoPublicacao";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -266,7 +267,7 @@ export default function PublicacoesPje() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Intimações e Publicações do DJEN"
+        title="Intimações"
         description="Monitoramento automático da API oficial do DJEN por OAB, nome, parte ou número de processo"
       >
         <Button
@@ -538,7 +539,7 @@ export default function PublicacoesPje() {
             "Disponibilização: " + formatarData(publicacaoEmTratamento.data_disponibilizacao) + ".",
             "Publicação: " + formatarData(publicacaoEmTratamento.data_publicacao) + ".",
             "",
-            publicacaoEmTratamento.texto_publicacao ?? "",
+            textoPublicacao(publicacaoEmTratamento.texto_publicacao),
           ].join("\n"),
           tipo: "prazo_processual",
           prioridade: "alta",
@@ -621,7 +622,7 @@ function PublicacaoItem({
         {pub.numero_processo ?? "CNJ não informado"}
       </p>
       {pub.nome_orgao && <p className="text-xs text-muted-foreground mb-2">{pub.nome_orgao}</p>}
-      <p className="text-sm leading-relaxed line-clamp-3">{pub.texto_publicacao}</p>
+      <p className="text-sm leading-relaxed line-clamp-3">{textoPublicacao(pub.texto_publicacao)}</p>
 
       {pub.link_certidao && (
         <a
@@ -865,7 +866,7 @@ function DetalhePublicacaoSheet({ pub, onTratar }: { pub: PubRow; onTratar: () =
             <FileText className="w-3 h-3" /> Texto da publicação
           </p>
           <div className="text-sm leading-relaxed whitespace-pre-wrap p-3 rounded-md border border-border bg-muted/10 max-h-72 overflow-y-auto">
-            {pub.texto_publicacao ?? "—"}
+            <ConteudoPublicacao texto={pub.texto_publicacao} />
           </div>
           {pub.link_certidao && (
             <a

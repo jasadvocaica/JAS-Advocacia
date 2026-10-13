@@ -24,7 +24,7 @@ const FERRAMENTAS: FerramentaCard[] = [
   },
   {
     to: "/ferramentas/publicacoes-pje",
-    titulo: "Publicações PJe Comunica",
+    titulo: "Intimações",
     descricao: "Monitoramento automático do DJE eletrônico do CNJ por OAB, com vínculo aos processos.",
     icone: Bell,
     disponivel: true,
