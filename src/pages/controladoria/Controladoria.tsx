@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search, Loader2, Calendar as CalendarIcon, LayoutGrid, List, AlertTriangle, Clock, Workflow, CalendarCheck, BarChart3, ChevronDown, ChevronRight, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { isToday, isTomorrow, isBefore, isThisWeek, isWithinInterval, addDays, startOfDay } from "date-fns";
+import { isToday, isTomorrow, isPast, isBefore, isThisWeek, isWithinInterval, addDays, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
