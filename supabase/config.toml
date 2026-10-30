@@ -182,3 +182,7 @@ verify_jwt = true
 # MCP remoto do Claude: autenticação e autorização verificadas no handler.
 [functions.claude-mcp]
 verify_jwt = false
+
+# JWT do usuário validado por getUser; webhook usa segredo próprio por ambiente.
+[functions.comercial-zapsign]
+verify_jwt = false

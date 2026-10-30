@@ -1,4 +1,5 @@
 import { MENUS } from "@/pages/marketing/model";
+import { useComercial } from "@/pages/comercial/contratacoes/useComercial";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,7 +37,7 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   modulo?: Modulo;
   badge?: string;
-  grupo: "Início" | "Produção jurídica" | "Clientes" | "Marketing" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
+  grupo: "Início" | "Produção jurídica" | "Clientes" | "Comercial" | "Marketing" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
 }
 
 const NAV: NavItem[] = [
@@ -47,12 +48,14 @@ const NAV: NavItem[] = [
   { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
   { grupo: "Produção jurídica", to: "/diligencias", label: "Diligências", icon: Scale },
   { grupo: "Clientes", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
+  { grupo: "Comercial", to: "/comercial/contratacoes", label: "Contratações", icon: Handshake },
+  { grupo: "Comercial", to: "/comercial/modelos", label: "Modelos e regras", icon: FileText },
   ...MENUS.map((menu, index): NavItem => ({ grupo: "Marketing", to: `/marketing?secao=${menu.itens[0][0]}`, label: menu.nome, icon: [LayoutDashboard, Calendar, FileText, ClipboardCheck, BarChart3][index], modulo: "marketing" })),
   { grupo: "Financeiro", to: "/financeiro", label: "Visão financeira", icon: DollarSign, modulo: "financeiro" },
   { grupo: "Gestão de pessoas / RH", to: "/equipe", label: "Equipe e RH", icon: UserCog, modulo: "equipe" },
   { grupo: "Sistema", to: "/ferramentas", label: "Ferramentas", icon: Wrench },
 ];
-const GRUPOS = ["Início", "Clientes", "Produção jurídica", "Marketing", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
+const GRUPOS = ["Início", "Clientes", "Comercial", "Produção jurídica", "Marketing", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
 
 /**
  * Item de menu adaptado a estado recolhido/expandido.
@@ -138,6 +141,7 @@ function SidebarContent({
   onNavigate?: () => void;
 }) {
   const { hasPermission, isGestor, profile, signOut, roles, user } = useAuth();
+  const { data: comercial } = useComercial();
   const isEstagiaria = roles.includes("estagiario");
   const location = useLocation();
   const grupoDaRota = location.pathname === "/marketing" ? "Marketing" : GRUPOS.find((grupo) =>
@@ -192,6 +196,7 @@ function SidebarContent({
         <nav className={cn("flex-1 overflow-y-auto scrollbar-thin py-4 space-y-1", collapsed ? "px-1" : "px-3")}>
           {GRUPOS.map((grupo) => {
             const itens = NAV.filter((item) => item.grupo === grupo).filter((item) => {
+              if (item.grupo === "Comercial") return item.to === "/comercial/modelos" ? !!comercial?.permissoes.gerenciar : !!(comercial?.permissoes.visualizar || comercial?.permissoes.financeiro_visualizar);
               if (isEstagiaria && item.to === "/") return false;
               return !item.modulo || hasPermission(item.modulo, "visualizar");
             });

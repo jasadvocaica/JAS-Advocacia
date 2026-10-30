@@ -1,0 +1,8 @@
+import {supabase} from '@/integrations/supabase/client';
+const db=supabase as any;
+export async function operar(operacao:string,payload:Record<string,any>={}){const {data,error}=await db.rpc('comercial_operar',{operacao,payload});if(error)throw new Error(error.message);return data;}
+export async function listar(filtros:Record<string,any>){const {data,error}=await db.rpc('comercial_listar',{filtros});if(error)throw new Error(error.message);return data;}
+export async function tabela(nome:string,filters:Record<string,any>={}){let q=db.from(nome).select('*');for(const [key,value]of Object.entries(filters))q=q.eq(key,value);const {data,error}=await q;if(error)throw new Error(error.message);return data??[];}
+export async function integracao(acao:string,payload:Record<string,any>={}){const {data,error}=await supabase.functions.invoke('comercial-zapsign',{body:{acao,...payload}});if(error){let msg=error.message;try{const b=await (error as any).context.json();msg=b.error??msg;}catch{}throw new Error(msg);}if(data?.error)throw new Error(data.error);return data;}
+export async function consumo(){const {data,error}=await db.rpc('comercial_consumo');if(error)throw new Error(error.message);return data;}
+export async function baixarPrevia(c:any,d:any){const r=await integracao('baixar_previa',{id:c.id,documento_id:d.id});const bytes=Uint8Array.from(atob(r.base64),v=>v.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));const a=document.createElement('a');a.href=url;a.download=r.nome;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
