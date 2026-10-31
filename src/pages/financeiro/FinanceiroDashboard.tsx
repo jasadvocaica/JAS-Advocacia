@@ -104,7 +104,6 @@ export default function FinanceiroDashboard() {
           .in("pagamento_status", ["a_receber", "parcial"]),
         supabase.from("honorarios_parcelas")
           .select("asaas_status,asaas_ultimo_erro")
-          .eq("natureza_receita", "escritorio")
           .not("asaas_payment_id", "is", null),
         (supabase as any).from("diligencias")
           .select("asaas_status,asaas_ultimo_erro")
