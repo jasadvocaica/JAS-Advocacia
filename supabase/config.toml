@@ -186,3 +186,7 @@ verify_jwt = false
 # JWT do usuário validado por getUser; webhook usa segredo próprio por ambiente.
 [functions.comercial-zapsign]
 verify_jwt = false
+
+# Agente Vanessa (prazos): cron com segredo do Vault ou gestor autenticado por getUser.
+[functions.agente-prazos]
+verify_jwt = false

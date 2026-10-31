@@ -26,6 +26,7 @@ const DashboardGestor = lazy(() => import("@/pages/dashboard-gestor/DashboardGes
 const PainelOperacional = lazy(() => import("@/pages/painel-operacional/PainelOperacional"));
 const PainelJuliana = lazy(() => import("@/pages/painel-juliana/PainelJuliana"));
 const EscritorioVirtual = lazy(() => import("@/pages/escritorio/EscritorioVirtual"));
+const AgentesIA = lazy(() => import("@/pages/agentes/AgentesIA"));
 const PainelValeska = lazy(() => import("@/pages/painel-valeska/PainelValeska"));
 const ComercialContratacoes = lazy(() => import("@/pages/comercial/contratacoes/ComercialContratacoes"));
 const ComercialAdmin = lazy(() => import("@/pages/comercial/contratacoes/ComercialAdmin"));
@@ -296,6 +297,7 @@ const AppRoutes = () => {
         <Route path="/painel-operacional" element={<ProtectedRoute><PainelOperacional /></ProtectedRoute>} />
         <Route path="/painel-juliana" element={<ProtectedRoute requireGestor><PainelJuliana /></ProtectedRoute>} />
         <Route path="/escritorio" element={<ProtectedRoute requireGestor><EscritorioVirtual /></ProtectedRoute>} />
+        <Route path="/agentes" element={<ProtectedRoute requireGestor><AgentesIA /></ProtectedRoute>} />
         {/* Painel comercial: autorização por configuração explícita + gestor (checada no componente) */}
         <Route path="/painel-comercial" element={<ProtectedRoute><PainelValeska /></ProtectedRoute>} />
         <Route path="/marketing" element={<ProtectedRoute requireModulo="marketing"><Marketing /></ProtectedRoute>} />

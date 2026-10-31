@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Briefcase, ClipboardCheck, DollarSign,
   FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock,
-  PanelLeftClose, PanelLeftOpen, Bell, BarChart3, Scale, MessageCircle, Building2,
+  PanelLeftClose, PanelLeftOpen, Bell, BarChart3, Scale, MessageCircle, Building2, Bot,
 } from "lucide-react";
 import { useMuralAvisos } from "@/hooks/useMuralAvisos";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -233,6 +233,7 @@ function SidebarContent({
                     })}
                     {grupo === "Início" && isGestor && <SidebarItem to="/painel-juliana" label="Painel da Juliana" icon={LayoutDashboard} collapsed={collapsed} isActive={location.pathname.startsWith("/painel-juliana")} onNavigate={onNavigate} />}
                     {grupo === "Início" && isGestor && <SidebarItem to="/escritorio" label="Escritório virtual" icon={Building2} collapsed={collapsed} isActive={location.pathname.startsWith("/escritorio")} onNavigate={onNavigate} />}
+                    {grupo === "Início" && isGestor && <SidebarItem to="/agentes" label="Agentes de IA" icon={Bot} collapsed={collapsed} isActive={location.pathname.startsWith("/agentes")} onNavigate={onNavigate} />}
                     {grupo === "Gestão de pessoas / RH" && isEstagiaria && <SidebarItem to="/ponto" label="Meu ponto" icon={Clock} collapsed={collapsed} isActive={location.pathname.startsWith("/ponto")} onNavigate={onNavigate} />}
                     {grupo === "Sistema" && isGestor && <>
                       <SidebarItem to="/usuarios" label="Usuários e permissões" icon={Users} collapsed={collapsed} isActive={location.pathname.startsWith("/usuarios")} onNavigate={onNavigate} />
