@@ -3,6 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import {
   ArrowLeft,
   LayoutGrid,
+  Terminal,
   MessageSquare,
   Users,
   ClipboardCheck,
@@ -15,10 +16,16 @@ import { Button } from "@/components/ui/button";
 import "./escritorio.css";
 const SECOES = [
   {
-    id: "planta",
-    nome: "Escritório",
-    icone: LayoutGrid,
+    id: "comando",
+    nome: "Central de Comando",
+    icone: Terminal,
     caminho: "/escritorio",
+  },
+  {
+    id: "planta",
+    nome: "Escritório 3D",
+    icone: LayoutGrid,
+    caminho: "/escritorio/planta",
   },
   {
     id: "chat",
@@ -48,8 +55,8 @@ const SECOES = [
 ] as const;
 export type SecaoOffice = (typeof SECOES)[number]["id"];
 export function secaoOffice(pathname: string): SecaoOffice {
-  const id = pathname.split("/")[2] || "planta";
-  return SECOES.some((s) => s.id === id) ? (id as SecaoOffice) : "planta";
+  const id = pathname.split("/")[2] || "comando";
+  return SECOES.some((s) => s.id === id) ? (id as SecaoOffice) : "comando";
 }
 export default function OfficeShell({
   secao,
@@ -134,7 +141,7 @@ export default function OfficeShell({
           <NavLink
             key={s.id}
             to={s.caminho}
-            end={s.id === "planta"}
+            end={s.id === "comando"}
             className={secao === s.id ? "office-nav-active" : ""}
             aria-current={secao === s.id ? "page" : undefined}
           >
@@ -150,15 +157,17 @@ export default function OfficeShell({
             <p>JULIANA ARAÚJO · ESCRITÓRIO VIRTUAL</p>
             <h2>{titulo}</h2>
             <span>
-              {secao === "chat"
-                ? "Um canal para acompanhar e conversar com os agentes."
-                : secao === "equipe"
-                  ? "Pessoas virtuais, funções e rotinas do escritório."
-                  : secao === "entregas"
-                    ? "Resultados que precisam da sua decisão."
-                    : secao === "historico"
-                      ? "Execuções e passos registrados pelos agentes."
-                      : "Saúde das rotinas e consumo de inteligência artificial."}
+              {secao === "comando"
+                ? "Envie um comando com TXT e acompanhe a Clara em homologação."
+                : secao === "chat"
+                  ? "Um canal para acompanhar e conversar com os agentes."
+                  : secao === "equipe"
+                    ? "Pessoas virtuais, funções e rotinas do escritório."
+                    : secao === "entregas"
+                      ? "Resultados que precisam da sua decisão."
+                      : secao === "historico"
+                        ? "Execuções e passos registrados pelos agentes."
+                        : "Saúde das rotinas e consumo de inteligência artificial."}
             </span>
           </div>
         )}

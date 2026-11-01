@@ -1,3 +1,4 @@
+import CentralComando from "./escritorio/CentralComando";
 import OfficeShell, { secaoOffice } from "./escritorio/OfficeShell";
 import { useLocation } from "react-router-dom";
 import ChatEscritorio from "./escritorio/ChatEscritorio";
@@ -14,12 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -175,6 +171,7 @@ export default function AgentesIA() {
         contratarAberto={contratarAberto}
         onContratarAberto={setContratarAberto}
       />
+      {secao === "comando" && <CentralComando />}
       {secao === "chat" && (
         <ChatEscritorio
           agentes={agentes}
