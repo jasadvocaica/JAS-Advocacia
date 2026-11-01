@@ -58,7 +58,9 @@ async function chamar(acao: string, args: Record<string, unknown> = {}) {
   if (data?.error) throw new Error(data.error);
   return data;
 }
-export default function CentralComando() {
+export default function CentralComando({
+  compact = false,
+}: { compact?: boolean } = {}) {
   const [habilitado, setHabilitado] = useState<boolean | null>(null),
     [texto, setTexto] = useState(""),
     [arquivo, setArquivo] = useState("texto-colado.txt"),
@@ -93,6 +95,9 @@ export default function CentralComando() {
   useEffect(() => {
     if (tarefa?.id) localStorage.setItem("jas_clara_m1_tarefa", tarefa.id);
   }, [tarefa?.id]);
+  useEffect(() => {
+    if (tarefa?.id) window.dispatchEvent(new Event("jas:clara-update"));
+  }, [tarefa?.id, tarefa?.estado]);
   const consultar = useCallback(async (id: string) => {
     const d = await chamar("consultar", { tarefa_id: id });
     setTarefa(d.tarefa);
@@ -121,6 +126,13 @@ export default function CentralComando() {
       });
       setTarefa(d.tarefa);
       id = d.tarefa.id;
+      // A execução pode continuar se o painel for fechado durante a requisição.
+      try {
+        localStorage.setItem("jas_clara_m1_tarefa", d.tarefa.id);
+      } catch {
+        /* O servidor permite retomar pelo acompanhamento. */
+      }
+      window.dispatchEvent(new Event("jas:clara-update"));
       if (["queued", "failed"].includes(d.tarefa.estado)) {
         const ex = await chamar("executar", { tarefa_id: id });
         setTarefa(ex.tarefa);
@@ -164,7 +176,12 @@ export default function CentralComando() {
     }
   }
   return (
-    <section className="op-command-grid" aria-label="Central de Comando">
+    <section
+      className={
+        compact ? "op-command-grid op-command-compact" : "op-command-grid"
+      }
+      aria-label="Central de Comando"
+    >
       <div className="op-panel space-y-5">
         <div className="op-composer-heading">
           <div>
@@ -339,81 +356,85 @@ export default function CentralComando() {
           </div>
         )}
       </div>
-      <aside className="op-panel space-y-5">
-        <div className="op-agent-identity">
-          <div className="op-agent-avatar">CL</div>
-          <div>
-            <strong>Clara</strong>
-            <span>Assistente de cadastro · TXT</span>
+      {!compact && (
+        <aside className="op-panel space-y-5">
+          <div className="op-agent-identity">
+            <div className="op-agent-avatar">CL</div>
+            <div>
+              <strong>Clara</strong>
+              <span>Assistente de cadastro · TXT</span>
+            </div>
           </div>
-        </div>
-        <h3 className="text-sm font-semibold">Plano e execução</h3>
-        {!tarefa ? (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Envie um comando e acompanhe aqui a seleção da Clara, a extração, a
-            revisão e a confirmação do cadastro.
-          </p>
-        ) : (
-          <>
-            <p className="rounded-md bg-muted px-3 py-2 text-xs font-medium">
-              {ESTADOS[tarefa.estado] ?? tarefa.estado}
+          <h3 className="text-sm font-semibold">Plano e execução</h3>
+          {!tarefa ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Envie um comando e acompanhe aqui a seleção da Clara, a extração,
+              a revisão e a confirmação do cadastro.
             </p>
-            <details className="text-[10px] text-muted-foreground">
-              <summary className="cursor-pointer">
-                Identificação da execução
-              </summary>
-              <p className="mt-2 break-all">
-                Tarefa: {tarefa.id}
-                <br />
-                Hash SHA-256: {tarefa.hash}
+          ) : (
+            <>
+              <p className="rounded-md bg-muted px-3 py-2 text-xs font-medium">
+                {ESTADOS[tarefa.estado] ?? tarefa.estado}
               </p>
-            </details>
-            <ol className="space-y-3">
-              {tarefa.eventos.map((e) => (
-                <li key={e.id} className="border-l-2 border-primary/20 pl-3">
-                  <strong className="block text-[11px]">
-                    {ESTADOS[e.estado] ?? e.estado}
-                  </strong>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {e.motivo}
-                  </p>
-                  <time className="text-[9px] text-muted-foreground">
-                    {new Date(e.criado_em).toLocaleTimeString("pt-BR", {
-                      timeZone: "America/Cuiaba",
-                    })}
-                  </time>
-                </li>
-              ))}
-            </ol>
-            <p className="border-t pt-3 text-xs">
-              Tokens confirmados: {tarefa.tokens_entrada + tarefa.tokens_saida}{" "}
-              · Tentativas: {tarefa.tentativas}/3
-              <br />
-              Custo estimado: US$ {Number(tarefa.custo_estimado_usd).toFixed(6)}
-            </p>
-            {tarefa.erro && (
-              <p className="text-xs text-destructive">{tarefa.erro}</p>
-            )}
-            {tarefa.estado === "running" &&
-              Date.now() - new Date(tarefa.atualizado_em).getTime() >
-                600000 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={ocupado}
-                  onClick={() => void decidir("recuperar")}
-                >
-                  Conferir execução interrompida
-                </Button>
+              <details className="text-[10px] text-muted-foreground">
+                <summary className="cursor-pointer">
+                  Identificação da execução
+                </summary>
+                <p className="mt-2 break-all">
+                  Tarefa: {tarefa.id}
+                  <br />
+                  Hash SHA-256: {tarefa.hash}
+                </p>
+              </details>
+              <ol className="space-y-3">
+                {tarefa.eventos.map((e) => (
+                  <li key={e.id} className="border-l-2 border-primary/20 pl-3">
+                    <strong className="block text-[11px]">
+                      {ESTADOS[e.estado] ?? e.estado}
+                    </strong>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {e.motivo}
+                    </p>
+                    <time className="text-[9px] text-muted-foreground">
+                      {new Date(e.criado_em).toLocaleTimeString("pt-BR", {
+                        timeZone: "America/Cuiaba",
+                      })}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+              <p className="border-t pt-3 text-xs">
+                Tokens confirmados:{" "}
+                {tarefa.tokens_entrada + tarefa.tokens_saida} · Tentativas:{" "}
+                {tarefa.tentativas}/3
+                <br />
+                Custo estimado: US${" "}
+                {Number(tarefa.custo_estimado_usd).toFixed(6)}
+              </p>
+              {tarefa.erro && (
+                <p className="text-xs text-destructive">{tarefa.erro}</p>
               )}
-          </>
-        )}
-        <p className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground">
-          A IA extrai; o código valida evidências e CPF. Aprovar não envia
-          mensagens, cria processos ou altera dados financeiros. O uso respeita
-          os limites de OpenAI do escritório.
-        </p>
-      </aside>
+              {tarefa.estado === "running" &&
+                Date.now() - new Date(tarefa.atualizado_em).getTime() >
+                  600000 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={ocupado}
+                    onClick={() => void decidir("recuperar")}
+                  >
+                    Conferir execução interrompida
+                  </Button>
+                )}
+            </>
+          )}
+          <p className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground">
+            A IA extrai; o código valida evidências e CPF. Aprovar não envia
+            mensagens, cria processos ou altera dados financeiros. O uso
+            respeita os limites de OpenAI do escritório.
+          </p>
+        </aside>
+      )}
     </section>
   );
 }

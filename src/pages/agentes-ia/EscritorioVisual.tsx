@@ -1,5 +1,7 @@
 import { lazy, Suspense } from "react";
-const PlantaEscritorio = lazy(() => import("./escritorio/PlantaEscritorio"));
+const PlantaEscritorio = lazy(
+  () => import("./escritorio/office3d/LiveOffice3D"),
+);
 import { SALAS, salaAgente, type SalaId } from "./escritorio/salas";
 import { useState } from "react";
 import {
@@ -242,18 +244,6 @@ export default function EscritorioVisual({
               </a>
             </aside>
           )}
-          <nav aria-label="Salas do escritório" className="jas-room-dock">
-            {SALAS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                aria-pressed={sala === s.id}
-                onClick={() => entrarSala(s.id)}
-              >
-                {s.nome}
-              </button>
-            ))}
-          </nav>
         </>
       )}
       {modo === "equipe" && (

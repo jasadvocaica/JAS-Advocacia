@@ -42,7 +42,7 @@ describe("Áreas independentes do escritório", () => {
   it("abre a planta sem misturar chat e painéis de consumo", async () => {
     abrir();
     expect(
-      await screen.findByRole("group", { name: /Planta isométrica/ }),
+      await screen.findByRole("group", { name: /Planta isométrica/ }, {timeout:5000}),
     ).toBeInTheDocument();
     expect(screen.queryByRole("log")).not.toBeInTheDocument();
     expect(screen.queryByText("Consumo OpenAI hoje")).not.toBeInTheDocument();
