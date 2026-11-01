@@ -191,3 +191,7 @@ verify_jwt = false
 # JWT do usuário validado por getUser; webhook usa segredo próprio por ambiente.
 [functions.comercial-zapsign]
 verify_jwt = false
+
+# Homologação Clara: JWT verificado por getUser; teste fixo exige segredo cron no handler.
+[functions.clara-comando]
+verify_jwt = false

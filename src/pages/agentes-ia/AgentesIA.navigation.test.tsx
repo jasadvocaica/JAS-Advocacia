@@ -22,7 +22,7 @@ vi.mock("./hooks/useAgentesIA", () => ({
     decidir: vi.fn(),
   }),
 }));
-const abrir = (url = "/escritorio") =>
+const abrir = (url = "/escritorio/planta") =>
   render(
     <MemoryRouter initialEntries={[url]}>
       <Routes>
