@@ -1,0 +1,317 @@
+// Motor de missões (Fase 2). Nasce desligado: só trabalha depois que a gestão liga o motor.
+// Ações:
+//  - pulso (cron/worker com segredo): reserva tarefas prontas e executa com ferramentas;
+//  - criar_missao, aprovacoes, decidir, orcamento, decidir_orcamento, ajustar, ferramenta (pessoa logada).
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  executarRodadas,
+  instrucoesDoAgente,
+  lerEntrega,
+  motivoAviso,
+  simularAumento,
+  type RespostaIA,
+  type SituacaoOrcamento,
+} from "../_shared/motor.ts";
+import { validarConfigAgente } from "../_shared/agentes-config.ts";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-djen-cron-secret",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const json = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_SAIDA = 1200;
+
+class SemOrcamento extends Error {}
+
+/** Mede a entrada, reserva o custo em dólar no banco, chama a IA e confirma o consumo real. */
+async function chamarComOrcamento(db: SupabaseClient, a: {
+  key: string; id: string; rodada: number; agente: string; tarefa: string; payload: Record<string, unknown>;
+}): Promise<RespostaIA> {
+  const init = {
+    method: "POST",
+    redirect: "error" as const,
+    signal: AbortSignal.timeout(60000),
+    headers: { Authorization: `Bearer ${a.key}`, "Content-Type": "application/json" },
+  };
+  const count = await fetch("https://api.openai.com/v1/responses/input_tokens", { ...init, body: JSON.stringify(a.payload) });
+  if (!count.ok) throw new Error("Não foi possível medir os tokens. A chamada não foi feita.");
+  const { input_tokens } = await count.json();
+  const reserva = await db.rpc("ia_reservar", {
+    _id: a.id, _rodada: a.rodada, _agente: a.agente, _tarefa: a.tarefa,
+    _modelo: a.payload.model, _entrada: input_tokens, _saida_max: MAX_SAIDA,
+  });
+  if (reserva.error) throw new Error(reserva.error.message);
+  if (reserva.data?.ok !== true) throw new SemOrcamento(String(reserva.data?.motivo ?? "orcamento"));
+  const resp = await fetch("https://api.openai.com/v1/responses", {
+    ...init,
+    body: JSON.stringify({ ...a.payload, store: false, max_output_tokens: MAX_SAIDA, parallel_tool_calls: false }),
+  });
+  if (!resp.ok) throw new Error(resp.status === 429 ? "Limite da API OpenAI atingido" : "Falha da API OpenAI");
+  const ai = await resp.json();
+  const confirmado = await db.rpc("ia_confirmar", {
+    _id: a.id, _rodada: a.rodada, _entrada: ai.usage?.input_tokens ?? -1, _saida: ai.usage?.output_tokens ?? -1,
+  });
+  if (confirmado.error || confirmado.data !== true) throw new Error("Consumo acima do reservado: o motor foi desligado.");
+  return ai;
+}
+
+/** Ferramentas executadas pelo backend. O banco confere a permissão do agente antes de cada uma. */
+async function executarFerramenta(db: SupabaseClient, tarefa: { tarefa_id: string; missao_id: string },
+  slug: string, p: Record<string, unknown>) {
+  const classe = await db.rpc("motor_ferramenta_permitida", { _tarefa: tarefa.tarefa_id, _ferramenta: slug });
+  if (classe.error || !classe.data) throw new Error("Ferramenta não permitida para este agente.");
+  switch (slug) {
+    case "consultar_indicadores": {
+      const r = await db.rpc("escritorio_contexto_analista");
+      if (r.error) throw new Error("Indicadores indisponíveis");
+      return r.data;
+    }
+    case "listar_itens_controladoria": {
+      let q = db.from("controladoria_itens")
+        .select("id,tipo,titulo,data_vencimento,status,prioridade,processo_id")
+        .in("status", p.status ? [p.status as string] : ["pendente", "em_andamento", "aguardando"])
+        .order("data_vencimento", { ascending: true })
+        .limit(20);
+      if (p.processo_id) q = q.eq("processo_id", p.processo_id as string);
+      const r = await q;
+      if (r.error) throw new Error("Controladoria indisponível");
+      return r.data;
+    }
+    case "buscar_processo": {
+      const r = await db.from("processos")
+        .select("id,numero_cnj,tipo,area_direito,tipo_acao,tribunal,vara,comarca,status")
+        .or(`numero_cnj.eq.${p.numero_cnj},numero_cnj.eq.${formatarCnj(p.numero_cnj as string)}`)
+        .limit(1);
+      if (r.error) throw new Error("Processos indisponíveis");
+      return r.data?.[0] ?? { encontrado: false };
+    }
+    case "delegar_tarefa": {
+      const ag = await db.from("agentes_ia").select("id").eq("slug", p.agente as string).eq("ativo", true).maybeSingle();
+      if (ag.error || !ag.data) throw new Error(`Agente "${p.agente}" não encontrado ou desligado.`);
+      const r = await db.rpc("motor_delegar", {
+        _tarefa: tarefa.tarefa_id, _agente: ag.data.id, _titulo: p.titulo, _instrucoes: p.instrucoes, _depende_de: [], _chave: p.chave,
+      });
+      if (r.error) throw new Error(r.error.message);
+      return { tarefa_criada: r.data };
+    }
+    case "criar_item_controladoria": {
+      const r = await db.rpc("motor_pedir_aprovacao", {
+        _tarefa: tarefa.tarefa_id, _ferramenta: slug, _parametros: p,
+        _resumo: `Criar na Controladoria: ${p.titulo} (vence ${p.data_vencimento})`,
+        _riscos: "Cria uma atividade visível para a equipe. Não calcula prazo judicial.",
+      });
+      if (r.error) throw new Error(r.error.message);
+      return { pedido_aprovacao: r.data, situacao: "aguardando aprovação humana; nada foi gravado" };
+    }
+  }
+  throw new Error("Ferramenta desconhecida");
+}
+
+function formatarCnj(n: string) {
+  return `${n.slice(0, 7)}-${n.slice(7, 9)}.${n.slice(9, 13)}.${n.slice(13, 14)}.${n.slice(14, 16)}.${n.slice(16)}`;
+}
+
+/** Executa a ação sensível já aprovada. O id do item é o id do pedido: repetir nunca duplica. */
+async function executarAprovada(db: SupabaseClient, id: string) {
+  const ini = await db.rpc("aprovacao_iniciar_execucao", { _id: id });
+  if (ini.error) throw new Error(ini.error.message);
+  const a = ini.data?.[0];
+  if (!a) return { executada: false };
+  try {
+    if (a.ferramenta !== "criar_item_controladoria") throw new Error("Ferramenta sem execução registrada");
+    const p = a.parametros;
+    const r = await db.from("controladoria_itens").upsert({
+      id, tipo: "tarefa", titulo: p.titulo, descricao: `${p.descricao}\n\nProposto por agente de IA; aprovado na Central de Aprovações.`,
+      processo_id: p.processo_id, data_vencimento: `${p.data_vencimento}T21:00:00Z`, prioridade: p.prioridade,
+      status: "pendente", criado_por: a.decidida_por,
+    }, { onConflict: "id", ignoreDuplicates: true });
+    if (r.error) throw new Error(r.error.message);
+    await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: { item_id: id } });
+    return { executada: true, item_id: id };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Falha";
+    await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: false, _resultado: { erro: msg } });
+    throw e;
+  }
+}
+
+interface TarefaReservada {
+  tarefa_id: string; missao_id: string; agente_id: string; execucao_id: string; titulo: string; instrucoes: string;
+  profundidade: number; tentativa: number; objetivo_missao: string; solicitada_por: string;
+  dependencias: unknown[]; ferramentas: string[];
+}
+
+async function processarTarefa(db: SupabaseClient, key: string, modelo: string, t: TarefaReservada) {
+  const log = (mensagem: string) => db.from("agente_execucao_logs").insert({ execucao_id: t.execucao_id, mensagem });
+  const [ag, cfg] = await Promise.all([
+    db.from("agentes_ia").select("id,nome,descricao,supervisor_id").eq("id", t.agente_id).single(),
+    db.rpc("escritorio_ler_config", { _usuario: t.solicitada_por, _agente: t.agente_id }),
+  ]);
+  let perfil: ReturnType<typeof validarConfigAgente> | null = null;
+  try { perfil = cfg.data?.revisao > 0 ? validarConfigAgente(cfg.data.config) : null; } catch { perfil = null; }
+  const instrucoes = instrucoesDoAgente({ nome: ag.data?.nome ?? "Agente", cargo: perfil?.cargo, prompt_base: perfil?.prompt_base });
+  await log(`Tarefa da missão reservada (tentativa ${t.tentativa}). Ferramentas: ${t.ferramentas.join(", ") || "nenhuma"}.`);
+  try {
+    const r = await executarRodadas({
+      entrada: {
+        objetivo_da_missao: t.objetivo_missao,
+        sua_tarefa: { titulo: t.titulo, instrucoes: t.instrucoes },
+        resultados_de_tarefas_anteriores: t.dependencias,
+        data_de_hoje: new Date().toISOString().slice(0, 10),
+      },
+      concedidas: t.ferramentas,
+      chamarIA: (rodada, input, tools) =>
+        chamarComOrcamento(db, {
+          key, id: t.execucao_id, rodada, agente: t.agente_id, tarefa: t.tarefa_id,
+          payload: {
+            model: modelo,
+            instructions: instrucoes,
+            input, tools,
+          },
+        }),
+      executar: (slug, p) => executarFerramenta(db, t, slug, p),
+      aoUsar: async (slug, ok) => { await log(`${ok ? "Usou" : "Tentou usar"} a ferramenta ${slug}.`); },
+    });
+    const entrega = lerEntrega(r.texto);
+    await db.rpc("motor_concluir_tarefa", {
+      _tarefa: t.tarefa_id, _ok: true,
+      _resultado: { ...entrega, rodadas: r.rodadas, ferramentas: r.ferramentasUsadas },
+    });
+    return { tarefa: t.tarefa_id, ok: true };
+  } catch (e) {
+    if (e instanceof SemOrcamento) {
+      const msg = `Sem orçamento (${e.message}); a tarefa voltou para a fila.`;
+      await log(msg);
+      await db.rpc("motor_devolver_tarefa", { _tarefa: t.tarefa_id, _motivo: msg });
+      return { tarefa: t.tarefa_id, ok: false, semOrcamento: true };
+    }
+    const msg = e instanceof Error ? e.message : "Falha";
+    await log(msg);
+    await db.rpc("motor_concluir_tarefa", { _tarefa: t.tarefa_id, _ok: false, _resultado: null, _erro: msg });
+    return { tarefa: t.tarefa_id, ok: false, semOrcamento: false };
+  }
+}
+
+async function avisarOrcamento(db: SupabaseClient, bloqueou: boolean) {
+  const s = await db.rpc("ia_situacao");
+  if (s.error) return;
+  const situacao = s.data as SituacaoOrcamento;
+  const motivo = motivoAviso(situacao, bloqueou);
+  const opcoes = simularAumento(situacao);
+  if (motivo && opcoes.length) await db.rpc("ia_pedir_aumento", { _motivo: motivo, _opcoes: opcoes });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Método não permitido" }, 405);
+  const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  try {
+    const raw = await req.text();
+    if (raw.length > 20000) return json({ error: "Requisição muito grande" }, 413);
+    const body = JSON.parse(raw || "{}");
+    if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Corpo inválido" }, 400);
+
+    if (body.acao === "pulso") {
+      const ok = await db.rpc("validar_djen_cron_secret", { _secret: req.headers.get("x-djen-cron-secret") ?? "" });
+      if (ok.error || ok.data !== true) return json({ error: "Não autorizado" }, 401);
+      const key = Deno.env.get("OPENAI_API_KEY");
+      const cfg = await db.from("assistente_config").select("modelo,habilitado").single();
+      if (!key || cfg.error || !cfg.data?.habilitado) return json({ ok: true, motivo: "IA desativada" });
+      const situacao = await db.rpc("ia_situacao");
+      if (situacao.error) throw situacao.error;
+      if (situacao.data.gasto_dia_usd >= situacao.data.limite_dia_usd) {
+        await avisarOrcamento(db, true);
+        return json({ ok: true, motivo: "Limite do dia atingido; a fila espera." });
+      }
+      const tarefas = await db.rpc("motor_reservar_tarefas", { _limite: 3 });
+      if (tarefas.error) throw tarefas.error;
+      const resultados = [];
+      for (const t of tarefas.data ?? []) resultados.push(await processarTarefa(db, key, cfg.data.modelo, t));
+      await avisarOrcamento(db, resultados.some((r) => r.semOrcamento));
+      return json({ ok: true, processadas: resultados });
+    }
+
+    const auth = await db.auth.getUser((req.headers.get("Authorization") ?? "").replace(/^Bearer /i, ""));
+    if (auth.error || !auth.data.user) return json({ error: "Sessão inválida" }, 401);
+    const usuario = auth.data.user.id;
+    const [gestor, interno] = await Promise.all([
+      db.rpc("is_gestor", { _user_id: usuario }),
+      db.rpc("is_interno_ativo", { _user_id: usuario }),
+    ]);
+    if (interno.data !== true) return json({ error: "Usuário inativo" }, 403);
+
+    switch (body.acao) {
+      case "aprovacoes": {
+        const r = await db.rpc("aprovacao_listar", { _usuario: usuario });
+        if (r.error) throw r.error;
+        return json({ aprovacoes: r.data });
+      }
+      case "decidir": {
+        if (!UUID.test(body.id ?? "") || typeof body.aprovar !== "boolean" || typeof body.hash !== "string")
+          return json({ error: "Pedido inválido" }, 400);
+        const r = await db.rpc("aprovacao_decidir", {
+          _usuario: usuario, _id: body.id, _aprovar: body.aprovar, _hash: body.hash,
+          _observacao: typeof body.observacao === "string" ? body.observacao.slice(0, 1000) : null,
+        });
+        if (r.error) return json({ error: r.error.message }, r.error.code === "40001" ? 409 : 403);
+        const execucao = r.data === "aprovada" ? await executarAprovada(db, body.id) : null;
+        return json({ ok: true, estado: execucao?.executada ? "executada" : r.data, execucao });
+      }
+    }
+
+    if (gestor.data !== true) return json({ error: "Gestor ativo necessário" }, 403);
+    switch (body.acao) {
+      case "criar_missao": {
+        if (!UUID.test(body.agente_id ?? "")) return json({ error: "Agente inválido" }, 400);
+        const r = await db.rpc("motor_criar_missao", {
+          _usuario: usuario, _titulo: String(body.titulo ?? "").trim(), _objetivo: String(body.objetivo ?? "").trim(),
+          _agente: body.agente_id, _origem: "central", _prioridade: Number.isInteger(body.prioridade) ? body.prioridade : 3,
+          _chave: typeof body.chave === "string" ? body.chave.slice(0, 100) : null,
+        });
+        if (r.error) return json({ error: r.error.message }, 400);
+        return json({ ok: true, missao_id: r.data });
+      }
+      case "orcamento": {
+        const r = await db.rpc("ia_situacao");
+        if (r.error) throw r.error;
+        return json({ situacao: r.data, simulacao: simularAumento(r.data as SituacaoOrcamento) });
+      }
+      case "decidir_orcamento": {
+        if (!UUID.test(body.id ?? "")) return json({ error: "Aviso inválido" }, 400);
+        const r = await db.rpc("ia_decidir_aumento", {
+          _usuario: usuario, _id: body.id,
+          _opcao: Number.isInteger(body.opcao) ? body.opcao : null,
+          _tipo: ["extra_dia", "mensal"].includes(body.tipo) ? body.tipo : null,
+          _valor: typeof body.valor_usd === "number" ? body.valor_usd : null,
+        });
+        if (r.error) return json({ error: r.error.message }, 400);
+        return json({ ok: true, estado: r.data });
+      }
+      case "ajustar": {
+        const r = await db.rpc("motor_ajustar", {
+          _usuario: usuario,
+          _ligado: typeof body.ligado === "boolean" ? body.ligado : null,
+          _orcamento_mensal: typeof body.orcamento_mensal_usd === "number" ? body.orcamento_mensal_usd : null,
+          _teto: typeof body.teto_absoluto_usd === "number" ? body.teto_absoluto_usd : null,
+        });
+        if (r.error) return json({ error: r.error.message }, 403);
+        return json({ ok: true, situacao: r.data });
+      }
+      case "ferramenta": {
+        if (!UUID.test(body.agente_id ?? "") || typeof body.ferramenta !== "string" || typeof body.conceder !== "boolean")
+          return json({ error: "Pedido inválido" }, 400);
+        const r = await db.rpc("motor_conceder_ferramenta", {
+          _usuario: usuario, _agente: body.agente_id, _ferramenta: body.ferramenta, _conceder: body.conceder,
+        });
+        if (r.error) return json({ error: r.error.message }, 403);
+        return json({ ok: true });
+      }
+    }
+    return json({ error: "Ação inválida" }, 400);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : "Falha no motor" }, 500);
+  }
+});
