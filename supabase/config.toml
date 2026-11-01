@@ -5,7 +5,12 @@ project_id = "mzwnljgujheumdslkloc"
 verify_jwt = true
 
 [functions.controladoria-sync-calendar]
-verify_jwt = true
+# Cada chamada valida x-calendar-sync-secret contra o segredo do Vault.
+verify_jwt = false
+
+[functions.agentes-disparar]
+# getUser e permissões por ação são conferidos no handler.
+verify_jwt = false
 
 [functions.ia-alerta-prazos-diario]
 verify_jwt = true

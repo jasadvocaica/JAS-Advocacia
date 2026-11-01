@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { agenteNativo } from "../../../supabase/functions/_shared/agentes";
 import {
   LABEL_STATUS_EXECUCAO,
   useAgentesIA,
@@ -57,7 +58,7 @@ function dataHora(iso: string) {
 }
 
 export default function AgentesIA() {
-  const { agentes, execucoes, pendentesAprovacao, loading, error, recarregar, disparar, decidir } =
+  const { agentes, execucoes, operacaoDjen, pendentesAprovacao, loading, error, recarregar, disparar, decidir } =
     useAgentesIA();
   const { toast } = useToast();
 
@@ -119,7 +120,7 @@ export default function AgentesIA() {
             Agentes de IA
           </h1>
           <p className="text-sm text-muted-foreground">
-            Acione os agentes do escritório. Tudo que exigir ação externa passa pela sua aprovação.
+            Monitore o DJEN e encaminhe publicações para a Controladoria. Confira os prazos judiciais antes de confirmá-los.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={recarregar} disabled={loading}>
@@ -132,6 +133,33 @@ export default function AgentesIA() {
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
+      ) : null}
+
+      {operacaoDjen ? (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Operação DJEN</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>Triagem: {operacaoDjen.triagem_pendente} pendentes, {operacaoDjen.triagem_com_erro} com falha.</p>
+            <p>Agenda: {operacaoDjen.agenda_pendente} aguardando confirmação, {operacaoDjen.agenda_com_erro} com falha.</p>
+            <p className="text-xs text-muted-foreground">
+              Última consulta concluída: {operacaoDjen.ultima_consulta
+                ? new Date(operacaoDjen.ultima_consulta).toLocaleString("pt-BR", { timeZone: "America/Cuiaba" })
+                : "nenhuma registrada"}.
+            </p>
+            {operacaoDjen.triagem_com_erro + operacaoDjen.agenda_com_erro > 0 ? (
+              <p className="text-xs text-destructive">Confira o vínculo e o responsável da publicação e a autorização da agenda. Após corrigir, execute o Assistente de Controladoria para tentar novamente.</p>
+            ) : null}
+            {operacaoDjen.falhas?.length ? (
+              <ul className="space-y-1 text-xs text-destructive">
+                {operacaoDjen.falhas.map((falha, i) => (
+                  <li key={`${falha.tipo}-${falha.referencia}-${i}`}>{falha.tipo} · {falha.referencia}: {falha.erro}</li>
+                ))}
+              </ul>
+            ) : null}
+            <a href="/ferramentas/publicacoes-pje" className="inline-block text-xs underline">Ver publicações e vínculos</a>
+            <a href="/controladoria" className="ml-4 inline-block text-xs underline">Conferir tarefas e prazos</a>
+          </CardContent>
+        </Card>
       ) : null}
 
       {pendentesAprovacao.length > 0 ? (
@@ -177,7 +205,9 @@ export default function AgentesIA() {
                           Revisão
                         </Badge>
                       ) : null}
-                      {!agente.webhook_url ? (
+                      {agenteNativo(agente.slug) ? (
+                        <Badge variant="outline" className="text-[10px]">Integrado ao sistema</Badge>
+                      ) : !agente.webhook_url ? (
                         <Badge variant="outline" className="border-warning/40 text-[10px] text-warning">
                           Sem webhook
                         </Badge>
@@ -192,7 +222,7 @@ export default function AgentesIA() {
                   <Button
                     size="sm"
                     className="w-full"
-                    disabled={executando === agente.slug || !agente.ativo || !agente.webhook_url}
+                    disabled={executando !== null || !agente.ativo || (!agenteNativo(agente.slug) && !agente.webhook_url)}
                     onClick={() => rodar(agente)}
                   >
                     {executando === agente.slug ? (

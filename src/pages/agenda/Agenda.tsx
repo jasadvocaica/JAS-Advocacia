@@ -15,7 +15,7 @@ import {
   ChevronLeft, ChevronRight, Plus, RefreshCcw, MapPin, Clock, ExternalLink, Loader2, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
-import { EventoFormDialog } from "./EventoFormDialog";
+import { horarioEvento } from "../../../supabase/functions/_shared/calendario-controladoria";
 
 const GOOGLE_CALENDAR_EMBED_URL =
   "https://calendar.google.com/calendar/embed?height=600&wkst=1&ctz=America%2FCampo_Grande&showPrint=0&src=anVyaWRpY29AanVsaWFuYWFyYXVqb2Fkdm9jYWNpYS5jb20&src=Zjc5ZTAzNjcxNTAwZTBkMTY3NTA1YTZiYTgzOTE4ODU3ZTdkNzc5YjczZTM2ODYyMGJkNDhiZWFjZmUyOGM2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&src=ZWE2YjM4Yjg4YTdjMTU4MzJkOWM1YWY4NDFmMGQ5ZmYxNjMwMzFjMTNmMjkwNzI2MGEzYjExNjYwNjdiZjJkNkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&src=ODU3ZmM3NjQzNjY5Y2QwNzE1NTk2N2RkZGUyMmM4ZGY3NDMxOGQ5NjJlZWM3M2RhZGRlNDM2NDc3MzNhM2JlM0Bncm91cC5jYWxlbmRhci5nb29nbGUuY29t&src=Y2xpZW50ZXNqdWxpYW5hYXJhdWpvQGdtYWlsLmNvbQ&color=%23039be5&color=%23f4511e&color=%23e4c441&color=%23e4c441&color=%23f6bf26";
@@ -47,15 +47,12 @@ function isAllDay(e: GcalEvent) {
 export default function Agenda() {
   const { hasPermission } = useAuth();
   const podeCriar = hasPermission("controladoria", "criar");
-  const podeEditar = hasPermission("controladoria", "editar");
 
   const [mesRef, setMesRef] = useState(() => new Date());
   const [eventos, setEventos] = useState<GcalEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [diaSelecionado, setDiaSelecionado] = useState<Date>(new Date());
-  const [formAberto, setFormAberto] = useState(false);
-  const [eventoEdit, setEventoEdit] = useState<GcalEvent | null>(null);
-  const [visualizacao, setVisualizacao] = useState<"sistema" | "google">("google");
+  const [visualizacao, setVisualizacao] = useState<"sistema" | "google">("sistema");
 
   const carregar = async () => {
     setLoading(true);
@@ -63,16 +60,22 @@ export default function Agenda() {
       // pega 6 semanas que aparecem no grid + buffer
       const inicio = startOfWeek(startOfMonth(mesRef), { weekStartsOn: 0 });
       const fim = endOfWeek(endOfMonth(mesRef), { weekStartsOn: 0 });
-      const { data, error } = await supabase.functions.invoke("google-calendar", {
-        body: {
-          action: "list",
-          timeMin: inicio.toISOString(),
-          timeMax: addDays(fim, 1).toISOString(),
-        },
-      });
+      const { data, error } = await supabase.from("controladoria_itens")
+        .select("id,titulo,tipo,status,origem,data_vencimento,data_prazo_judicial,prazo_conferido")
+        .neq("status", "cancelado")
+        .or(`and(data_vencimento.gte.${inicio.toISOString()},data_vencimento.lt.${addDays(fim, 1).toISOString()}),and(prazo_conferido.eq.true,data_prazo_judicial.gte.${format(inicio, "yyyy-MM-dd")},data_prazo_judicial.lte.${format(fim, "yyyy-MM-dd")})`)
+        .order("data_vencimento");
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setEventos((data?.items ?? []) as GcalEvent[]);
+      setEventos((data ?? []).map((item) => {
+        const horario = horarioEvento(item);
+        return {
+          id: item.id,
+          summary: (item.status === "concluido" ? "[CONCLUÍDO] " : "") + horario.prefixo + item.titulo,
+          description: "Atividade da Controladoria. Abra o item para conferir ou alterar os dados.",
+          start: horario.start, end: horario.end,
+          htmlLink: `/controladoria?item=${encodeURIComponent(item.id)}`,
+        };
+      }));
     } catch (err: any) {
       console.error(err);
       toast.error("Erro ao carregar agenda", { description: err?.message });
@@ -84,6 +87,17 @@ export default function Agenda() {
   useEffect(() => {
     if (visualizacao === "sistema") carregar();
     /* eslint-disable-next-line */
+  }, [mesRef, visualizacao]);
+
+  useEffect(() => {
+    if (visualizacao !== "sistema") return;
+    const canal = supabase.channel("agenda-controladoria")
+      .on("postgres_changes", { event: "*", schema: "public", table: "controladoria_itens" }, () => void carregar())
+      .subscribe();
+    const aoFocar = () => void carregar();
+    window.addEventListener("focus", aoFocar);
+    return () => { void supabase.removeChannel(canal); window.removeEventListener("focus", aoFocar); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mesRef, visualizacao]);
 
   const dias = useMemo(() => {
@@ -117,34 +131,11 @@ export default function Agenda() {
   const eventosDoDia = (eventosPorDia.get(format(diaSelecionado, "yyyy-MM-dd")) ?? [])
     .sort((a, b) => eventoInicio(a).getTime() - eventoInicio(b).getTime());
 
-  const novoEvento = () => {
-    setEventoEdit(null);
-    setFormAberto(true);
-  };
-  const editarEvento = (e: GcalEvent) => {
-    setEventoEdit(e);
-    setFormAberto(true);
-  };
-  const excluirEvento = async (e: GcalEvent) => {
-    if (!confirm(`Excluir "${e.summary ?? "evento"}"?`)) return;
-    try {
-      const { data, error } = await supabase.functions.invoke("google-calendar", {
-        body: { action: "delete", eventId: e.id },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success("Evento excluído");
-      carregar();
-    } catch (err: any) {
-      toast.error("Erro ao excluir", { description: err?.message });
-    }
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Agenda"
-        description="Compromissos do escritório sincronizados com Google Calendar"
+        description="Atividades e prazos da Controladoria, com acesso à agenda Google do escritório"
       >
         {visualizacao === "google" ? (
           <Button asChild variant="outline">
@@ -159,8 +150,8 @@ export default function Agenda() {
               Atualizar
             </Button>
             {podeCriar && (
-              <Button onClick={novoEvento}>
-                <Plus className="w-4 h-4 mr-2" /> Novo evento
+              <Button asChild>
+                <a href="/controladoria"><Plus className="w-4 h-4 mr-2" /> Criar na Controladoria</a>
               </Button>
             )}
           </>
@@ -168,7 +159,10 @@ export default function Agenda() {
       </PageHeader>
 
       <div className="flex w-fit rounded-lg border border-border bg-muted/40 p-1" aria-label="Visualização da agenda">
-        <Button type="button" size="sm" variant="default" disabled>
+        <Button type="button" size="sm" variant={visualizacao === "sistema" ? "default" : "ghost"} onClick={() => setVisualizacao("sistema")}>
+          Agenda do sistema
+        </Button>
+        <Button type="button" size="sm" variant={visualizacao === "google" ? "default" : "ghost"} onClick={() => setVisualizacao("google")}>
           Agenda Google
         </Button>
       </div>
@@ -266,9 +260,6 @@ export default function Agenda() {
               <div className="space-y-3">
                 {eventosDoDia.map((e) => (
                   <EventoCard key={e.id} evento={e}
-                    podeEditar={podeEditar}
-                    onEditar={() => editarEvento(e)}
-                    onExcluir={() => excluirEvento(e)}
                   />
                 ))}
               </div>
@@ -303,27 +294,12 @@ export default function Agenda() {
       </div>
       )}
 
-      {formAberto && (
-        <EventoFormDialog
-          aberto={formAberto}
-          onFechar={() => setFormAberto(false)}
-          evento={eventoEdit}
-          dataInicial={diaSelecionado}
-          onSalvo={() => { setFormAberto(false); carregar(); }}
-        />
-      )}
+
     </div>
   );
 }
 
-function EventoCard({
-  evento, podeEditar, onEditar, onExcluir,
-}: {
-  evento: GcalEvent;
-  podeEditar: boolean;
-  onEditar: () => void;
-  onExcluir: () => void;
-}) {
+function EventoCard({ evento }: { evento: GcalEvent }) {
   const inicio = eventoInicio(evento);
   const fim = eventoFim(evento);
   const allDay = isAllDay(evento);
@@ -355,12 +331,7 @@ function EventoCard({
             </a>
           </Button>
         )}
-        {podeEditar && (
-          <>
-            <Button variant="ghost" size="sm" onClick={onEditar}>Editar</Button>
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={onExcluir}>Excluir</Button>
-          </>
-        )}
+
       </div>
     </div>
   );
