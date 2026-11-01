@@ -1,0 +1,4 @@
+**
+!deploy/
+!deploy/vps/
+!deploy/vps/worker.mjs

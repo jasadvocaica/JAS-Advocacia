@@ -220,7 +220,7 @@ export default function OfficeShell({
                 <p>ESCRITÓRIO INTELIGENTE</p>
                 <h1>{OFFICE_SECTIONS[secao]}</h1>
                 <span>
-                  {secao === "comando"
+                  {secao === "configurar" ? "Configure papel, instruções e fontes do seu agente." : secao === "comando"
                     ? "Da sua solicitação ao resultado. Tudo acompanhado, em um só lugar."
                     : secao === "chat"
                       ? "Acompanhe as rotinas e converse com seus analistas."

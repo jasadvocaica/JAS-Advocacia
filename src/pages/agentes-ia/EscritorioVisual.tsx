@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { lazy, Suspense } from "react";
 const PlantaEscritorio = lazy(
   () => import("./escritorio/office3d/LiveOffice3D"),
@@ -355,6 +356,14 @@ export default function EscritorioVisual({
                   )}
                 </div>
                 {a.executor === "analista_operacional" && (
+                  <Link
+                    className="mt-3 text-xs underline"
+                    to={`/escritorio/equipe/${a.id}/editar`}
+                  >
+                    Personalizar prompt e conhecimento →
+                  </Link>
+                )}
+                {a.executor === "analista_operacional" && (
                   <p className="mt-2 text-[10px] text-muted-foreground">
                     OpenAI · teto compartilhado · entrega sujeita à revisão
                   </p>
@@ -461,6 +470,15 @@ export default function EscritorioVisual({
           </DialogHeader>
           {selecionado && (
             <div className="space-y-4">
+              {selecionado.executor === "analista_operacional" && (
+                <Link
+                  className="inline-block text-xs underline"
+                  onClick={() => setSelecionado(null)}
+                  to={`/escritorio/equipe/${selecionado.id}/editar`}
+                >
+                  Personalizar agente →
+                </Link>
+              )}
               <p className="text-sm font-medium">
                 {estadoMesa(selecionado, ultima)}
               </p>
@@ -469,7 +487,9 @@ export default function EscritorioVisual({
                 <select
                   className="mt-1 h-10 w-full rounded-md border bg-background px-3"
                   value={salaAgente(selecionado)}
-                  disabled={movendo}
+                  disabled={
+                    movendo || selecionado.executor !== "analista_operacional"
+                  }
                   onChange={(e) =>
                     void mover(selecionado, e.target.value as SalaId)
                   }

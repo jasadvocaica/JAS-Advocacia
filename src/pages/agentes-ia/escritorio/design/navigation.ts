@@ -11,6 +11,7 @@ import {
   Megaphone,
   PlugZap,
   Settings2,
+  Server,
   ShieldCheck,
   Terminal,
   UsersRound,
@@ -150,6 +151,11 @@ export const OFFICE_NAV: { label: string; items: OfficeNavItem[] }[] = [
 ];
 export const OFFICE_SECONDARY = [
   {
+    label: "Conectar VPS",
+    to: "/escritorio/operacao#conectar-vps",
+    icon: Server,
+  },
+  {
     label: "Conversas",
     to: "/escritorio/chat",
     section: "chat",
@@ -167,6 +173,7 @@ export const OFFICE_SECTIONS = {
   planta: "Escritório Virtual 3D",
   chat: "Conversas",
   equipe: "Agentes de IA",
+  configurar: "Personalizar agente",
   entregas: "Entregas para revisão",
   historico: "Tarefas e Execuções",
   operacao: "Relatórios e Indicadores",

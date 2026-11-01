@@ -165,9 +165,13 @@ export default function OfficeSidebar({
                     key={i.label}
                     to={i.to}
                     title={collapsed ? i.label : i.hint}
-                    className={`op-nav-item ${i.section === secao ? "op-nav-selected" : ""}`}
+                    className={`op-nav-item ${i.section === (secao === "configurar" ? "equipe" : secao) ? "op-nav-selected" : ""}`}
                     aria-label={i.label}
-                    aria-current={i.section === secao ? "page" : undefined}
+                    aria-current={
+                      i.section === (secao === "configurar" ? "equipe" : secao)
+                        ? "page"
+                        : undefined
+                    }
                     onClick={onNavigate}
                   >
                     <i.icon size={18} />

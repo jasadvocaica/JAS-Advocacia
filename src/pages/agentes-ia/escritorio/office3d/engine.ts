@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { aparencia } from "../salas";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
   DEPARTAMENTOS,
@@ -160,6 +161,33 @@ export function buildOffice(
   box(scene, 19, -0.35, 14, 40, 0.5, 30, "#e8eef5");
   box(scene, 19, -0.03, 14, 38, 0.12, 28, "#e7e0d5");
   const roomMeshes: THREE.Object3D[] = [];
+  const woodCanvas = document.createElement("canvas");
+  woodCanvas.width = 256;
+  woodCanvas.height = 256;
+  const woodCtx = woodCanvas.getContext("2d")!;
+  woodCtx.fillStyle = "#f4ebdf";
+  woodCtx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 8; i++) {
+    woodCtx.fillStyle = i % 2 ? "#d8c1a5" : "#ead9c1";
+    woodCtx.fillRect(i * 32, 0, 31, 256);
+    woodCtx.strokeStyle = "#c6b090";
+    woodCtx.lineWidth = 0.6;
+    woodCtx.beginPath();
+    woodCtx.moveTo(i * 32, (i % 3) * 75);
+    woodCtx.lineTo((i + 1) * 32, (i % 3) * 75);
+    woodCtx.stroke();
+  }
+  const woodTexture = new THREE.CanvasTexture(woodCanvas);
+  woodTexture.colorSpace = THREE.SRGBColorSpace;
+  woodTexture.wrapS = woodTexture.wrapT = THREE.RepeatWrapping;
+  woodTexture.repeat.set(2, 2);
+  textures.push(woodTexture);
+  const woodMaterial = new THREE.MeshStandardMaterial({
+    map: woodTexture,
+    roughness: 0.85,
+    color: "#ffffff",
+  });
+  materials.set("wood-floor", woodMaterial);
   DEPARTAMENTOS.forEach((r, i) => {
     const floor = box(
       scene,
@@ -177,7 +205,15 @@ export function buildOffice(
             ? "#e6e9e5"
             : "#f4eee5",
     );
+    if (i !== 11) floor.material = woodMaterial;
     floor.userData.room = r.id;
+    box(scene, r.x + 4, 1.7, r.z + 0.2, 7.5, 1.3, 0.08, "#a9c8d6", true);
+    for (const dx of [0.3, 2.1, 4, 5.9, 7.6])
+      box(scene, r.x + dx, 1.7, r.z + 0.2, 0.045, 1.4, 0.06, "#c5d0d8");
+    box(scene, r.x + 4, 2.4, r.z + 0.2, 7.5, 0.055, 0.08, "#c5d0d8");
+    box(scene, r.x + 1.45, 1.15, r.z + 2.6, 0.45, 0.025, 0.55, "#ffffff");
+    box(scene, r.x + 1.5, 1.17, r.z + 2.65, 0.4, 0.02, 0.5, "#e8eef5");
+    box(scene, r.x + 3.15, 1.2, r.z + 2.65, 0.13, 0.25, 0.13, "#c6a15b");
     roomMeshes.push(floor);
     // Low cutaway walls preserve the view; glass partitions above them.
     const walls = OBSTACLES.slice(i * 6, i * 6 + 5);
@@ -246,15 +282,18 @@ export function buildOffice(
     group.userData.agent = a.id;
     scene.add(group);
     people.set(a.id, group);
+    const look = aparencia(a.id);
     box(group, 0, 1, 0, 0.6, 0.72, 0.35, a.color);
-    sphere(group, 0, 1.65, 0, 0.28, "#c58e65");
-    const hair = sphere(group, 0, 1.78, -0.04, 0.28, "#3c302c");
+    box(group, 0.13, 1.17, 0.19, 0.09, 0.13, 0.025, "#e7d2a4");
+    sphere(group, 0, 1.65, 0, 0.28, look.pele);
+    const hair = sphere(group, 0, 1.78, -0.04, 0.28, look.cabelo);
     hair.scale.y = 0.7;
+    if (look.longo) box(group, 0, 1.52, -0.19, 0.43, 0.5, 0.18, look.cabelo);
     const arm = (x: number) => {
       const g = new THREE.Group();
       g.position.set(x, 1.25, 0);
       box(g, 0, -0.3, 0, 0.17, 0.65, 0.2, a.color);
-      sphere(g, 0, -0.65, 0, 0.1, "#c58e65");
+      sphere(g, 0, -0.65, 0, 0.1, look.pele);
       group.add(g);
       return g;
     };

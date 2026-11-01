@@ -198,3 +198,6 @@ verify_jwt = false
 
 [functions.clara-acompanhar]
 verify_jwt = false
+
+[functions.escritorio-vps]
+verify_jwt = false

@@ -38,6 +38,7 @@ jobs:
           supabase/functions/controladoria-sync-calendar/index.ts
           supabase/functions/assistente-chat/index.ts
           supabase/functions/agentes-escritorio/index.ts
+          supabase/functions/escritorio-vps/index.ts
           supabase/functions/clara-comando/index.ts
           supabase/functions/clara-acompanhar/index.ts
       - name: Validar transações DJEN em banco descartável
@@ -48,6 +49,13 @@ jobs:
         run: python3 tests/agentes/concorrencia.py
       - name: Validar escritório e revisão humana
         run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/escritorio/bootstrap.sql -f tests/escritorio/fluxo.sql -f supabase/migrations/20261101165318_escritorio_salas.sql -f supabase/migrations/20261101165445_escritorio_chat_privilegios.sql -f tests/escritorio/salas-chat.sql
+      - name: Validar personalização de agentes e worker privado
+        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261101201119_agentes_personalizaveis.sql -f supabase/migrations/20261101201329_agentes_isolamento_supervisora.sql -f supabase/migrations/20261101201654_agentes_revisao_estado.sql -f tests/escritorio/personalizacao.sql
+      - name: Validar concorrência entre VPS e cron
+        env:
+          JAS_TEST_PGHOST: localhost
+          JAS_TEST_DB: postgres
+        run: python3 tests/escritorio/worker-concorrencia.py
       - name: Validar homologação Clara sem clientes de produção
         run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/clara/bootstrap.sql -f tests/clara/fluxo.sql -f tests/clara/acompanhamento.sql
       - name: Validar concorrência da Clara
@@ -85,6 +93,9 @@ jobs:
 
       - name: Verificar TypeScript
         run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Validar worker VPS e healthcheck
+        run: node --test deploy/vps/worker.test.mjs
 
       - name: Executar testes
         run: npm test
