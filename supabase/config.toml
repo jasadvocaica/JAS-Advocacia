@@ -195,3 +195,6 @@ verify_jwt = false
 # Homologação Clara: JWT verificado por getUser; teste fixo exige segredo cron no handler.
 [functions.clara-comando]
 verify_jwt = false
+
+[functions.clara-acompanhar]
+verify_jwt = false

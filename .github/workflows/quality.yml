@@ -39,6 +39,7 @@ jobs:
           supabase/functions/assistente-chat/index.ts
           supabase/functions/agentes-escritorio/index.ts
           supabase/functions/clara-comando/index.ts
+          supabase/functions/clara-acompanhar/index.ts
       - name: Validar transações DJEN em banco descartável
         run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/agentes/bootstrap.sql -f tests/agentes/fluxo.sql
       - name: Validar execuções concorrentes
@@ -48,7 +49,7 @@ jobs:
       - name: Validar escritório e revisão humana
         run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/escritorio/bootstrap.sql -f tests/escritorio/fluxo.sql -f supabase/migrations/20261101165318_escritorio_salas.sql -f supabase/migrations/20261101165445_escritorio_chat_privilegios.sql -f tests/escritorio/salas-chat.sql
       - name: Validar homologação Clara sem clientes de produção
-        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/clara/bootstrap.sql -f tests/clara/fluxo.sql
+        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/clara/bootstrap.sql -f tests/clara/fluxo.sql -f tests/clara/acompanhamento.sql
       - name: Validar concorrência da Clara
         env:
           JAS_TEST_PGHOST: localhost
