@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { acceptSnapshot, type ClaraSnapshot } from "./model";
+import { acceptSnapshot, currentTask, type ClaraSnapshot } from "./model";
 export function useClaraLive() {
   const [snapshot, setSnapshot] = useState<ClaraSnapshot | null>(null),
     [error, setError] = useState<string | null>(null),
@@ -45,7 +45,13 @@ export function useClaraLive() {
             load,
             Math.min(
               30000,
-              failures ? 5000 * 2 ** Math.min(failures, 3) : 5000,
+              failures
+                ? 5000 * 2 ** Math.min(failures, 3)
+                : ["queued", "running"].includes(
+                      currentTask(latest?.tarefas ?? [])?.estado ?? "",
+                    )
+                  ? 1000
+                  : 5000,
             ),
           );
         }
@@ -59,12 +65,14 @@ export function useClaraLive() {
     };
     void load();
     window.addEventListener("online", resume);
+    window.addEventListener("jas:clara-update", resume);
     window.addEventListener("focus", resume);
     document.addEventListener("visibilitychange", resume);
     return () => {
       active = false;
       clearTimeout(timer);
       window.removeEventListener("online", resume);
+      window.removeEventListener("jas:clara-update", resume);
       window.removeEventListener("focus", resume);
       document.removeEventListener("visibilitychange", resume);
     };

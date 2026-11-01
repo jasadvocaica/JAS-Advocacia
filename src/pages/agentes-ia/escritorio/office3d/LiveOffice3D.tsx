@@ -1,3 +1,10 @@
+import CentralComando from "../CentralComando";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -42,6 +49,7 @@ const links: Record<string, string> = {
 export default function LiveOffice3D(props: Props) {
   const propsRef = useRef(props);
   propsRef.current = props;
+  const [commandOpen, setCommandOpen] = useState(false);
   const host = useRef<HTMLDivElement>(null),
     engine = useRef<ReturnType<typeof buildOffice> | null>(null);
   const { snapshot, error, updated } = useClaraLive();
@@ -176,6 +184,16 @@ export default function LiveOffice3D(props: Props) {
           aria-label="Cena tridimensional interativa do escritório"
         />
       )}
+      <Sheet open={commandOpen} onOpenChange={setCommandOpen}>
+        <SheetContent side="right" className="live-office-command-sheet">
+          <SheetTitle>Nova demanda para Clara</SheetTitle>
+          <SheetDescription>
+            Envie o TXT fictício e acompanhe o estado na planta. Aprovar
+            continua sendo uma ação explícita.
+          </SheetDescription>
+          <CentralComando compact />
+        </SheetContent>
+      </Sheet>
       <div className="live-office-brand">
         <svg
           className="live-office-monogram"
@@ -272,6 +290,16 @@ export default function LiveOffice3D(props: Props) {
             </small>
           </div>
           <ChevronLeft size={15} />
+        </button>
+        <button
+          className="live-office-new-task"
+          onClick={() => {
+            setCommandOpen(true);
+            setSelected("clara-txt-v1");
+            setRoom(null);
+          }}
+        >
+          Enviar TXT para Clara <ArrowUpRight size={14} />
         </button>
         <label>
           <input

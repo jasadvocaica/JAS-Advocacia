@@ -7,7 +7,7 @@ No Supabase JAS, a leitura de 01/11/2026 encontrou cinco agentes no catálogo: R
 
 Clara é um executor separado, versionado como `clara-txt-v1`, com tarefas/eventos no schema privado `homologacao`. A consulta real encontrou a tarefa `c8f7d8c0-60ef-40ef-a165-4b73d04a0453`, concluída, oito eventos e 320 tokens de entrada + 183 de saída. O resultado real desse teste anterior pode ser consultado no novo acompanhamento, sem gerar IA novamente.
 
-As tabelas de agentes e homologação não estavam publicadas em `supabase_realtime`. A integração inicial usa snapshots autenticados a cada cinco segundos, com backoff em falhas, pausa em aba oculta e atualização ao retornar foco/conexão. Isso é consulta periódica, não WebSocket. Nenhuma tabela privada foi publicada para obter eventos.
+As tabelas de agentes e homologação não estavam publicadas em `supabase_realtime`. A integração inicial usa snapshots autenticados a cada cinco segundos (um segundo durante fila/execução), com backoff em falhas, pausa em aba oculta e atualização ao retornar foco/conexão. Isso é consulta periódica, não WebSocket. Nenhuma tabela privada foi publicada para obter eventos.
 
 Cron ativo: coleta e triagem DJEN a cada cinco minutos, escritório-analistas a cada cinco minutos, além das rotinas existentes de alertas, Datajud, marketing e retenção. `djen-agenda` HTTP permanece inativo; a agenda continua sob o conector existente. O teto global de 50 mil tokens/dia permanece intacto.
 
@@ -18,6 +18,7 @@ A usuária informou HostGator com EasyPanel. Foi informado o painel `wwtcfz.easy
 - Doze departamentos claros, divisórias de vidro, madeira, plantas, mesas e equipamentos. A planta antiga continua como fallback 2D.
 - Câmera com órbita limitada, deslocamento, zoom, visão geral, foco por departamento e acompanhamento de Clara.
 - Avatar da Clara vinculado ao identificador real do executor. Os agentes do catálogo permanecem visíveis e abrem seus detalhes/configurações existentes.
+- O formulário existente da Central pode ser aberto em um painel lateral recolhível da planta. Assim a usuária pode enviar TXT fictício e revisar enquanto a cena permanece montada, sem duplicar o executor. Alterações do formulário solicitam novo snapshot; não transmitem dados do cliente em eventos locais.
 - Estado, tarefa, eventos, pendências, tokens e custo retornados pelo backend. Sem dados de cliente, porcentagens ou conversas inventadas.
 - Mudanças confirmadas encaminham o avatar por uma grade navegável com portas, corredores, móveis e posições de outros personagens como obstáculos. O avatar nasce no destino coerente ao restaurar o snapshot; não reproduz eventos antigos.
 - Trabalho: deslocamento e digitação durante `running`; espera em revisão; sinalização de conclusão/falha. A disponibilidade visual não significa worker 24h. Sem confirmação recente, ou execução sem avanço há dez minutos, o movimento de trabalho é suspenso.
@@ -44,3 +45,5 @@ Próximo marco de infraestrutura: identificar no EasyPanel o serviço JAS, CPU/R
 
 ## Verificação final desta entrega
 Build de produção e TypeScript aprovados; lint dos novos módulos 3D sem erros. PostgreSQL descartável aprovado. Chromium confirmou WebGL, os estados e a retomada com zero erros de página; largura móvel 390px sem overflow horizontal. O relatório final do CI identifica a suíte completa e os testes de banco/servidor.
+
+A usuária autorizou avaliar SSH/root como forma de configuração da VPS. Não foi solicitada senha no chat; ainda são necessários IP/porta e acesso configurado nas credenciais/rede do ambiente. Isso não altera a ausência de worker validado.

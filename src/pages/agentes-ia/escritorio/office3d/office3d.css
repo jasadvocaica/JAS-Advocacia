@@ -441,3 +441,36 @@
   border-color: #d9c8a7;
   flex-shrink: 0;
 }
+
+.live-office-command-sheet {
+  width: 480px !important;
+  max-width: 95vw !important;
+  overflow: auto;
+  padding: 25px 20px;
+  background: hsl(var(--background));
+  font-family: Inter, sans-serif;
+}
+.live-office-command-sheet > h2 {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+.live-office-command-sheet > .op-command-compact {
+  margin-top: 24px;
+}
+.op-command-compact {
+  display: block;
+}
+.op-command-compact .op-panel {
+  padding: 18px;
+}
+.live-office-agent-shortcut > button.live-office-new-task {
+  padding: 9px 14px;
+  border-top: 1px solid #e8eef5;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #355475;
+  background: #f8fafc;
+}
+.op-command-compact .op-command-capabilities {
+  font-size: 9px;
+}
