@@ -16,8 +16,35 @@ const config = {
   intervalo_minutos: null,
   ativo: false,
 };
-beforeEach(() => { vi.mocked(chamarEscritorio).mockReset(); });
+beforeEach(() => {
+  vi.mocked(chamarEscritorio).mockReset();
+});
 describe("Editor de agentes ligado ao executor", () => {
+  it("aplica persona com fontes de marketing sem cadastrar nem ativar automaticamente", () => {
+    render(
+      <MemoryRouter>
+        <AgentEditor agentes={[]} recarregar={vi.fn()} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Modelo de agente" }),
+      { target: { value: "camila" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aplicar modelo ao rascunho" }),
+    );
+    expect(screen.getByLabelText("Nome do agente")).toHaveValue("Camila");
+    fireEvent.click(screen.getByRole("tab", { name: "Conhecimento" }));
+    expect(screen.getByLabelText("Título da fonte 1")).toHaveValue(
+      "Diretrizes de publicidade fornecidas pelo escritório",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Ferramentas e rotina" }));
+    expect(
+      screen.getByRole("checkbox", { name: /Ativar agente/ }),
+    ).not.toBeChecked();
+    expect(chamarEscritorio).not.toHaveBeenCalled();
+  });
+
   it("salva prompt e fonte como configuração pausada sem disparar IA", async () => {
     vi.mocked(chamarEscritorio).mockResolvedValue({
       agente_id: "novo",

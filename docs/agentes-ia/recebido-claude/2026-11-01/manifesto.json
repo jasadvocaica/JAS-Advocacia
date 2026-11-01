@@ -1,0 +1,114 @@
+{
+  "origem": "Arquivos enviados por Juliana em 01/11/2026",
+  "estado": "referencia_nao_instalada",
+  "arquivos": [
+    {
+      "arquivo": "MENSAGEM-PARA-O-CODEX.md",
+      "sha256": "ab21c1a426779dc91a12fb1f6bf14194575ed0d9df2e14caaf1abd0fc5cf6e0b"
+    },
+    {
+      "arquivo": "ESPECIFICACAO-AGENTES-IA.md",
+      "sha256": "1afc24d0d93c0cffe5c8684246c0619b1f8cd9e613b538ff78f9e21fb9b07049"
+    },
+    {
+      "arquivo": "marketing/LEIA-ME.md",
+      "sha256": "1b5846cf884b8bfaa5cfaa5018474a49303f4c41e1b24803161c4d9f4d43195a"
+    },
+    {
+      "arquivo": "rascunhos/migration-central-atendimentos.sql",
+      "sha256": "16c7bbe3d1fc348c5d243b047ff3211e68b7e3c82886fef0acf541fccb5ce9cb"
+    },
+    {
+      "arquivo": "rascunhos/migration-referencia.sql",
+      "sha256": "059fbfd0d69c194f2ac7e02747961fa84c1e647f03633d0be165dc32a58b6854"
+    },
+    {
+      "arquivo": "marketing/camada-oab.md",
+      "sha256": "f90613e6fc842e0d67bf0645afa2c1190d8dcdc7df90d04ebe1dfce1481e482a"
+    },
+    {
+      "arquivo": "marketing/gerar-conhecimento.mjs",
+      "sha256": "af8bbe81592594a7f318f8fc61510810e3d8a671b1aa8bf480743433c47dd68b"
+    },
+    {
+      "arquivo": "marketing/voz-jas.md",
+      "sha256": "7f12a624d51b2aceb27d7652a7c3fdebf0c08e698dd010407bacb9e4195bcb2c"
+    },
+    {
+      "arquivo": "marketing/migration-marketing.sql",
+      "sha256": "c70a7f7d6ae771e707daf26a8702457f71608be3aaeed665197fdbb798d20f4b"
+    },
+    {
+      "arquivo": "personas/bruna.md",
+      "sha256": "0522c2c15cd197b0c48ca43b074a7d7316e6ad1c9116824ad1a8bf63f5214436"
+    },
+    {
+      "arquivo": "personas/_regras.md",
+      "sha256": "4bfa5a87c2da2d267aa812a68f2dfe28207397e4577d3c60fc1971bdc9ef1bf9"
+    },
+    {
+      "arquivo": "personas/beatriz.md",
+      "sha256": "a70ac93b73b1a21c828e86a705dc1a9d4fd49c79d7f397c1c73ecd0a5fc63240"
+    },
+    {
+      "arquivo": "personas/camila.md",
+      "sha256": "5b307a19e9ea50ed07087de66fa7a8cf10dd3da0b94996c7c5cd801269f5c5c9"
+    },
+    {
+      "arquivo": "personas/fernando.md",
+      "sha256": "e4d92475ab4574ddab0fcab17eb0d6b04f885a3f2c943d9d8f085201e7590db2"
+    },
+    {
+      "arquivo": "personas/gabriel.md",
+      "sha256": "ca4796c9ce024e23e5c3b92d08cb2939f8ef2efe68780a61a62b67f20bf74b83"
+    },
+    {
+      "arquivo": "personas/gustavo.md",
+      "sha256": "f431ddf53fa385cd7d8efc487b94d9445c07517bada0a36c53f9beb834234956"
+    },
+    {
+      "arquivo": "personas/helena.md",
+      "sha256": "000425bdcc6dbeedea4451d457af0470a18580f1372266bbdcad642326a8d77e"
+    },
+    {
+      "arquivo": "personas/lara.md",
+      "sha256": "a2c32ea8e56d33d53e85dbbfba37ff6d71e90709bed0017a1e1746b071320a9e"
+    },
+    {
+      "arquivo": "personas/rafael.md",
+      "sha256": "51b68d05f0b38c57b5b6e4c24a7378b61c53b0151a9a87feea0dcb66ad1abcee"
+    },
+    {
+      "arquivo": "personas/mariana.md",
+      "sha256": "2188e34f995d331398fc625450f8c8ed815e81450f0f8b5f41cc628bc2081a29"
+    },
+    {
+      "arquivo": "personas/manu.md",
+      "sha256": "e9131cd193605aa87110f8f5208a920b9ca8ae62072b9fb93dd02ead126bfe2a"
+    },
+    {
+      "arquivo": "personas/vanessa.md",
+      "sha256": "8f97a3f516f9fd3217d41cc571524145f6155157c47ad035704040161508ee18"
+    },
+    {
+      "arquivo": "personas/renata.md",
+      "sha256": "d9f52b43da4633be910faaefc1a74383d31c1e29b4f998fd6ccc089b7750bcd4"
+    },
+    {
+      "arquivo": "personas/thiago.md",
+      "sha256": "fdea5f629d55203747dbfeedabe56e5965e224dfafd538525d99d73c62e4605a"
+    },
+    {
+      "arquivo": "personas/vinicius.md",
+      "sha256": "7f009dd07070228eb649e272ffd06db0748d3bb977b2fbd2d365cee0c09f6a42"
+    },
+    {
+      "arquivo": "referencia/agentes-trabalhador/index.ts",
+      "sha256": "c47c679f5baea09aef9ab8c09a78c69cfff72c7c2a68328543cac6633709da17"
+    },
+    {
+      "arquivo": "referencia/agentes-agendador/index.ts",
+      "sha256": "e3a5619b0ff5651baba7b5386ed91d6ba8e5d526425e24f611be1f43a25bd09f"
+    }
+  ]
+}

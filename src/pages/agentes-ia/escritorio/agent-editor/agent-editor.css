@@ -304,3 +304,61 @@
     grid-template-columns: 1fr;
   }
 }
+
+.agent-template-picker {
+  padding: 16px;
+  border: 1px solid var(--op-line);
+  background: var(--op-soft);
+  border-radius: 9px;
+  margin-bottom: 20px;
+}
+.agent-template-picker > div {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.agent-template-picker label {
+  display: block;
+  font-size: 11px;
+  flex: 1;
+}
+.agent-template-picker select {
+  background: var(--op-surface);
+  margin-top: 8px;
+  min-width: 0;
+}
+.agent-template-picker p {
+  font-size: 10px;
+  color: var(--op-muted);
+  line-height: 1.8;
+  margin-top: 10px;
+}
+@media (max-width: 650px) {
+  .agent-template-picker > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .agent-template-picker button {
+    white-space: normal;
+    height: auto;
+    min-height: 38px;
+  }
+}
+
+.agent-editor,
+.agent-editor-layout,
+.agent-editor-layout > .op-panel,
+.agent-template-picker label {
+  min-width: 0;
+}
+.agent-editor-tabs {
+  max-width: 100%;
+}
+.agent-editor-intro > div {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .agent-editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -22,6 +22,7 @@ import {
 } from "../../../../../supabase/functions/_shared/agentes-config";
 import { SALAS } from "../salas";
 import "./agent-editor.css";
+import { PERSONA_TEMPLATES, templateConfig } from "./personaTemplates";
 const inicial: ConfigAgente = {
   nome: "",
   missao: "",
@@ -51,8 +52,10 @@ export default function AgentEditor({
   recarregar: () => Promise<void>;
 }) {
   const navigate = useNavigate();
+  const [modelo, setModelo] = useState("");
   const agent = agentes.find((a) => a.id === agenteId);
-  const agentRef=useRef(agent);agentRef.current=agent;
+  const agentRef = useRef(agent);
+  agentRef.current = agent;
   const [config, setConfig] = useState<ConfigAgente>(inicial),
     [rev, setRev] = useState(0),
     [tab, setTab] = useState<string>("perfil"),
@@ -83,7 +86,7 @@ export default function AgentEditor({
     void chamarEscritorio({ acao: "configuracao", agente_id: agenteId })
       .then((d) => {
         if (!active) return;
-        const currentAgent=agentRef.current;
+        const currentAgent = agentRef.current;
         setRev(d.revisao);
         setConfig(
           d.revisao > 0
@@ -218,6 +221,49 @@ export default function AgentEditor({
               <p>Defina como ele analisa, o que consulta e quando trabalha.</p>
             </div>
           </div>
+          {!agenteId && (
+            <div className="agent-template-picker">
+              <div>
+                <label>
+                  Começar com um modelo
+                  <select
+                    aria-label="Modelo de agente"
+                    value={modelo}
+                    onChange={(e) => setModelo(e.target.value)}
+                  >
+                    <option value="">Criar do zero</option>
+                    {PERSONA_TEMPLATES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.nome} · {t.cargo}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={!modelo}
+                  onClick={() => {
+                    const c = templateConfig(modelo);
+                    if (c) {
+                      setConfig(c);
+                      setSaved(false);
+                      setError(null);
+                      setTab("perfil");
+                    }
+                  }}
+                >
+                  Aplicar modelo ao rascunho
+                </Button>
+              </div>
+              <p>
+                Preenche o perfil e substitui este rascunho. O agente começa
+                pausado, com as ferramentas disponíveis nesta etapa. Fluxos de
+                prazo, atendimento e publicação dependem de seus executores
+                próprios.
+              </p>
+            </div>
+          )}
           <div
             className="agent-editor-tabs"
             role="tablist"
