@@ -38,7 +38,7 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   modulo?: Modulo;
   badge?: string;
-  grupo: "Início" | "Produção jurídica" | "Clientes" | "Comercial" | "Marketing" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
+  grupo: "Início" | "Escritório virtual" | "Produção jurídica" | "Clientes" | "Comercial" | "Marketing" | "Financeiro" | "Gestão de pessoas / RH" | "Sistema";
 }
 
 const NAV: NavItem[] = [
@@ -46,7 +46,9 @@ const NAV: NavItem[] = [
   { grupo: "Produção jurídica", to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/ferramentas/publicacoes-pje", label: "Intimações", icon: Bell, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
-  { grupo: "Produção jurídica", to: "/agentes-ia", label: "Escritório virtual", icon: Bot },
+  { grupo: "Escritório virtual", to: "/escritorio", label: "Entrar no escritório", icon: Bot },
+  { grupo: "Escritório virtual", to: "/escritorio/chat", label: "Conversas dos agentes", icon: MessageCircle },
+  { grupo: "Escritório virtual", to: "/escritorio/equipe", label: "Equipe de IA", icon: Users },
   { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
   { grupo: "Produção jurídica", to: "/diligencias", label: "Diligências", icon: Scale },
   { grupo: "Clientes", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
@@ -57,7 +59,7 @@ const NAV: NavItem[] = [
   { grupo: "Gestão de pessoas / RH", to: "/equipe", label: "Equipe e RH", icon: UserCog, modulo: "equipe" },
   { grupo: "Sistema", to: "/ferramentas", label: "Ferramentas", icon: Wrench },
 ];
-const GRUPOS = ["Início", "Clientes", "Comercial", "Produção jurídica", "Marketing", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
+const GRUPOS = ["Início", "Escritório virtual", "Clientes", "Comercial", "Produção jurídica", "Marketing", "Financeiro", "Gestão de pessoas / RH", "Sistema"] as const;
 
 /**
  * Item de menu adaptado a estado recolhido/expandido.
@@ -198,6 +200,7 @@ function SidebarContent({
         <nav className={cn("flex-1 overflow-y-auto scrollbar-thin py-4 space-y-1", collapsed ? "px-1" : "px-3")}>
           {GRUPOS.map((grupo) => {
             const itens = NAV.filter((item) => item.grupo === grupo).filter((item) => {
+              if (item.grupo === "Escritório virtual") return isGestor;
               if (item.grupo === "Comercial") return item.to === "/comercial/modelos" ? !!comercial?.permissoes.gerenciar : !!(comercial?.permissoes.visualizar || comercial?.permissoes.financeiro_visualizar);
               if (isEstagiaria && item.to === "/") return false;
               return !item.modulo || hasPermission(item.modulo, "visualizar");

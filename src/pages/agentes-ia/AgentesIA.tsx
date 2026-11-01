@@ -1,11 +1,10 @@
+import OfficeShell, { secaoOffice } from "./escritorio/OfficeShell";
+import { useLocation } from "react-router-dom";
 import ChatEscritorio from "./escritorio/ChatEscritorio";
 import EscritorioVisual, { horario } from "./EscritorioVisual";
 import { chamarEscritorio } from "./hooks/useAgentesIA";
 import { useState } from "react";
 import {
-  Bot,
-  Play,
-  RefreshCw,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -18,11 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -39,7 +36,6 @@ import {
 } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { agenteNativo } from "../../../supabase/functions/_shared/agentes";
 import {
   LABEL_STATUS_EXECUCAO,
   useAgentesIA,
@@ -85,6 +81,8 @@ export default function AgentesIA() {
     decidir,
   } = useAgentesIA();
   const { toast } = useToast();
+  const secao = secaoOffice(useLocation().pathname);
+  const [contratarAberto, setContratarAberto] = useState(false);
 
   const [executando, setExecutando] = useState<string | null>(null);
   const [revisao, setRevisao] = useState<ExecucaoAgente | null>(null);
@@ -139,31 +137,21 @@ export default function AgentesIA() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <Bot className="h-5 w-5 text-muted-foreground" aria-hidden />
-            Escritório virtual
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Acompanhe o trabalho real dos agentes, suas entregas e o que precisa
-            da sua revisão.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={recarregar}
-          disabled={loading}
-        >
-          <RefreshCw
-            className={cn("mr-2 h-3.5 w-3.5", loading && "animate-spin")}
-          />
-          Atualizar
-        </Button>
-      </header>
-
+    <OfficeShell
+      secao={secao}
+      contratar={() => setContratarAberto(true)}
+      recarregar={() => void recarregar()}
+      loading={loading}
+      pendentes={pendentesAprovacao.length}
+      trabalhando={
+        execucoes.filter(
+          (e) =>
+            e.status === "executando" &&
+            Date.now() - new Date(e.iniciado_em).getTime() < 600000,
+        ).length
+      }
+      atualizadoEm={atualizadoEm}
+    >
       {error ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
@@ -177,15 +165,26 @@ export default function AgentesIA() {
         ocupado={executando !== null}
         recarregar={recarregar}
         revisar={setRevisao}
+        modo={
+          secao === "planta"
+            ? "planta"
+            : secao === "equipe"
+              ? "equipe"
+              : "somente-dialogos"
+        }
+        contratarAberto={contratarAberto}
+        onContratarAberto={setContratarAberto}
       />
-      <ChatEscritorio
-        agentes={agentes}
-        execucoes={execucoes}
-        mensagens={mensagens}
-        recarregar={recarregar}
-      />
+      {secao === "chat" && (
+        <ChatEscritorio
+          agentes={agentes}
+          execucoes={execucoes}
+          mensagens={mensagens}
+          recarregar={recarregar}
+        />
+      )}
 
-      {operacaoDjen ? (
+      {secao === "operacao" && operacaoDjen ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Operação DJEN</CardTitle>
@@ -242,203 +241,216 @@ export default function AgentesIA() {
         </Card>
       ) : null}
 
-      <div id="revisoes-escritorio" />
-      {pendentesAprovacao.length > 0 ? (
-        <Card className="border-warning/40 bg-warning/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
-              {pendentesAprovacao.length} resultado(s) aguardando sua revisão
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {pendentesAprovacao.map((e) => (
-              <div
-                key={e.id}
-                className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">
-                    {e.agente?.nome ?? "Agente"}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {e.resumo ?? "Sem resumo. Abra para ver o conteúdo."}
-                  </p>
-                </div>
-                <Button size="sm" onClick={() => setRevisao(e)}>
-                  Revisar
-                </Button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Consumo OpenAI hoje</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">
-            {tokens ? (
-              <>
-                <p>
-                  {tokens.usados.toLocaleString("pt-BR")} usados ·{" "}
-                  {tokens.reservados.toLocaleString("pt-BR")} reservados
-                </p>
-                <progress
-                  className="my-2 h-2 w-full"
-                  max={tokens.limite}
-                  value={tokens.usados + tokens.reservados}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {tokens.disponiveis.toLocaleString("pt-BR")} disponíveis de{" "}
-                  {tokens.limite.toLocaleString("pt-BR")}. Reinicia à meia-noite
-                  de Cuiabá.
-                </p>
-              </>
-            ) : (
-              <p>Consumo indisponível.</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">
-              Consultas reais do monitor DJEN
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="max-h-40 space-y-2 overflow-auto text-xs">
-              {consultas.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex justify-between gap-2 border-b pb-2"
+      {secao === "entregas" &&
+        (pendentesAprovacao.length > 0 ? (
+          <Card className="border-warning/40 bg-warning/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
+                {pendentesAprovacao.length} resultado(s) aguardando sua revisão
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {pendentesAprovacao.map((e) => (
+                <div
+                  key={e.id}
+                  className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <time>{horario(c.iniciado_em)}</time>
-                  <span>
-                    {c.status} · {c.total_novas} novas · {c.total_erros} falhas
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {consultas.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Nenhuma consulta disponível.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {atualizadoEm
-          ? `Dados consultados às ${horario(atualizadoEm)} · atualização automática a cada 15 segundos`
-          : "Consultando dados do escritório…"}
-      </p>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">
-            Passos de trabalho registrados
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="max-h-56 space-y-2 overflow-auto text-xs">
-            {passos.map((p) => (
-              <li
-                key={p.id}
-                className="flex flex-col gap-1 border-l-2 border-primary/30 pl-3"
-              >
-                <span>{p.mensagem}</span>
-                <time className="text-muted-foreground">
-                  {horario(p.criado_em)}
-                </time>
-              </li>
-            ))}
-          </ul>
-          {passos.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Os passos aparecerão aqui quando os agentes executarem suas
-              rotinas.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Histórico de execuções
-        </h2>
-        {execucoes.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
-            Nenhuma execução registrada ainda.
-          </div>
-        ) : (
-          <ul className="space-y-1.5">
-            {execucoes.map((e) => (
-              <li key={e.id}>
-                <Collapsible>
-                  <div className="rounded-md border bg-card">
-                    <CollapsibleTrigger className="flex w-full items-center gap-2 p-2.5 text-left">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "shrink-0 text-[10px]",
-                          ESTILO_STATUS[e.status],
-                        )}
-                      >
-                        {LABEL_STATUS_EXECUCAO[e.status]}
-                      </Badge>
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                        {e.agente?.nome ?? "Agente"}
-                        {e.resumo ? ` — ${e.resumo}` : ""}
-                      </span>
-                      <span className="hidden shrink-0 items-center gap-1 text-[10px] text-muted-foreground sm:flex">
-                        <Clock className="h-3 w-3" aria-hidden />
-                        {dataHora(e.iniciado_em)}
-                      </span>
-                      <ChevronDown
-                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                        aria-hidden
-                      />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="space-y-2 border-t px-2.5 py-2 text-xs">
-                        {e.erro ? (
-                          <p className="text-destructive">{e.erro}</p>
-                        ) : null}
-                        <div>
-                          <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Entrada
-                          </p>
-                          <pre className="max-h-32 overflow-auto rounded bg-muted/50 p-2 text-[11px]">
-                            {JSON.stringify(e.entrada ?? {}, null, 2)}
-                          </pre>
-                        </div>
-                        {e.saida ? (
-                          <div>
-                            <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                              Saída
-                            </p>
-                            <pre className="max-h-52 overflow-auto rounded bg-muted/50 p-2 text-[11px]">
-                              {JSON.stringify(e.saida, null, 2)}
-                            </pre>
-                          </div>
-                        ) : null}
-                        {e.duracao_ms ? (
-                          <p className="text-[10px] text-muted-foreground">
-                            Duração: {(e.duracao_ms / 1000).toFixed(1)}s
-                          </p>
-                        ) : null}
-                      </div>
-                    </CollapsibleContent>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      {e.agente?.nome ?? "Agente"}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {e.resumo ?? "Sem resumo. Abra para ver o conteúdo."}
+                    </p>
                   </div>
-                </Collapsible>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                  <Button size="sm" onClick={() => setRevisao(e)}>
+                    Revisar
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="office-empty">
+            <CheckCircle2 size={28} />
+            <h3>Entregas em dia</h3>
+            <p>Nenhum resultado aguardando sua revisão.</p>
+          </div>
+        ))}
 
+      {secao === "operacao" && (
+        <>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Consumo OpenAI hoje</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm">
+                {tokens ? (
+                  <>
+                    <p>
+                      {tokens.usados.toLocaleString("pt-BR")} usados ·{" "}
+                      {tokens.reservados.toLocaleString("pt-BR")} reservados
+                    </p>
+                    <progress
+                      className="my-2 h-2 w-full"
+                      max={tokens.limite}
+                      value={tokens.usados + tokens.reservados}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {tokens.disponiveis.toLocaleString("pt-BR")} disponíveis
+                      de {tokens.limite.toLocaleString("pt-BR")}. Reinicia à
+                      meia-noite de Cuiabá.
+                    </p>
+                  </>
+                ) : (
+                  <p>Consumo indisponível.</p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">
+                  Consultas reais do monitor DJEN
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="max-h-40 space-y-2 overflow-auto text-xs">
+                  {consultas.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex justify-between gap-2 border-b pb-2"
+                    >
+                      <time>{horario(c.iniciado_em)}</time>
+                      <span>
+                        {c.status} · {c.total_novas} novas · {c.total_erros}{" "}
+                        falhas
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {consultas.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhuma consulta disponível.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {atualizadoEm
+              ? `Dados consultados às ${horario(atualizadoEm)} · atualização automática a cada 15 segundos`
+              : "Consultando dados do escritório…"}
+          </p>
+        </>
+      )}
+      {secao === "historico" && (
+        <>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">
+                Passos de trabalho registrados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="max-h-56 space-y-2 overflow-auto text-xs">
+                {passos.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex flex-col gap-1 border-l-2 border-primary/30 pl-3"
+                  >
+                    <span>{p.mensagem}</span>
+                    <time className="text-muted-foreground">
+                      {horario(p.criado_em)}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+              {passos.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Os passos aparecerão aqui quando os agentes executarem suas
+                  rotinas.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <section className="space-y-2">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Histórico de execuções
+            </h2>
+            {execucoes.length === 0 ? (
+              <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+                Nenhuma execução registrada ainda.
+              </div>
+            ) : (
+              <ul className="space-y-1.5">
+                {execucoes.map((e) => (
+                  <li key={e.id}>
+                    <Collapsible>
+                      <div className="rounded-md border bg-card">
+                        <CollapsibleTrigger className="flex w-full items-center gap-2 p-2.5 text-left">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 text-[10px]",
+                              ESTILO_STATUS[e.status],
+                            )}
+                          >
+                            {LABEL_STATUS_EXECUCAO[e.status]}
+                          </Badge>
+                          <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                            {e.agente?.nome ?? "Agente"}
+                            {e.resumo ? ` — ${e.resumo}` : ""}
+                          </span>
+                          <span className="hidden shrink-0 items-center gap-1 text-[10px] text-muted-foreground sm:flex">
+                            <Clock className="h-3 w-3" aria-hidden />
+                            {dataHora(e.iniciado_em)}
+                          </span>
+                          <ChevronDown
+                            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            aria-hidden
+                          />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="space-y-2 border-t px-2.5 py-2 text-xs">
+                            {e.erro ? (
+                              <p className="text-destructive">{e.erro}</p>
+                            ) : null}
+                            <div>
+                              <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                Entrada
+                              </p>
+                              <pre className="max-h-32 overflow-auto rounded bg-muted/50 p-2 text-[11px]">
+                                {JSON.stringify(e.entrada ?? {}, null, 2)}
+                              </pre>
+                            </div>
+                            {e.saida ? (
+                              <div>
+                                <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  Saída
+                                </p>
+                                <pre className="max-h-52 overflow-auto rounded bg-muted/50 p-2 text-[11px]">
+                                  {JSON.stringify(e.saida, null, 2)}
+                                </pre>
+                              </div>
+                            ) : null}
+                            {e.duracao_ms ? (
+                              <p className="text-[10px] text-muted-foreground">
+                                Duração: {(e.duracao_ms / 1000).toFixed(1)}s
+                              </p>
+                            ) : null}
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
       <Dialog open={!!revisao} onOpenChange={(o) => !o && setRevisao(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
@@ -487,6 +499,6 @@ export default function AgentesIA() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </OfficeShell>
   );
 }
