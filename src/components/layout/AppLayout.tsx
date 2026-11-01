@@ -378,7 +378,7 @@ export default function AppLayout() {
                         modulo: "layout",
                         endpoint: "profiles/user_roles/user_permissions",
                       });
-                      toast.error("Não foi possível sincronizar", { description: e?.message });
+                      toast({ title: "Não foi possível sincronizar", description: e?.message, variant: "destructive" });
                     } finally {
                       setSincronizando(false);
                     }

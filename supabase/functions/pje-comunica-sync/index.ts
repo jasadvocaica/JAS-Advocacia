@@ -7,7 +7,7 @@
 //         dias?: number, dry_run?: boolean }
 // - oab_id é mantido para compatibilidade (mapeia para o monitoramento espelho).
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -142,7 +142,7 @@ interface ResultadoSync {
 }
 
 async function sincronizarMonitoramento(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   m: MonitoramentoRow,
   dataInicio: string,
   dataFim: string,
@@ -201,7 +201,6 @@ async function sincronizarMonitoramento(
         // Tenta achar processo existente
         let processoId: string | null = null;
         let processoResponsavelId: string | null = null;
-        let processoClienteId: string | null = null;
         if (cnjLimpo) {
           const { data: proc } = await supabase
             .from("processos")
@@ -210,7 +209,6 @@ async function sincronizarMonitoramento(
             .maybeSingle();
           processoId = (proc?.id as string) ?? null;
           processoResponsavelId = (proc?.responsavel_id as string) ?? null;
-          processoClienteId = (proc?.cliente_id as string) ?? null;
         }
 
         if (dryRun) continue;
@@ -250,72 +248,13 @@ async function sincronizarMonitoramento(
 
         r.novas += 1;
 
-        // Publicação reconhecida: vincula ao processo, registra o andamento e cria
-        // uma TRIAGEM na Controladoria. O prazo jurídico definitivo permanece humano.
+        // A publicação persiste como trabalho pendente. A criação de andamento,
+        // tarefa e responsáveis ocorre atomicamente no executor de triagem.
         if (processoId && inserted?.id) {
-          let andamentoId: string | null = null;
-          let itemControladoriaId: string | null = null;
-
-          const { data: andamento, error: andamentoErr } = await supabase
-            .from("andamentos")
-            .insert({
-              processo_id: processoId,
-              data: dataDisp ?? new Date().toISOString().slice(0, 10),
-              descricao: `DJEN — ${item.tipoComunicacao ?? "Publicação"}: ${(item.texto ?? "").slice(0, 1000)}`,
-              fonte: "pje_comunica",
-              datajud_id: `djen_${inserted.id}`,
-            })
-            .select("id")
-            .single();
-          if (!andamentoErr) andamentoId = andamento?.id ?? null;
-
-          let vencimento = new Date(Date.now() + 24 * 60 * 60 * 1000)
-            .toISOString().slice(0, 10);
-          const { data: proximoDiaUtil } = await supabase.rpc("adicionar_dias_uteis", {
-            _data_inicio: dataDisp ?? new Date().toISOString().slice(0, 10),
-            _dias: 1,
-          });
-          if (proximoDiaUtil) vencimento = String(proximoDiaUtil);
-
-          const numeroExibicao = cnjMascara || cnjLimpo;
-          const { data: itemCtrl, error: ctrlErr } = await supabase
-            .from("controladoria_itens")
-            .insert({
-              tipo: "intimacao",
-              titulo: `Triar publicação DJEN — ${numeroExibicao}`,
-              descricao: [
-                `Tipo: ${item.tipoComunicacao ?? "Publicação"}`,
-                `Órgão: ${item.nomeOrgao ?? item.siglaTribunal ?? "Não informado"}`,
-                "",
-                (item.texto ?? "").slice(0, 3000),
-                item.link ? `\\nCertidão: ${item.link}` : "",
-                "",
-                "ATENÇÃO: vencimento de triagem. O prazo jurídico deve ser conferido e cadastrado pela responsável.",
-              ].filter(Boolean).join("\\n"),
-              processo_id: processoId,
-              cliente_id: processoClienteId,
-              responsavel_id: processoResponsavelId,
-              data_vencimento: `${vencimento}T18:00:00-04:00`,
-              data_intimacao: dataDisp,
-              prioridade: "alta",
-              status: "pendente",
-              origem: "pje_publicacao",
-            })
-            .select("id")
-            .single();
-          if (!ctrlErr) itemControladoriaId = itemCtrl?.id ?? null;
-
-          const { error: updErr } = await supabase
-            .from("pje_publicacoes")
-            .update({
-              processo_id: processoId,
-              andamento_id: andamentoId,
-              item_controladoria_id: itemControladoriaId,
-            })
-            .eq("id", inserted.id);
-          if (!updErr) r.vinculadas += 1;
-          if (andamentoErr) console.error("Falha ao criar andamento DJEN:", andamentoErr);
-          if (ctrlErr) console.error("Falha ao criar triagem DJEN:", ctrlErr);
+          const { error: updErr } = await supabase.from("pje_publicacoes")
+            .update({ processo_id: processoId }).eq("id", inserted.id);
+          if (updErr) throw updErr;
+          r.vinculadas += 1;
         }
 
         if (inserted?.id) {
@@ -327,7 +266,7 @@ async function sincronizarMonitoramento(
           const destinatarios = new Set<string>();
           if (processoResponsavelId) destinatarios.add(processoResponsavelId);
           for (const gestor of gestores ?? []) {
-            if (gestor.user_id) destinatarios.add(gestor.user_id);
+            if (typeof gestor.user_id === "string") destinatarios.add(gestor.user_id);
           }
           if (destinatarios.size > 0) {
             await supabase.from("notificacoes").insert(
@@ -407,14 +346,18 @@ Deno.serve(async (req) => {
         { global: { headers: { Authorization: authHeader } } },
       );
       const token = authHeader.replace("Bearer ", "");
-      const { data, error } = await supaUser.auth.getClaims(token);
-      if (error || !data?.claims) {
+      const { data, error } = await supaUser.auth.getUser(token);
+      if (error || !data?.user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      disparadoPor = data.claims.sub as string;
+      disparadoPor = data.user.id;
+      const { data: interno, error: internoError } = await supaUser.rpc("is_interno_ativo", { _user_id: disparadoPor });
+      if (internoError || interno !== true) return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
 
       const { data: gestor } = await supabase
         .from("user_roles")
@@ -430,6 +373,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (modo === "agendado") {
+      const { data: monitor, error } = await supabase.from("agentes_ia")
+        .select("ativo").eq("slug", "monitor-djen").maybeSingle();
+      if (error) throw error;
+      if (monitor?.ativo === false) return new Response(JSON.stringify({ ok: true, pausado: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const hoje = new Date();
     const dataFim = hoje.toISOString().slice(0, 10);
     const ini = new Date(hoje.getTime() - dias * 86400000);
@@ -442,18 +394,24 @@ Deno.serve(async (req) => {
       .eq("ativo", true);
     if (monIdParam) queryMon = queryMon.eq("id", monIdParam);
     else if (oabIdParam) queryMon = queryMon.eq("oab_legacy_id", oabIdParam);
+    else {
+      // A fila persiste entre chamadas; uma função não precisa consultar toda
+      // a carteira antes de encerrar. Falhas voltam após quinze minutos.
+      if (modo === "agendado") queryMon = queryMon.lte("proxima_consulta_em", new Date().toISOString());
+      queryMon = queryMon.order("proxima_consulta_em").order("id").limit(5);
+    }
 
     const { data: monitoramentos, error: monErr } = await queryMon;
     if (monErr) throw monErr;
 
     if (!monitoramentos || monitoramentos.length === 0) {
       return new Response(
-        JSON.stringify({ ok: true, message: "Nenhum monitoramento ativo", resultados: [] }),
+        JSON.stringify({ ok: true, message: "Nenhum monitoramento disponível neste lote", resultados: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const { data: log } = await supabase
+    const { data: log, error: logError } = await supabase
       .from("pje_sync_log")
       .insert({
         modo,
@@ -465,6 +423,7 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
     logId = (log?.id as string) ?? null;
+    if (logError) throw logError;
 
     const resultados: ResultadoSync[] = [];
     let consultadasTot = 0,
@@ -484,10 +443,14 @@ Deno.serve(async (req) => {
         errosTot += r.erros;
 
         if (!dryRun) {
-          await supabase
+          const { error: agendaConsultaError } = await supabase
             .from("pje_monitoramentos")
-            .update({ ultima_sync_em: new Date().toISOString(), ultima_sync_qtd: r.novas })
+            .update({
+              proxima_consulta_em: new Date(Date.now() + (r.erros ? 15 : 60) * 60000).toISOString(),
+              ...(r.erros === 0 ? { ultima_sync_em: new Date().toISOString(), ultima_sync_qtd: r.novas } : {}),
+            })
             .eq("id", m.id);
+          if (agendaConsultaError) throw agendaConsultaError;
 
           // Mantém o legado sincronizado (apenas para tipo OAB com vínculo)
           if (m.oab_legacy_id) {
@@ -499,6 +462,11 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        if (!dryRun) {
+          const { error } = await supabase.from("pje_monitoramentos")
+            .update({ proxima_consulta_em: new Date(Date.now() + 15 * 60000).toISOString() }).eq("id", m.id);
+          if (error) throw error;
+        }
         resultados.push({
           monitoramento_id: m.id,
           oab_id: m.oab_legacy_id,
@@ -515,12 +483,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Inclui publicações de execuções anteriores que falharam parcialmente.
+    // A fila e o cron de triagem persistem mesmo após o fim desta chamada.
+    let triagem: unknown = null;
+    if (!dryRun) {
+      const { data, error } = await supabase.rpc("djen_processar_pendencias", { _limite: 25 });
+      if (error) throw error;
+      triagem = data;
+    }
+
     const dur = Date.now() - t0;
     if (logId) {
-      await supabase
+      const { error: logUpdateError } = await supabase
         .from("pje_sync_log")
         .update({
-          status: errosTot > 0 && novasTot === 0 ? "erro" : "concluido",
+          status: errosTot > 0 ? "erro" : "concluido",
           finalizado_em: new Date().toISOString(),
           duracao_ms: dur,
           total_consultadas: consultadasTot,
@@ -531,6 +508,7 @@ Deno.serve(async (req) => {
           detalhes: resultados as unknown as Record<string, unknown>,
         })
         .eq("id", logId);
+      if (logUpdateError) throw logUpdateError;
     }
 
     return new Response(
@@ -546,6 +524,7 @@ Deno.serve(async (req) => {
           erros: errosTot,
         },
         resultados,
+        triagem,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

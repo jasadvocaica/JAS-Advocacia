@@ -13,6 +13,15 @@ export interface AgenteIA {
   ordem: number;
 }
 
+export interface OperacaoDjen {
+  triagem_pendente: number;
+  triagem_com_erro: number;
+  agenda_pendente: number;
+  agenda_com_erro: number;
+  ultima_consulta: string | null;
+  falhas: { tipo: string; referencia: string; erro: string }[];
+}
+
 export interface ExecucaoAgente {
   id: string;
   agente_id: string;
@@ -66,11 +75,12 @@ export function useAgentesIA() {
   const [execucoes, setExecucoes] = useState<ExecucaoAgente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [operacaoDjen, setOperacaoDjen] = useState<OperacaoDjen | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [ag, ex] = await Promise.all([
+    const [ag, ex, operacao] = await Promise.all([
       supabase.from("agentes_ia").select("*").order("ordem"),
       supabase
         .from("agente_execucoes")
@@ -81,13 +91,15 @@ export function useAgentesIA() {
         )
         .order("iniciado_em", { ascending: false })
         .limit(60),
+      supabase.rpc("djen_resumo_operacional"),
     ]);
 
-    const erroInicial = ag.error || ex.error;
+    const erroInicial = ag.error || ex.error || operacao.error;
     if (erroInicial) setError(erroInicial.message);
 
     setAgentes((ag.data ?? []) as AgenteIA[]);
     setExecucoes((ex.data ?? []) as unknown as ExecucaoAgente[]);
+    setOperacaoDjen(operacao.error ? null : operacao.data as unknown as OperacaoDjen);
     setLoading(false);
   }, []);
 
@@ -134,6 +146,7 @@ export function useAgentesIA() {
 
   return {
     agentes,
+    operacaoDjen,
     execucoes,
     pendentesAprovacao,
     loading,

@@ -1,6 +1,7 @@
 // Edge Function: sync automático Controladoria -> Google Calendar
 // Disparada pelos triggers AFTER INSERT/UPDATE/DELETE em controladoria_itens.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { horarioEvento, idEventoControladoria, salvarEventoGoogle } from "../_shared/calendario-controladoria.ts";
 
 
 const GOOGLE_API_URL = "https://www.googleapis.com/calendar/v3";
@@ -48,7 +49,6 @@ async function getGoogleAccessToken() {
 }
 
 const CALENDAR_ID = Deno.env.get("GOOGLE_CALENDAR_ID") ?? "juridico@julianaaraujoadvocacia.com";
-const TZ = "America/Cuiaba";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,17 +102,14 @@ function buildDescription(item: any, clienteNome?: string, processoCnj?: string)
 
 function buildEvent(item: any, clienteNome?: string, processoCnj?: string) {
   const cfg = TIPO_CONFIG[item.tipo] ?? TIPO_CONFIG.tarefa;
-  const start = new Date(item.data_vencimento);
-  // duração padrão: audiência/reunião = 1h; demais = evento de 30 min
-  const durationMin = item.tipo === "audiencia" || item.tipo === "reuniao" ? 60 : 30;
-  const end = new Date(start.getTime() + durationMin * 60_000);
+  const horario = horarioEvento(item);
 
   return {
-    summary: buildSummary(item),
+    summary: horario.prefixo + buildSummary(item),
     description: buildDescription(item, clienteNome, processoCnj),
     location: item.local || item.link_virtual || undefined,
-    start: { dateTime: start.toISOString(), timeZone: TZ },
-    end: { dateTime: end.toISOString(), timeZone: TZ },
+    start: horario.start,
+    end: horario.end,
     colorId: cfg.colorId,
     reminders: {
       useDefault: false,
@@ -137,7 +134,7 @@ async function googleApi(path: string, init: RequestInit) {
   const text = await res.text();
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
-  if (!res.ok) throw new Error(`Google Calendar API [${res.status}]: ${JSON.stringify(data)}`);
+  if (!res.ok) throw Object.assign(new Error(`Google Calendar API [${res.status}]`), { status: res.status });
   return data;
 }
 
@@ -164,17 +161,17 @@ Deno.serve(async (req) => {
     }
 
     const payload = (await req.json()) as Payload;
-    const calId = encodeURIComponent(CALENDAR_ID);
 
     // Buscar mapping existente
-    const { data: mapping } = await admin
+    const { data: mapping, error: mappingError } = await admin
       .from("controladoria_google_eventos")
       .select("google_event_id, google_calendar_id")
       .eq("item_id", payload.item_id)
       .maybeSingle();
+    if (mappingError) throw mappingError;
 
     if (payload.action === "delete") {
-      const eventIdDelete = payload.event_id ?? mapping?.google_event_id;
+      const eventIdDelete = payload.event_id ?? mapping?.google_event_id ?? idEventoControladoria(payload.item_id);
       const calendarIdDelete = payload.calendar_id ?? mapping?.google_calendar_id ?? CALENDAR_ID;
       if (eventIdDelete) {
         try {
@@ -183,7 +180,7 @@ Deno.serve(async (req) => {
             { method: "DELETE" },
           );
         } catch (e) {
-          console.warn("[sync] delete falhou:", (e as Error).message);
+          if (![404, 410].includes((e as { status?: number }).status ?? 0)) throw e;
         }
         // mapping é removido em cascade pelo FK
       }
@@ -207,15 +204,17 @@ Deno.serve(async (req) => {
 
     // Itens cancelados: remover do calendário
     if (item.status === "cancelado") {
-      if (mapping?.google_event_id) {
+      const idCancelado = mapping?.google_event_id ?? idEventoControladoria(item.id);
+      if (idCancelado) {
         try {
           await googleApi(
-            `/calendars/${encodeURIComponent(mapping.google_calendar_id)}/events/${encodeURIComponent(mapping.google_event_id)}`,
+            `/calendars/${encodeURIComponent(mapping?.google_calendar_id ?? CALENDAR_ID)}/events/${encodeURIComponent(idCancelado)}`,
             { method: "DELETE" },
           );
-          await admin.from("controladoria_google_eventos").delete().eq("item_id", item.id);
+          const { error: deleteError } = await admin.from("controladoria_google_eventos").delete().eq("item_id", item.id);
+          if (deleteError) throw deleteError;
         } catch (e) {
-          console.warn("[sync] cancel delete falhou:", (e as Error).message);
+          if (![404, 410].includes((e as { status?: number }).status ?? 0)) throw e;
         }
       }
       return new Response(JSON.stringify({ ok: true, skipped: "cancelado" }), {
@@ -232,27 +231,18 @@ Deno.serve(async (req) => {
 
     let eventId: string;
     try {
-      if (mapping?.google_event_id) {
-        const updated = await googleApi(
-          `/calendars/${encodeURIComponent(mapping.google_calendar_id)}/events/${encodeURIComponent(mapping.google_event_id)}`,
-          { method: "PATCH", body: JSON.stringify(eventBody) },
-        );
-        eventId = updated.id;
-      } else {
-        const created = await googleApi(
-          `/calendars/${calId}/events`,
-          { method: "POST", body: JSON.stringify(eventBody) },
-        );
-        eventId = created.id;
-      }
+      const calendarId = mapping?.google_calendar_id ?? CALENDAR_ID;
+      eventId = await salvarEventoGoogle(googleApi, calendarId, item.id, eventBody, mapping?.google_event_id);
 
-      await admin.from("controladoria_google_eventos").upsert({
+      const { error: persistError } = await admin.from("controladoria_google_eventos").upsert({
         item_id: item.id,
         google_event_id: eventId,
-        google_calendar_id: CALENDAR_ID,
+        google_calendar_id: calendarId,
         ultimo_sync: new Date().toISOString(),
         ultimo_erro: null,
+        tentativas_sync: 0,
       });
+      if (persistError) throw persistError;
 
       return new Response(JSON.stringify({ ok: true, event_id: eventId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

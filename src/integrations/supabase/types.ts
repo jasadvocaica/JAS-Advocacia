@@ -14,6 +14,102 @@ export type Database = {
   }
   public: {
     Tables: {
+      agentes_ia: {
+        Row: {
+          id: string
+          slug: string
+          nome: string
+          descricao: string | null
+          area: string
+          webhook_url: string | null
+          exige_aprovacao: boolean
+          timeout_segundos: number
+          ativo: boolean
+          ordem: number
+          criado_em: string
+          atualizado_em: string
+        }
+        Insert: {
+          id?: string
+          slug: string
+          nome: string
+          descricao?: string | null
+          area?: string
+          webhook_url?: string | null
+          exige_aprovacao?: boolean
+          timeout_segundos?: number
+          ativo?: boolean
+          ordem?: number
+          criado_em?: string
+          atualizado_em?: string
+        }
+        Update: {
+          id?: string
+          slug?: string
+          nome?: string
+          descricao?: string | null
+          area?: string
+          webhook_url?: string | null
+          exige_aprovacao?: boolean
+          timeout_segundos?: number
+          ativo?: boolean
+          ordem?: number
+          criado_em?: string
+          atualizado_em?: string
+        }
+        Relationships: []
+      }
+      agente_execucoes: {
+        Row: {
+          id: string
+          agente_id: string
+          disparado_por: string | null
+          origem: string
+          status: "pendente" | "executando" | "aguardando_aprovacao" | "concluida" | "rejeitada" | "erro" | "cancelada"
+          entrada: Json
+          saida: Json | null
+          resumo: string | null
+          erro: string | null
+          processo_id: string | null
+          cliente_id: string | null
+          item_id: string | null
+          iniciado_em: string
+          finalizado_em: string | null
+          duracao_ms: number | null
+        }
+        Insert: {
+          id?: string
+          agente_id: string
+          disparado_por?: string | null
+          origem?: string
+          status?: "pendente" | "executando" | "aguardando_aprovacao" | "concluida" | "rejeitada" | "erro" | "cancelada"
+          entrada?: Json
+          saida?: Json | null
+          resumo?: string | null
+          erro?: string | null
+          processo_id?: string | null
+          cliente_id?: string | null
+          item_id?: string | null
+          iniciado_em?: string
+          finalizado_em?: string | null
+          duracao_ms?: number | null
+        }
+        Update: {
+          status?: "pendente" | "executando" | "aguardando_aprovacao" | "concluida" | "rejeitada" | "erro" | "cancelada"
+          saida?: Json | null
+          resumo?: string | null
+          erro?: string | null
+          finalizado_em?: string | null
+          duracao_ms?: number | null
+        }
+        Relationships: [{
+          foreignKeyName: "agente_execucoes_agente_id_fkey"
+          columns: ["agente_id"]
+          isOneToOne: false
+          referencedRelation: "agentes_ia"
+          referencedColumns: ["id"]
+        }]
+      }
       andamentos: {
         Row: {
           acao_gerada_id: string | null
@@ -9738,6 +9834,10 @@ export type Database = {
       }
     }
     Functions: {
+      djen_resumo_operacional: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       adicionar_dias_corridos: {
         Args: { _data_inicio: string; _dias: number }
         Returns: string

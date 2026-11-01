@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { AgentePainel, ItemAgente, StatusAgente } from "./types";
+import type { AgentePainel, ItemAgente, StatusAgente } from "../types";
 import type { CargoEquipe } from "@/pages/equipe/types";
 
 /** Limite a partir do qual consideramos a carga de trabalho crítica. */

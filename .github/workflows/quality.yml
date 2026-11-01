@@ -10,6 +10,39 @@ permissions:
   contents: read
 
 jobs:
+  agentes-djen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - name: Verificar funções de servidor
+        run: >-
+          deno check --no-config --import-map=tests/agentes/deno-imports.json
+          supabase/functions/agentes-disparar/index.ts
+          supabase/functions/pje-comunica-sync/index.ts
+          supabase/functions/controladoria-sync-calendar/index.ts
+      - name: Validar transações DJEN em banco descartável
+        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/agentes/bootstrap.sql -f tests/agentes/fluxo.sql
+      - name: Validar execuções concorrentes
+        env:
+          JAS_TEST_PGHOST: localhost
+        run: python3 tests/agentes/concorrencia.py
+
   validar:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -32,7 +65,7 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Verificar TypeScript
-        run: npx tsc --noEmit
+        run: npx tsc --noEmit -p tsconfig.app.json
 
       - name: Executar testes
         run: npm test
