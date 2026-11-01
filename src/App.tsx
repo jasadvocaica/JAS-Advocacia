@@ -295,13 +295,14 @@ const AppRoutes = () => {
 
       <Route path="/oauth/consent" element={<OAuthConsent />} />
       <Route path="/oauth/consent/:authorizationId" element={<OAuthConsent />} />
+      <Route path="/escritorio/*" element={<ProtectedRoute requirePortal="interno" requireGestor><AgentesIA /></ProtectedRoute>} />
       {/* App interno */}
       <Route element={<ProtectedRoute requirePortal="interno"><AppLayout /></ProtectedRoute>}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/dashboard-gestor" element={<ProtectedRoute requireGestor><DashboardGestor /></ProtectedRoute>} />
         <Route path="/painel-operacional" element={<ProtectedRoute><PainelOperacional /></ProtectedRoute>} />
         <Route path="/painel-agentes" element={<ProtectedRoute requireGestor><PainelAgentes /></ProtectedRoute>} />
-        <Route path="/agentes-ia" element={<ProtectedRoute requireGestor><AgentesIA /></ProtectedRoute>} />
+        <Route path="/agentes-ia" element={<Navigate to="/escritorio" replace />} />
         <Route path="/painel-juliana" element={<ProtectedRoute requireGestor><PainelJuliana /></ProtectedRoute>} />
         {/* Painel comercial: autorização por configuração explícita + gestor (checada no componente) */}
         <Route path="/painel-comercial" element={<ProtectedRoute><PainelValeska /></ProtectedRoute>} />

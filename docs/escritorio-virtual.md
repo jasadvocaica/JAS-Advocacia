@@ -1,6 +1,6 @@
 # Escritório virtual
 
-Acesse `/agentes-ia` pelo menu **Escritório virtual**, com perfil gestor.
+Acesse `/escritorio` pelo menu próprio **Escritório virtual → Entrar no escritório**, com perfil gestor. O endereço antigo `/agentes-ia` redireciona para a nova área.
 
 Cada mesa representa um agente cadastrado. “Trabalhando” requer execução registrada em andamento; após dez minutos sem confirmação, o painel mostra a interrupção. Os estados e resultados são consultados a cada 15 segundos (4 segundos durante execuções). Atualizar o painel não chama a OpenAI.
 
@@ -40,3 +40,13 @@ A diretoria também pode conversar com analistas ativos. O servidor consulta ind
 A tabela de mensagens exige gestor interno ativo para leitura. Escritas do navegador são revogadas; apenas o executor grava identidades, destinatários e resultados. Mensagens são exibidas como texto, sem interpretar HTML. Não há integração de Telegram nesta entrega, por orientação de Juliana; a Manu permanece independente.
 
 Validação adicional: navegação e seleção por teclado, envio de chat, apresentação segura de texto, testes PostgreSQL de permissões, encaminhamento e finalização idempotente. Conferência em Chromium nos tamanhos desktop e celular, sem erros de página ou transbordamento horizontal.
+
+## Área independente do JAS
+
+O escritório possui layout próprio, fora de `AppLayout`, protegido por portal interno e perfil gestor. A planta ocupa a área disponível da janela; detalhes de sala são flutuantes e não reduzem sua largura. O menu global do JAS possui uma seção própria para entrar no escritório, abrir conversas ou consultar a equipe.
+
+O menu interno oferece rotas independentes: `/escritorio` (planta), `/escritorio/chat`, `/escritorio/equipe`, `/escritorio/entregas`, `/escritorio/historico` e `/escritorio/operacao`. Chat, consumo e históricos não são renderizados junto à planta. O botão **Voltar ao JAS** retorna ao painel principal.
+
+Conversas usa lista lateral de canais, área central de mensagens e compositor fixo. Selecionar uma rotina nativa ou um analista pausado abre seus registros sem oferecer envio de perguntas. Os canais continuam compartilhados com a diretoria. A aparência foi revista com fundo azul-marinho, planta ampliada, janelas, estantes e placas mais claras. O contador mostra execuções confirmadas em andamento, sem simulação.
+
+Esta reorganização altera somente o frontend. Não cria migrações, jobs ou chamadas adicionais de IA e preserva os executores e o teto compartilhado. Testes verificam a separação de áreas por URL, contratação global, canais de consulta e navegação. A conferência Chromium valida planta com largura da janela e chat sem transbordamento em desktop e celular.

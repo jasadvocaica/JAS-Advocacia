@@ -59,6 +59,63 @@ function Bloco({
     </g>
   );
 }
+function Janelas({ x, y }: { x: number; y: number }) {
+  return (
+    <g pointerEvents="none">
+      <polygon
+        points={pts(
+          p(x + 0.25, y + 0.02, 24),
+          p(x + 6.7, y + 0.02, 24),
+          p(x + 6.7, y + 0.02, 56),
+          p(x + 0.25, y + 0.02, 56),
+        )}
+        fill="#a8c2d0"
+        stroke="#526877"
+        strokeWidth="1.5"
+      />
+      <polygon
+        points={pts(
+          p(x + 0.25, y + 0.02, 45),
+          p(x + 6.7, y + 0.02, 45),
+          p(x + 6.7, y + 0.02, 56),
+          p(x + 0.25, y + 0.02, 56),
+        )}
+        fill="#d7e6e5"
+        opacity=".75"
+      />
+      {Array.from({ length: 7 }, (_, i) => (
+        <path
+          key={i}
+          d={`M${p(x + 0.3 + i * 0.9, y + 0.02, 24)}L${p(x + 0.3 + i * 0.9, y + 0.02, 56)}`}
+          stroke="#526877"
+          strokeWidth="1.3"
+        />
+      ))}
+      <path
+        d={`M${p(x + 0.25, y + 0.02, 40)}L${p(x + 6.7, y + 0.02, 40)}`}
+        stroke="#6f858f"
+      />
+    </g>
+  );
+}
+function Estante({ x, y }: { x: number; y: number }) {
+  return (
+    <g pointerEvents="none">
+      <Bloco x={x} y={y} w={0.7} d={2.2} h={36} cor="#a38c68" />
+      {["#213a4c", "#ded2af", "#867355", "#e6ddc6", "#4d6669"].map((cor, i) => (
+        <Bloco
+          key={i}
+          x={x + 0.05}
+          y={y + 0.12 + i * 0.38}
+          w={0.72}
+          d={0.2}
+          h={32 - (i % 2) * 4}
+          cor={cor}
+        />
+      ))}
+    </g>
+  );
+}
 function Planta({ x, y }: { x: number; y: number }) {
   const [cx, cy] = p(x + 0.3, y + 0.3, 20);
   return (
@@ -184,10 +241,10 @@ export default function PlantaEscritorio({
 }) {
   const uid = useId().replace(/:/g, "");
   const [zoom, setZoom] = useState(1);
-  const width = 1060 / zoom,
-    height = 660 / zoom;
+  const width = 960 / zoom,
+    height = 570 / zoom;
   const ativa = SALAS.find((s) => s.id === sala)!;
-  const centro = zoom > 1 ? p(ativa.x + 3.5, ativa.y + 3) : [490, 300];
+  const centro = zoom > 1 ? p(ativa.x + 3.5, ativa.y + 3) : [510, 280];
   return (
     <div className="jas-planta">
       <div className="jas-mapa-ferramentas">
@@ -335,8 +392,8 @@ export default function PlantaEscritorio({
                     points={pts(
                       p(room.x, room.y),
                       p(room.x + 7, room.y),
-                      p(room.x + 7, room.y, 44),
-                      p(room.x, room.y, 44),
+                      p(room.x + 7, room.y, 62),
+                      p(room.x, room.y, 62),
                     )}
                     fill={room.id === "diretoria" ? "#182743" : "#dde3e2"}
                   />
@@ -344,16 +401,17 @@ export default function PlantaEscritorio({
                     points={pts(
                       p(room.x, room.y),
                       p(room.x, room.y + 6),
-                      p(room.x, room.y + 6, 44),
-                      p(room.x, room.y, 44),
+                      p(room.x, room.y + 6, 62),
+                      p(room.x, room.y, 62),
                     )}
                     fill={room.id === "diretoria" ? "#273951" : "#eef0e9"}
                   />
                   <path
-                    d={`M${p(room.x, room.y, 44)}L${p(room.x + 7, room.y, 44)}M${p(room.x, room.y, 44)}L${p(room.x, room.y + 6, 44)}`}
+                    d={`M${p(room.x, room.y, 62)}L${p(room.x + 7, room.y, 62)}M${p(room.x, room.y, 62)}L${p(room.x, room.y + 6, 62)}`}
                     stroke="#c4a461"
                     strokeWidth="2"
                   />
+                  {room.id !== "diretoria" && <Janelas x={room.x} y={room.y} />}
                   <g transform={`translate(${placas})`}>
                     <rect
                       x="-67"
@@ -361,12 +419,12 @@ export default function PlantaEscritorio({
                       width="134"
                       height="26"
                       rx="6"
-                      fill={selecionada ? "#c8a75b" : "#19273d"}
+                      fill={selecionada ? "#d7c18d" : "#f3efe4"}
                     />
                     <text
                       textAnchor="middle"
                       y="1"
-                      fill={selecionada ? "#132139" : "#faf7ef"}
+                      fill="#23334b"
                       fontSize="12"
                       fontWeight="600"
                     >
@@ -374,6 +432,9 @@ export default function PlantaEscritorio({
                     </text>
                   </g>
                 </g>
+                {room.id !== "reuniao" && (
+                  <Estante x={room.x + 0.3} y={room.y + 0.8} />
+                )}
                 <Planta x={room.x + 0.5} y={room.y + 4.8} />
                 <Planta x={room.x + 5.9} y={room.y + 0.6} />
                 {room.id === "reuniao" ? (
@@ -426,7 +487,6 @@ export default function PlantaEscritorio({
                           id="juliana-araujo"
                           chefe
                         />
-
                       </>
                     )}
                     {moradores.length === 0 && room.id !== "diretoria" && (
@@ -488,7 +548,13 @@ export default function PlantaEscritorio({
                             ? "Trabalhando"
                             : (ultima?.status ?? "Sem execução registrada")}
                         </title>
-<rect x={pos[0]-60} y={pos[1]-100} width="120" height="140" fill="transparent"/>
+                        <rect
+                          x={pos[0] - 60}
+                          y={pos[1] - 100}
+                          width="120"
+                          height="140"
+                          fill="transparent"
+                        />
                         <Mesa x={ax} y={ay} ligada={ativo} />
                         <Personagem
                           x={ax + 0.8}
@@ -496,7 +562,10 @@ export default function PlantaEscritorio({
                           id={a.id}
                           trabalhando={ativo}
                         />
-                        <g transform={`translate(${pos[0]} ${pos[1] + 15})`}>
+                        <g
+                          className="jas-agent-nameplate"
+                          transform={`translate(${pos[0]} ${pos[1] + 15})`}
+                        >
                           <rect
                             x="-66"
                             y="0"

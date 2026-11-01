@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Bot,
   Monitor,
-  Plus,
   Play,
   Pause,
   CheckCircle2,
@@ -61,6 +60,9 @@ export default function EscritorioVisual({
   ocupado,
   recarregar,
   revisar,
+  modo = "planta",
+  contratarAberto,
+  onContratarAberto,
 }: {
   agentes: AgenteIA[];
   execucoes: ExecucaoAgente[];
@@ -68,15 +70,25 @@ export default function EscritorioVisual({
   ocupado: boolean;
   recarregar: () => Promise<void>;
   revisar?: (e: ExecucaoAgente) => void;
+  modo?: "planta" | "equipe" | "somente-dialogos";
+  contratarAberto?: boolean;
+  onContratarAberto?: (aberto: boolean) => void;
 }) {
-  const [contratar, setContratar] = useState(false),
+  const [contratarLocal, setContratarLocal] = useState(false),
     [nome, setNome] = useState(""),
     [missao, setMissao] = useState(""),
     [intervalo, setIntervalo] = useState("1440"),
     [salvando, setSalvando] = useState(false);
+  const contratar = contratarAberto ?? contratarLocal;
+  const setContratar = onContratarAberto ?? setContratarLocal;
+  const [detalhesSala, setDetalhesSala] = useState(false);
+  function entrarSala(id: SalaId) {
+    setSala(id);
+    setDetalhesSala(true);
+  }
   const [sala, setSala] = useState<SalaId>("diretoria");
   const [selecionado, setSelecionado] = useState<AgenteIA | null>(null);
-  const [visao, setVisao] = useState<"planta" | "equipe">("planta");
+
   const [movendo, setMovendo] = useState(false);
   const salaAtual = SALAS.find((s) => s.id === sala)!;
   const equipe = agentes.filter((a) => salaAgente(a) === sala);
@@ -147,57 +159,43 @@ export default function EscritorioVisual({
     }
   }
   return (
-    <section aria-label="Escritório virtual" className="space-y-3">
-      <div className="jas-escritorio">
-        <header className="jas-office-header">
-          <div className="jas-office-marca">
-            <img
-              src="/logo-juliana-araujo.png"
-              alt="Logo Juliana Araújo Advocacia"
-            />
-            <div>
-              <h2>Juliana Araújo</h2>
-              <p>Advocacia · Escritório de agentes</p>
-            </div>
-          </div>
-          <Button
-            className="jas-office-top-button"
-            onClick={() => setContratar(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Contratar agente
-          </Button>
-        </header>
-        <div className="jas-office-layout">
+    <section
+      aria-label={
+        modo === "equipe" ? "Equipe de agentes" : "Escritório virtual"
+      }
+      className={
+        modo === "planta"
+          ? "jas-office-scene"
+          : modo === "equipe"
+            ? "jas-office-equipe"
+            : "jas-dialogs-host"
+      }
+    >
+      {modo === "planta" && (
+        <>
           <PlantaEscritorio
             agentes={agentes}
             execucoes={execucoes}
             sala={sala}
-            selecionarSala={setSala}
+            selecionarSala={entrarSala}
             selecionarAgente={setSelecionado}
           />
-          <aside className="jas-room-panel">
-            <div>
-              <span className="jas-room-kicker">Você está na sala</span>
+          {detalhesSala && (
+            <aside
+              className="jas-room-float"
+              aria-label={`Detalhes de ${salaAtual.nome}`}
+            >
+              <button
+                type="button"
+                className="jas-room-close"
+                aria-label="Fechar detalhes da sala"
+                onClick={() => setDetalhesSala(false)}
+              >
+                ×
+              </button>
+              <span className="jas-room-kicker">Sala selecionada</span>
               <h3>{salaAtual.nome}</h3>
               <p>{salaAtual.detalhe}</p>
-            </div>
-            <nav aria-label="Salas do escritório" className="jas-room-nav">
-              {SALAS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-pressed={sala === s.id}
-                  onClick={() => setSala(s.id)}
-                >
-                  {s.nome}
-                </button>
-              ))}
-            </nav>
-            <div>
-              <span className="jas-room-kicker">
-                Equipe desta sala · {equipe.length}
-              </span>
               {sala === "diretoria" && (
                 <div className="jas-room-member">
                   <span className="jas-room-initial">J</span>
@@ -226,44 +224,31 @@ export default function EscritorioVisual({
                 </button>
               ))}
               {!equipe.length && (
-                <div className="jas-room-empty">
-                  <p>
-                    Esta sala está pronta para receber agentes. Você pode
-                    contratar um analista ou mover um agente existente.
-                  </p>
-                </div>
+                <p className="jas-room-no-team">
+                  Sala disponível para receber agentes.
+                </p>
               )}
-            </div>
-            <a className="jas-room-action" href={salaAtual.link}>
-              {salaAtual.acao} →
-            </a>
-            <p>
-              Os personagens representam os agentes cadastrados. Trabalho, falha
-              e revisão vêm dos registros do sistema.
-            </p>
-          </aside>
-        </div>
-        <footer className="jas-office-footer">
-          <span>6 salas · {agentes.length} agentes cadastrados</span>
-          <span>Supervisão humana · 50.000 tokens/dia compartilhados</span>
-        </footer>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Clique em uma sala ou personagem para acompanhar o trabalho.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            setVisao((v) => (v === "planta" ? "equipe" : "planta"))
-          }
-        >
-          {visao === "planta" ? "Ver fichas da equipe" : "Recolher fichas"}
-        </Button>
-      </div>
-      {visao === "equipe" && (
-        <div className="grid gap-5 bg-[radial-gradient(hsl(var(--border))_1px,transparent_1px)] [background-size:20px_20px] p-5 md:grid-cols-2 xl:grid-cols-3">
+              <a className="jas-room-action" href={salaAtual.link}>
+                {salaAtual.acao} →
+              </a>
+            </aside>
+          )}
+          <nav aria-label="Salas do escritório" className="jas-room-dock">
+            {SALAS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={sala === s.id}
+                onClick={() => entrarSala(s.id)}
+              >
+                {s.nome}
+              </button>
+            ))}
+          </nav>
+        </>
+      )}
+      {modo === "equipe" && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {agentes.map((a) => {
             const e = execucoes.find((e) => e.agente_id === a.id);
             const estado = estadoMesa(a, e);

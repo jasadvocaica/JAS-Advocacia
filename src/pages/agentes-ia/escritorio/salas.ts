@@ -37,7 +37,7 @@ export const SALAS = [
     x: 0,
     y: 8,
     piso: "#e4ddcd",
-    link: "#revisoes-escritorio",
+    link: "/escritorio/entregas",
     acao: "Ver entregas para revisão",
   },
   {
