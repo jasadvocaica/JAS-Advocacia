@@ -46,7 +46,7 @@ const NAV: NavItem[] = [
   { grupo: "Produção jurídica", to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/ferramentas/publicacoes-pje", label: "Intimações", icon: Bell, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
-  { grupo: "Produção jurídica", to: "/agentes-ia", label: "Agentes de IA", icon: Bot },
+  { grupo: "Produção jurídica", to: "/agentes-ia", label: "Escritório virtual", icon: Bot },
   { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
   { grupo: "Produção jurídica", to: "/diligencias", label: "Diligências", icon: Scale },
   { grupo: "Clientes", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },

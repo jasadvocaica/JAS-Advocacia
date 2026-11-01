@@ -14,8 +14,15 @@ export type Database = {
   }
   public: {
     Tables: {
+      agente_execucao_logs: {
+        Row: { id: number; execucao_id: string; nivel: string; mensagem: string; detalhe: Json | null; criado_em: string }
+        Insert: { id?: number; execucao_id: string; nivel?: string; mensagem: string; detalhe?: Json | null; criado_em?: string }
+        Update: { nivel?: string; mensagem?: string; detalhe?: Json | null }
+        Relationships: []
+      }
       agentes_ia: {
         Row: {
+          executor: string | null; supervisor_id: string | null; intervalo_minutos: number | null; proxima_execucao: string | null;
           id: string
           slug: string
           nome: string
@@ -30,6 +37,7 @@ export type Database = {
           atualizado_em: string
         }
         Insert: {
+          executor?: string | null; supervisor_id?: string | null; intervalo_minutos?: number | null; proxima_execucao?: string | null;
           id?: string
           slug: string
           nome: string
@@ -44,6 +52,7 @@ export type Database = {
           atualizado_em?: string
         }
         Update: {
+          executor?: string | null; supervisor_id?: string | null; intervalo_minutos?: number | null; proxima_execucao?: string | null;
           id?: string
           slug?: string
           nome?: string
