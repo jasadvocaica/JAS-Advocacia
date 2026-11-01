@@ -1,6 +1,8 @@
+import VpsConnector from "./escritorio/agent-editor/VpsConnector";
 import CentralComando from "./escritorio/CentralComando";
 import OfficeShell, { secaoOffice } from "./escritorio/OfficeShell";
-import { useLocation } from "react-router-dom";
+import AgentEditor from "./escritorio/agent-editor/AgentEditor";
+import { useMatch, useNavigate, useLocation } from "react-router-dom";
 import ChatEscritorio from "./escritorio/ChatEscritorio";
 import EscritorioVisual, { horario } from "./EscritorioVisual";
 import { chamarEscritorio } from "./hooks/useAgentesIA";
@@ -77,7 +79,12 @@ export default function AgentesIA() {
     decidir,
   } = useAgentesIA();
   const { toast } = useToast();
-  const secao = secaoOffice(useLocation().pathname);
+  const editMatch = useMatch("/escritorio/equipe/:agenteId/editar");
+  const newMatch = useMatch("/escritorio/equipe/novo");
+  const navigate = useNavigate();
+  const editor = !!editMatch || !!newMatch;
+  const location = useLocation();
+  const secao = editor ? "configurar" : secaoOffice(location.pathname);
   const [contratarAberto, setContratarAberto] = useState(false);
 
   const [executando, setExecutando] = useState<string | null>(null);
@@ -135,7 +142,7 @@ export default function AgentesIA() {
   return (
     <OfficeShell
       secao={secao}
-      contratar={() => setContratarAberto(true)}
+      contratar={() => navigate("/escritorio/equipe/novo")}
       recarregar={() => void recarregar()}
       loading={loading}
       pendentes={pendentesAprovacao.length}
@@ -171,6 +178,13 @@ export default function AgentesIA() {
         contratarAberto={contratarAberto}
         onContratarAberto={setContratarAberto}
       />
+      {editor && (
+        <AgentEditor
+          agenteId={editMatch?.params.agenteId}
+          agentes={agentes}
+          recarregar={recarregar}
+        />
+      )}
       {secao === "comando" && <CentralComando />}
       {secao === "chat" && (
         <ChatEscritorio
@@ -181,6 +195,7 @@ export default function AgentesIA() {
         />
       )}
 
+      {secao === "operacao" && <VpsConnector />}
       {secao === "operacao" && operacaoDjen ? (
         <Card>
           <CardHeader className="pb-2">

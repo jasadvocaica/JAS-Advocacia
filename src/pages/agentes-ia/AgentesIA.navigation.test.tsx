@@ -42,7 +42,11 @@ describe("Áreas independentes do escritório", () => {
   it("abre a planta sem misturar chat e painéis de consumo", async () => {
     abrir();
     expect(
-      await screen.findByRole("group", { name: /Planta isométrica/ }, {timeout:5000}),
+      await screen.findByRole(
+        "group",
+        { name: /Planta isométrica/ },
+        { timeout: 5000 },
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("log")).not.toBeInTheDocument();
     expect(screen.queryByText("Consumo OpenAI hoje")).not.toBeInTheDocument();
@@ -74,7 +78,9 @@ describe("Áreas independentes do escritório", () => {
   it("abre a contratação global mesmo fora da planta", () => {
     abrir("/escritorio/chat");
     fireEvent.click(screen.getByRole("button", { name: "Contratar agente" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Editor de agentes" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Nome do agente")).toBeInTheDocument();
   });
 });
