@@ -14,6 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      escritorio_mensagens: {
+        Row: { id: string; agente_id: string | null; destinatario_id: string | null; usuario_id: string | null; execucao_id: string | null; origem: string; texto: string; criado_em: string }
+        Insert: { id?: string; agente_id?: string | null; destinatario_id?: string | null; usuario_id?: string | null; execucao_id?: string | null; origem: string; texto: string; criado_em?: string }
+        Update: { texto?: string }
+        Relationships: []
+      }
       agente_execucao_logs: {
         Row: { id: number; execucao_id: string; nivel: string; mensagem: string; detalhe: Json | null; criado_em: string }
         Insert: { id?: number; execucao_id: string; nivel?: string; mensagem: string; detalhe?: Json | null; criado_em?: string }
@@ -22,6 +28,7 @@ export type Database = {
       }
       agentes_ia: {
         Row: {
+          sala: string;
           executor: string | null; supervisor_id: string | null; intervalo_minutos: number | null; proxima_execucao: string | null;
           id: string
           slug: string
@@ -37,6 +44,7 @@ export type Database = {
           atualizado_em: string
         }
         Insert: {
+          sala?: string;
           executor?: string | null; supervisor_id?: string | null; intervalo_minutos?: number | null; proxima_execucao?: string | null;
           id?: string
           slug: string
@@ -52,6 +60,7 @@ export type Database = {
           atualizado_em?: string
         }
         Update: {
+          sala?: string;
           executor?: string | null; supervisor_id?: string | null; intervalo_minutos?: number | null; proxima_execucao?: string | null;
           id?: string
           slug?: string

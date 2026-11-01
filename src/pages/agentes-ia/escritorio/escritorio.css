@@ -1,0 +1,299 @@
+.jas-escritorio {
+  --jas-marinho: #101b30;
+  --jas-ouro: #c7a65c;
+  --jas-creme: #f4f1e9;
+  background: var(--jas-marinho);
+  color: #f8f5ed;
+  border: 1px solid #c7a65c40;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px #09112012;
+}
+.jas-office-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px;
+  border-bottom: 1px solid #ffffff12;
+  background: linear-gradient(120deg, #121b31, #1c2c42);
+}
+.jas-office-marca {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.jas-office-marca img {
+  width: 126px;
+  height: 72px;
+  object-fit: cover;
+  object-position: center;
+}
+.jas-office-marca h2 {
+  font-family: Georgia, serif;
+  font-size: 25px;
+  line-height: 1.2;
+  color: #fbf8ee;
+}
+.jas-office-marca p {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #ceb782;
+  margin-top: 7px;
+}
+.jas-office-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+.jas-planta {
+  background: radial-gradient(ellipse at 50% 45%, #e2e6e2, #cbd3d3 80%);
+  position: relative;
+  min-width: 0;
+  color: #24344b;
+}
+.jas-planta:fullscreen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #ced7d7;
+}
+.jas-mapa-ferramentas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  color: #596979;
+  font-size: 9px;
+  letter-spacing: 2px;
+}
+.jas-mapa-ferramentas > div {
+  display: flex;
+  gap: 2px;
+}
+.jas-mapa-ferramentas button {
+  height: 30px;
+  width: 30px;
+  border: 1px solid #15243c13;
+  background: #ffffff55;
+  color: #26394a;
+}
+.jas-mapa-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 390px;
+  max-height: 650px;
+}
+.jas-sala-alvo,
+.jas-personagem-alvo {
+  cursor: pointer;
+  outline: none;
+}
+.jas-sala-alvo:focus-visible > polygon:first-child {
+  stroke: #146895;
+  stroke-width: 5;
+}
+.jas-personagem-alvo:focus-visible {
+  filter: drop-shadow(0 0 5px #155e8f);
+}
+.jas-personagem-alvo:hover {
+  filter: drop-shadow(0 2px 3px #15233c33);
+}
+.jas-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 9px 17px;
+  padding: 0 10px 18px;
+  font-size: 9px;
+  color: #4f6270;
+}
+.jas-legenda span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.jas-legenda i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.jas-room-panel {
+  padding: 22px 20px;
+  background: #131f34;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.jas-room-kicker {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #c7a65c;
+  text-transform: uppercase;
+}
+.jas-room-panel h3 {
+  font-family: Georgia, serif;
+  font-size: 25px;
+  color: #f6efe1;
+  margin-top: 5px;
+}
+.jas-room-panel p {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #a9b6c8;
+}
+.jas-room-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.jas-room-nav button {
+  border: 1px solid #ffffff15;
+  border-radius: 6px;
+  background: #ffffff04;
+  color: #a9b6c8;
+  text-align: left;
+  font-size: 10px;
+  padding: 9px 8px;
+}
+.jas-room-nav button[aria-pressed="true"] {
+  background: #c7a65c16;
+  color: #e5ce9c;
+  border-color: #c7a65c60;
+}
+.jas-room-nav button:focus-visible {
+  outline: 2px solid #c7a65c;
+  outline-offset: 2px;
+}
+.jas-room-action {
+  display: block;
+  padding: 11px 12px;
+  background: #c7a65c;
+  color: #142138;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.jas-room-empty {
+  border: 1px dashed #ffffff25;
+  border-radius: 8px;
+  padding: 15px 12px;
+}
+.jas-room-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 0;
+  border-bottom: 1px solid #ffffff10;
+}
+.jas-room-member strong {
+  display: block;
+  font-size: 11px;
+  color: #eee9dd;
+}
+.jas-room-member small {
+  font-size: 9px;
+  color: #aab7c9;
+}
+.jas-room-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 34px;
+  background: #c7a65c20;
+  color: #d5b977;
+  border-radius: 8px;
+  font-family: Georgia, serif;
+  font-size: 17px;
+}
+.jas-office-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-top: 1px solid #ffffff12;
+  font-size: 10px;
+  color: #a9b6c8;
+}
+.jas-office-footer a {
+  color: #d4b977;
+  text-decoration: underline;
+}
+.jas-office-top-button {
+  background: #c7a65c !important;
+  color: #17223a !important;
+  border: 0 !important;
+}
+.jas-office-top-button:hover {
+  background: #dcc38a !important;
+}
+@keyframes jas-trabalhar {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .jas-avatar-trabalhando > path:nth-last-child(2) {
+    animation: jas-trabalhar 1s ease-in-out infinite;
+  }
+}
+@media (max-width: 1100px) {
+  .jas-office-layout {
+    grid-template-columns: minmax(0, 1fr) 235px;
+  }
+  .jas-room-panel {
+    padding: 18px 15px;
+  }
+  .jas-office-marca h2 {
+    font-size: 22px;
+  }
+  .jas-office-marca img {
+    width: 95px;
+  }
+}
+@media (max-width: 760px) {
+  .jas-office-layout {
+    grid-template-columns: 1fr;
+  }
+  .jas-room-panel {
+    border-top: 1px solid #ffffff15;
+  }
+  .jas-office-header {
+    padding: 18px 16px;
+    flex-wrap: wrap;
+  }
+  .jas-office-marca img {
+    width: 85px;
+    height: 55px;
+  }
+  .jas-office-marca h2 {
+    font-size: 21px;
+  }
+  .jas-office-marca p {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .jas-mapa-svg {
+    min-height: 330px;
+  }
+  .jas-room-nav {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .jas-room-panel {
+    gap: 12px;
+  }
+  .jas-office-footer {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+}
