@@ -24,4 +24,4 @@ for (const arquivo of arquivos) {
     process.exit(1);
   }
 }
-console.log(avisos.join("\n"));
+console.log(avisos.filter((a) => a.endsWith(": OK")).join("\n"));
