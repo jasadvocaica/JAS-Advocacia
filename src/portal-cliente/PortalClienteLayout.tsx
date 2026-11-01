@@ -1,6 +1,6 @@
 // Layout do Portal do Cliente — sidebar simples + header + outlet
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreviewMode } from "@/contexts/PreviewModeContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { AvisoSincronizacao } from "./components/AvisoSincronizacao";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 interface PortalClienteCtx {
   clienteId: string;
@@ -27,6 +28,7 @@ export default function PortalClienteLayout() {
   const { user, signOut, isGestor } = useAuth();
   const { preview } = usePreviewMode();
   const navigate = useNavigate();
+  const location = useLocation();
   const [ctx, setCtx] = useState<PortalClienteCtx | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -179,7 +181,10 @@ export default function PortalClienteLayout() {
 
         <main className="flex-1 p-4 sm:p-6 overflow-auto">
           <AvisoSincronizacao liberadoEm={ctx.liberadoEm} />
-          <Outlet context={ctx satisfies PortalClienteCtx} />
+          {/* Isola erros de página: um erro em uma tela não derruba o portal inteiro. */}
+          <RouteErrorBoundary resetKey={location.pathname} modulo="portal-cliente">
+            <Outlet context={ctx satisfies PortalClienteCtx} />
+          </RouteErrorBoundary>
         </main>
 
         {/* Mobile bottom nav */}

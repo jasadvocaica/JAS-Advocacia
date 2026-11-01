@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Briefcase, ClipboardCheck, DollarSign,
   FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock,
-  PanelLeftClose, PanelLeftOpen, Bell, BarChart3, Scale, MessageCircle,
+  PanelLeftClose, PanelLeftOpen, Bell, BarChart3, Scale, MessageCircle, Bot,
 } from "lucide-react";
 import { useMuralAvisos } from "@/hooks/useMuralAvisos";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -28,6 +28,7 @@ import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { AssistenteFlutuante } from "@/components/assistente/AssistenteFlutuante";
 import { VisualizarComoDialog } from "@/components/VisualizarComoDialog";
 import { PreviewBanner } from "@/components/PreviewBanner";
+import { registrarErro } from "@/lib/telemetria";
 
 const STORAGE_KEY = "legisflow_sidebar_collapsed";
 
@@ -45,6 +46,7 @@ const NAV: NavItem[] = [
   { grupo: "Produção jurídica", to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/ferramentas/publicacoes-pje", label: "Intimações", icon: Bell, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
+  { grupo: "Produção jurídica", to: "/agentes-ia", label: "Agentes de IA", icon: Bot },
   { grupo: "Produção jurídica", to: "/agenda", label: "Agenda e prazos", icon: Calendar },
   { grupo: "Produção jurídica", to: "/diligencias", label: "Diligências", icon: Scale },
   { grupo: "Clientes", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
@@ -312,6 +314,8 @@ function SidebarContent({
 }
 
 export default function AppLayout() {
+  const { refresh } = useAuth();
+  const [sincronizando, setSincronizando] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -359,12 +363,28 @@ export default function AppLayout() {
                   variant="ghost"
                   size="sm"
                   className="gap-2"
-                  onClick={() => {
-                    toast({ title: "Sincronizando acesso", description: "Recarregando dados de clientes e processos..." });
-                    setTimeout(() => window.location.reload(), 300);
+                  disabled={sincronizando}
+                  onClick={async () => {
+                    setSincronizando(true);
+                    try {
+                      // Recarrega perfil/roles/permissões sem recarregar a página:
+                      // preserva formulário aberto, filtros e posição de scroll.
+                      await refresh();
+                      toast({ title: "Acesso atualizado", description: "Permissões e vínculos sincronizados." });
+                    } catch (e: any) {
+                      registrarErro({
+                        tipo: "api",
+                        mensagem: `Falha ao sincronizar acesso — ${e?.message ?? "erro desconhecido"}`,
+                        modulo: "layout",
+                        endpoint: "profiles/user_roles/user_permissions",
+                      });
+                      toast.error("Não foi possível sincronizar", { description: e?.message });
+                    } finally {
+                      setSincronizando(false);
+                    }
                   }}
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className={cn("w-4 h-4", sincronizando && "animate-spin")} />
                   <span className="hidden sm:inline">Sincronizar acesso</span>
                 </Button>
               </TooltipTrigger>

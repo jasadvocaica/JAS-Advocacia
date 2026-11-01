@@ -67,8 +67,9 @@ export default function BemVindoCliente() {
     }
     setLoading(false);
     toast.success("Tudo pronto! Bem-vindo(a) ao portal.");
+    // Só navega: o reload descartava o estado da SPA e reexecutava todo o
+    // bootstrap (auth, queries) sem necessidade.
     navigate("/portal-cliente", { replace: true });
-    window.location.reload();
   };
 
   return (

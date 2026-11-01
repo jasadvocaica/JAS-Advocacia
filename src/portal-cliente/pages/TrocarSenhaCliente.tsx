@@ -27,9 +27,9 @@ export default function TrocarSenhaCliente() {
     }
     setLoading(false);
     toast.success("Senha alterada!");
+    // A navegação React já reflete a sessão atualizada — o reload anterior
+    // descartava qualquer estado da SPA e forçava rebootstrap desnecessário.
     navigate("/portal-cliente", { replace: true });
-    // força recarregar contexto
-    window.location.reload();
   };
 
   return (

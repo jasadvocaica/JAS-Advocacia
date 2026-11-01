@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Save, Loader2, AlertCircle, RotateCcw, Sparkles, FileCheck2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCpfCnpj, formatPhone, formatCEP, onlyDigits, formatBRL } from "@/lib/format";
+import { registrarErro } from "@/lib/telemetria";
 import { isValidCpfCnpj } from "@/lib/cpf";
 import { parseValorMonetarioBR } from "@/lib/valor-monetario";
 import { buscarCep } from "@/lib/cep";
@@ -29,6 +30,29 @@ import {
 } from "./types";
 
 interface Profile { id: string; nome: string }
+
+/** Estado inicial do formulário — usado no primeiro render e ao descartar rascunho. */
+const FORM_VAZIO = {
+  // Identificação
+  nome: "", nome_social: "", cpf_cnpj: "", tipo_pessoa: "fisica", nascimento: "",
+  estado_civil: "", escolaridade: "",
+  // Documentos
+  rg: "", rg_orgao_emissor: "", rg_data_expedicao: "",
+  nit_pis: "", cnh_numero: "", cnh_categoria: "", cnh_validade: "",
+  // Previdenciário
+  profissao: "", cbo: "", ultimo_vinculo_emprego: "",
+  renda_mensal: "", membros_familia: "1",
+  // Contato
+  whatsapp: "", telefone_adicional: "", email: "",
+  cep: "", endereco: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "",
+  contato_emergencia_nome: "", contato_emergencia_parentesco: "", contato_emergencia_telefone: "",
+  // Responsável legal
+  responsavel_legal_nome: "", responsavel_legal_cpf: "", responsavel_legal_parentesco: "", responsavel_legal_telefone: "",
+  // Gestão
+  origem: "", origem_detalhe: "", advogado_responsavel_id: "",
+  observacoes: "", status: "ativo",
+  proximo_contato_data: "", proximo_contato_motivo: "",
+} as const;
 
 export default function ClienteForm() {
   const { id } = useParams();
@@ -60,27 +84,7 @@ export default function ClienteForm() {
   // Chave de rascunho local: por usuário + (novo/edicao com id do cliente)
   const rascunhoKey = `cliente_form_rascunho:${user?.id ?? "anon"}:${id ?? "novo"}`;
 
-  const [form, setForm] = useState({
-    // Identificação
-    nome: "", nome_social: "", cpf_cnpj: "", tipo_pessoa: "fisica", nascimento: "",
-    estado_civil: "", escolaridade: "",
-    // Documentos
-    rg: "", rg_orgao_emissor: "", rg_data_expedicao: "",
-    nit_pis: "", cnh_numero: "", cnh_categoria: "", cnh_validade: "",
-    // Previdenciário
-    profissao: "", cbo: "", ultimo_vinculo_emprego: "",
-    renda_mensal: "", membros_familia: "1",
-    // Contato
-    whatsapp: "", telefone_adicional: "", email: "",
-    cep: "", endereco: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "",
-    contato_emergencia_nome: "", contato_emergencia_parentesco: "", contato_emergencia_telefone: "",
-    // Responsável legal
-    responsavel_legal_nome: "", responsavel_legal_cpf: "", responsavel_legal_parentesco: "", responsavel_legal_telefone: "",
-    // Gestão
-    origem: "", origem_detalhe: "", advogado_responsavel_id: "",
-    observacoes: "", status: "ativo",
-    proximo_contato_data: "", proximo_contato_motivo: "",
-  });
+  const [form, setForm] = useState<Record<keyof typeof FORM_VAZIO, string>>({ ...FORM_VAZIO });
 
   useEffect(() => {
     let cancelado = false;
@@ -93,7 +97,12 @@ export default function ClienteForm() {
 
       if (cancelado) return;
       if (rolesError) {
-        console.error("[ClienteForm] Falha ao carregar responsáveis jurídicos", rolesError);
+        registrarErro({
+          tipo: "api",
+          mensagem: `ClienteForm: falha ao carregar responsáveis jurídicos — ${rolesError.message}`,
+          modulo: "clientes",
+          endpoint: "user_roles",
+        });
         setResponsaveisJuridicos([]);
         return;
       }
@@ -113,7 +122,12 @@ export default function ClienteForm() {
 
       if (cancelado) return;
       if (perfisError) {
-        console.error("[ClienteForm] Falha ao carregar perfis jurídicos", perfisError);
+        registrarErro({
+          tipo: "api",
+          mensagem: `ClienteForm: falha ao carregar perfis jurídicos — ${perfisError.message}`,
+          modulo: "clientes",
+          endpoint: "profiles",
+        });
         setResponsaveisJuridicos([]);
         return;
       }
@@ -231,10 +245,13 @@ export default function ClienteForm() {
     } catch { /* ignore */ }
     setRascunhoRestaurado(false);
     setRascunhoSalvoEm(null);
-    if (!isEdit) {
-      // Limpa o form para o estado inicial
-      window.location.reload();
-    }
+    // Reset local do formulário — sem reload total da aplicação
+    // (o reload descartaria o contexto e o que estivesse aberto por trás).
+    setForm({ ...FORM_VAZIO });
+    setCpfErro(null);
+    setDuplicados([]);
+    setHomonimos([]);
+    setConfirmouHomonimo(false);
   }
 
   const update = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));

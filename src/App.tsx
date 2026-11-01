@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PreviewModeProvider } from "@/contexts/PreviewModeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { ComercialRoute } from "@/components/ComercialRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import PortalParceiroLayout from "@/portal-parceiro/PortalParceiroLayout";
@@ -24,6 +25,8 @@ const SemPermissao = lazy(() => import("@/pages/SemPermissao"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const DashboardGestor = lazy(() => import("@/pages/dashboard-gestor/DashboardGestor"));
 const PainelOperacional = lazy(() => import("@/pages/painel-operacional/PainelOperacional"));
+const PainelAgentes = lazy(() => import("@/pages/painel-agentes/PainelAgentes"));
+const AgentesIA = lazy(() => import("@/pages/agentes-ia/AgentesIA"));
 const PainelJuliana = lazy(() => import("@/pages/painel-juliana/PainelJuliana"));
 const PainelValeska = lazy(() => import("@/pages/painel-valeska/PainelValeska"));
 const ComercialContratacoes = lazy(() => import("@/pages/comercial/contratacoes/ComercialContratacoes"));
@@ -192,9 +195,13 @@ const App = () => (
       <BrowserRouter>
         <PreviewModeProvider>
           <AuthProvider>
-            <Suspense fallback={<PageLoader />}>
-              <AppRoutes />
-            </Suspense>
+            {/* Rede de segurança global: evita tela branca se algo falhar
+                fora dos layouts (login, rotas públicas, boot do app). */}
+            <RouteErrorBoundary modulo="root">
+              <Suspense fallback={<PageLoader />}>
+                <AppRoutes />
+              </Suspense>
+            </RouteErrorBoundary>
           </AuthProvider>
         </PreviewModeProvider>
       </BrowserRouter>
@@ -293,6 +300,8 @@ const AppRoutes = () => {
         <Route path="/" element={<Dashboard />} />
         <Route path="/dashboard-gestor" element={<ProtectedRoute requireGestor><DashboardGestor /></ProtectedRoute>} />
         <Route path="/painel-operacional" element={<ProtectedRoute><PainelOperacional /></ProtectedRoute>} />
+        <Route path="/painel-agentes" element={<ProtectedRoute requireGestor><PainelAgentes /></ProtectedRoute>} />
+        <Route path="/agentes-ia" element={<ProtectedRoute requireGestor><AgentesIA /></ProtectedRoute>} />
         <Route path="/painel-juliana" element={<ProtectedRoute requireGestor><PainelJuliana /></ProtectedRoute>} />
         {/* Painel comercial: autorização por configuração explícita + gestor (checada no componente) */}
         <Route path="/painel-comercial" element={<ProtectedRoute><PainelValeska /></ProtectedRoute>} />

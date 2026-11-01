@@ -3,8 +3,35 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+/**
+ * Lê a variável de ambiente do Vite com fallback para `process.env`.
+ * O fallback existe para ambientes onde `import.meta.env` não é injetado
+ * (SSR, scripts Node, testes) e evita um crash obscuro no import.
+ */
+function env(chave: string): string | undefined {
+  const doVite = (import.meta.env as Record<string, string | undefined>)[chave];
+  if (doVite) return doVite;
+  if (typeof process !== 'undefined' && process.env) return process.env[chave];
+  return undefined;
+}
+
+const SUPABASE_URL = env('VITE_SUPABASE_URL');
+const SUPABASE_PUBLISHABLE_KEY = env('VITE_SUPABASE_PUBLISHABLE_KEY');
+
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  // Falha RÁPIDA e EXPLÍCITA: sem URL/chave qualquer consulta é impossível.
+  // A mensagem aponta a correção em vez do genérico "supabaseUrl is required".
+  const faltando = [
+    !SUPABASE_URL && 'VITE_SUPABASE_URL',
+    !SUPABASE_PUBLISHABLE_KEY && 'VITE_SUPABASE_PUBLISHABLE_KEY',
+  ].filter(Boolean).join(', ');
+  console.error(
+    `[Supabase] Variável de ambiente ausente: ${faltando}.\n` +
+    `Crie um arquivo .env na raiz do projeto (copie de .env.example) com os ` +
+    `valores do painel do Supabase e reinicie o dev server.`,
+  );
+  throw new Error(`[Supabase] Configuração ausente: ${faltando}. Veja o console e o .env.example.`);
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

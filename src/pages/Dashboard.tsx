@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatBRL, formatDate } from "@/lib/format";
+import { registrarErro } from "@/lib/telemetria";
 import { textoLegivelPublicacao } from "@/lib/publicacao-texto";
 import { cn } from "@/lib/utils";
 import { MapaBrasilClientes } from "@/components/dashboard/MapaBrasilClientes";
@@ -73,6 +74,31 @@ const TOOLTIP_STYLE = {
   fontSize: 12,
   boxShadow: "0 4px 16px -8px hsl(215 30% 20% / 0.25)",
 };
+
+/**
+ * Colunas de `controladoria_itens` usadas nos cards de prazo.
+ * IMPORTANTE: o relacionamento com clientes é `cliente` (FK `cliente_id`).
+ * Pedir `clientes(...)` invalida a query inteira e o painel cai no estado de erro.
+ */
+const SELECT_ITEM_PRAZO =
+  "id, titulo, tipo, data_vencimento, prioridade, status, processo:processos(numero_cnj), cliente:clientes(nome)";
+
+/** Normaliza o retorno do PostgREST (objeto único ou array) para um objeto único. */
+function umSo<T>(v: T | T[] | null | undefined): T | null {
+  if (Array.isArray(v)) return v[0] ?? null;
+  return v ?? null;
+}
+
+/**
+ * Query vazia "segura" para quando o bloco não é expandido (ex.: sem permissão).
+ * Retorna o MESMO formato do PostgREST ({ data, error, count }) para que o
+ * código consumidor (que lê `.data` / `.error` / `.count`) continue válido.
+ */
+function queryVazia<T = any>(): { data: T[]; error: null; count: number } {
+  return { data: [], error: null, count: 0 };
+}
+
+
 
 // --------------------------------------------------------------
 // Página
@@ -147,9 +173,23 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
   const [desempenho, setDesempenho] = useState<DesempenhoMembro[]>([]);
   const [datajudHoje, setDatajudHoje] = useState<any[]>([]);
   const [aniversariantes, setAniversariantes] = useState<any[]>([]);
+  // Derivados diretamente de `rClientes` no carregamento — NÃO contam clientes
+  // inativos (antes a contagem incluía todo mundo, divergindo do card).
+  const [totalClientes, setTotalClientes] = useState(0);
   const [repasses, setRepasses] = useState<{ parceiro: string; total: number }[]>([]);
   const [estadoData, setEstadoData] = useState<{ estado: string; total: number }[]>([]);
   const [clientesSemUf, setClientesSemUf] = useState(0);
+  // Contador usado pelo botão "Tentar novamente" — refaz as consultas sem
+  // recarregar a aplicação inteira (o layout e a navegação permanecem).
+  const [recarregar, setRecarregar] = useState(0);
+  // Recharts só é montado após o primeiro paint: com o painel vindo de skeleton,
+  // o ResponsiveContainer mede o pai com altura 0 e os gráficos não aparecem.
+  const [chartsReady, setChartsReady] = useState(false);
+  useEffect(() => {
+    if (loading) return;
+    const raf = requestAnimationFrame(() => setChartsReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [loading]);
 
   useEffect(() => {
     let ativo = true;
@@ -169,7 +209,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
           .not("status", "in", '("encerrado","arquivado")'),
         // 1: prazos próximos 7d
         supabase.from("controladoria_itens")
-          .select("id, titulo, tipo, data_vencimento, prioridade, status, processos(numero_cnj), clientes(nome)")
+          .select(SELECT_ITEM_PRAZO)
           .in("tipo", ["prazo_fatal", "prazo_processual"])
           .neq("status", "concluido")
           .gte("data_vencimento", hojeIso)
@@ -177,7 +217,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
           .order("data_vencimento"),
         // 2: prazos vencidos
         supabase.from("controladoria_itens")
-          .select("id, titulo, tipo, data_vencimento, prioridade, status, processos(numero_cnj), clientes(nome)")
+          .select(SELECT_ITEM_PRAZO)
           .in("tipo", ["prazo_fatal", "prazo_processual"])
           .neq("status", "concluido")
           .lt("data_vencimento", hojeIso)
@@ -187,7 +227,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
           .in("status", ["pendente", "em_andamento"]),
         // 4: tarefas atrasadas (qualquer tipo)
         supabase.from("controladoria_itens")
-          .select("id, titulo, tipo, data_vencimento, prioridade, processos(numero_cnj), clientes(nome)")
+          .select(SELECT_ITEM_PRAZO)
           .in("status", ["pendente", "em_andamento"])
           .lt("data_vencimento", hojeIso)
           .order("data_vencimento")
@@ -195,17 +235,17 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
         // 5: pagamentos do ano para gráfico
         verFinanceiro
           ? supabase.from("honorarios_pagamentos").select("valor_recebido, data_pagamento")
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve(queryVazia()),
         // 6: parcelas do mês (a receber)
         verFinanceiro
           ? supabase.from("honorarios_parcelas").select("valor, status, data_vencimento")
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve(queryVazia()),
         // 7: repasses pendentes
         verFinanceiro
           ? supabase.from("honorarios_repasses")
               .select("valor_repasse, parceiros(nome)")
               .eq("status", "pendente")
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve(queryVazia()),
         // 8: processos por área
         supabase.from("processos").select("area_direito")
           .not("status", "in", '("encerrado","arquivado")'),
@@ -215,8 +255,11 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
               .select("membro_id, atingimento_geral_pct, equipe_membros(nome,cargo)")
               .eq("mes", hoje.getMonth() + 1)
               .eq("ano", hoje.getFullYear())
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve(queryVazia()),
         // 10: andamentos DataJud hoje
+        // Relacionamento aninhado processos(clientes(nome)) é opcional: se a FK
+        // não existir no PostgREST, a query falha. Tratamos como bloco
+        // tolerante a falha (ver abaixo) para não derrubar o painel.
         supabase.from("andamentos")
           .select("id, descricao, data, criado_em, processos(numero_cnj, clientes(nome))")
           .eq("fonte", "datajud")
@@ -227,7 +270,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
         supabase.from("clientes").select("id, nome, nascimento, estado").eq("ativo", true),
         // 12: agenda de hoje (compromissos reais da controladoria)
         supabase.from("controladoria_itens")
-          .select("id, titulo, tipo, data_vencimento, status, prioridade, processos(numero_cnj), clientes(nome)")
+          .select(SELECT_ITEM_PRAZO)
           .neq("status", "concluido")
           .gte("data_vencimento", hojeIso)
           .lt("data_vencimento", amanhaIso)
@@ -243,22 +286,53 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
 
       if (!ativo) return;
 
-      const resultados = [
+      // Blocos secundários (DataJud / desempenho / aniversariantes) são
+      // tolerantes a falha: se o relacionamento embutido estiver inválido,
+      // apenas o bloco some — o painel continua carregando com os dados
+      // operacionais. Só os blocos que alimentam os KPIs são críticos.
+      const resultadosCriticos = [
         rProcAtivos, rPrazos7, rPrazosVenc, rTarefasAbertas, rTarefasAtrasadas,
-        rPagamentos, rParcelas, rRepasses, rArea, rDesempenho, rDataJud, rClientes,
-        rAgendaHoje,
+        rPagamentos, rParcelas, rRepasses, rArea, rAgendaHoje,
       ];
-      const falha = resultados.find((resultado) => resultado?.error)?.error;
+      const falha = resultadosCriticos.find((resultado) => resultado?.error)?.error;
       if (falha) {
         setLoadError(falha.message ?? "Não foi possível carregar o painel.");
         setLoading(false);
         return;
       }
+      if ((rDataJud as any)?.error) {
+        registrarErro({
+          tipo: "api",
+          mensagem: `Dashboard: falha ao carregar andamentos DataJud — ${(rDataJud as any).error.message}`,
+          modulo: "dashboard",
+          endpoint: "andamentos",
+        });
+      }
+      if ((rDesempenho as any)?.error) {
+        registrarErro({
+          tipo: "api",
+          mensagem: `Dashboard: falha ao carregar desempenho da equipe — ${(rDesempenho as any).error.message}`,
+          modulo: "dashboard",
+          endpoint: "equipe_desempenho",
+        });
+      }
+      if ((rClientes as any)?.error) {
+        // Clientes alimentam aniversariantes + mapa. A contagem do card
+        // ("Clientes ativos") faz parte do KPI: mantemos o card com 0 mas
+        // registramos a falha em vez de derrubar o painel inteiro.
+        registrarErro({
+          tipo: "api",
+          mensagem: `Dashboard: falha ao carregar clientes — ${(rClientes as any).error.message}`,
+          modulo: "dashboard",
+          endpoint: "clientes",
+        });
+      }
       setLoadError(null);
 
-      const pagamentos = (rPagamentos.data ?? []) as any[];
-      const parcelas = (rParcelas.data ?? []) as any[];
-      const repassesData = (rRepasses.data ?? []) as any[];
+      const pagamentos = (rPagamentos?.data ?? []) as any[];
+      const parcelas = (rParcelas?.data ?? []) as any[];
+      const repassesData = (rRepasses?.data ?? []) as any[];
+      const clientesData = (rClientes?.data ?? []) as any[];
 
       const receitaMes = pagamentos
         .filter((p) => p.data_pagamento >= inicioMes && p.data_pagamento <= fimMes)
@@ -275,44 +349,48 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
       const repassesTotal = repassesData.reduce((a, r) => a + Number(r.valor_repasse || 0), 0);
 
       setCards({
-        clientes_ativos: (rClientes.data ?? []).length,
-        processos_ativos: rProcAtivos.count ?? 0,
-        prazos_proximos_7d: rPrazos7.data?.length ?? 0,
-        prazos_vencidos: rPrazosVenc.data?.length ?? 0,
+        clientes_ativos: clientesData.length,
+        processos_ativos: rProcAtivos?.count ?? 0,
+        prazos_proximos_7d: rPrazos7?.data?.length ?? 0,
+        prazos_vencidos: rPrazosVenc?.data?.length ?? 0,
         receita_mes: receitaMes,
         a_receber_mes: aReceberMes,
         em_atraso: emAtraso,
-        tarefas_abertas: rTarefasAbertas.count ?? 0,
-        tarefas_atrasadas: (rTarefasAtrasadas.data ?? []).length,
+        tarefas_abertas: rTarefasAbertas?.count ?? 0,
+        tarefas_atrasadas: (rTarefasAtrasadas?.data ?? []).length,
         repasses_pendentes: repassesTotal,
       });
 
       // Alertas bloqueantes
       const alertasList: AlertaBloqueante[] = [];
-      (rPrazosVenc.data ?? []).forEach((p: any) => {
+      (rPrazosVenc?.data ?? []).forEach((p: any) => {
+        const cliente = umSo<any>(p.cliente);
+        const processo = umSo<any>(p.processo);
         alertasList.push({
           tipo: "prazo_vencido",
-          titulo: `Prazo vencido — ${p.processos?.numero_cnj ?? p.titulo}`,
-          subtitulo: `${p.clientes?.nome ?? "Sem cliente"} • Venceu ${formatDate(p.data_vencimento)}`,
+          titulo: `Prazo vencido — ${processo?.numero_cnj ?? p.titulo}`,
+          subtitulo: `${cliente?.nome ?? "Sem cliente"} • Venceu ${formatDate(p.data_vencimento)}`,
           link: `/controladoria`,
           gravidade: "critica",
         });
       });
-      (rPrazos7.data ?? [])
+      (rPrazos7?.data ?? [])
         .filter((p: any) => p.data_vencimento <= amanhaIso)
         .forEach((p: any) => {
+          const cliente = umSo<any>(p.cliente);
+          const processo = umSo<any>(p.processo);
           alertasList.push({
             tipo: "prazo_amanha",
-            titulo: `Prazo fatal próximo — ${p.processos?.numero_cnj ?? p.titulo}`,
-            subtitulo: `${p.clientes?.nome ?? "Sem cliente"} • ${formatDate(p.data_vencimento)}`,
+            titulo: `Prazo fatal próximo — ${processo?.numero_cnj ?? p.titulo}`,
+            subtitulo: `${cliente?.nome ?? "Sem cliente"} • ${formatDate(p.data_vencimento)}`,
             link: `/controladoria`,
             gravidade: "alta",
           });
         });
       setAlertas(alertasList.slice(0, 5));
 
-      setPrazosSemana((rPrazos7.data ?? []).slice(0, 8));
-      setTarefasAtrasadas(rTarefasAtrasadas.data ?? []);
+      setPrazosSemana((rPrazos7?.data ?? []).slice(0, 8));
+      setTarefasAtrasadas(rTarefasAtrasadas?.data ?? []);
       setAgendaHoje(rAgendaHoje?.data ?? []);
 
       // Histórico receita 6 meses + 3 previstos
@@ -339,7 +417,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
 
       // Áreas
       const areaMap = new Map<string, number>();
-      (rArea.data ?? []).forEach((p: any) => {
+      (rArea?.data ?? []).forEach((p: any) => {
         const k = p.area_direito || "Não definido";
         areaMap.set(k, (areaMap.get(k) ?? 0) + 1);
       });
@@ -348,19 +426,19 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
         .sort((a, b) => b.total - a.total));
 
       // Desempenho
-      setDesempenho((rDesempenho.data ?? []).map((d: any) => ({
+      setDesempenho((rDesempenho?.data ?? []).map((d: any) => ({
         membro_id: d.membro_id,
         nome: d.equipe_membros?.nome ?? "—",
         cargo: d.equipe_membros?.cargo ?? "",
         atingimento_pct: Number(d.atingimento_geral_pct ?? 0),
       })));
 
-      setDatajudHoje(rDataJud.data ?? []);
+      setDatajudHoje(rDataJud?.data ?? []);
 
       // Aniversariantes da semana
       const semanaIni = new Date(hoje); semanaIni.setHours(0, 0, 0, 0);
       const semanaFim = new Date(hoje); semanaFim.setDate(semanaFim.getDate() + 7);
-      const aniv = (rClientes.data ?? []).filter((c: any) => {
+      const aniv = clientesData.filter((c: any) => {
         if (!c.nascimento) return false;
         const [, mm, dd] = c.nascimento.split("-").map(Number);
         const aniversarioEsteAno = new Date(hoje.getFullYear(), mm - 1, dd);
@@ -370,7 +448,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
 
       // Estados atendidos
       const estadoMap = new Map<string, number>();
-      (rClientes.data ?? []).forEach((c: any) => {
+      clientesData.forEach((c: any) => {
         const uf = (c.estado || "").trim().toUpperCase();
         if (!uf) return;
         estadoMap.set(uf, (estadoMap.get(uf) ?? 0) + 1);
@@ -378,7 +456,8 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
       setEstadoData(Array.from(estadoMap.entries())
         .map(([estado, total]) => ({ estado, total }))
         .sort((a, b) => b.total - a.total));
-      setClientesSemUf((rClientes.data ?? []).filter((cliente: any) => !(cliente.estado || "").trim()).length);
+      setTotalClientes(clientesData.length);
+      setClientesSemUf(clientesData.filter((cliente: any) => !(cliente.estado || "").trim()).length);
 
       // Repasses agrupados por parceiro
       const grupos = new Map<string, number>();
@@ -394,10 +473,11 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
       setLoading(false);
     })();
     return () => { ativo = false; };
-  }, [verFinanceiro, verEquipe]);
+  }, [verFinanceiro, verEquipe, recarregar]);
 
   const totalArea = useMemo(() => areaData.reduce((s, a) => s + a.total, 0), [areaData]);
-  const totalClientesUf = useMemo(() => estadoData.reduce((s, e) => s + e.total, 0), [estadoData]);
+  // Usa o mesmo conjunto do card "Clientes ativos" (apenas ativos).
+  const totalClientesUf = totalClientes;
 
   if (loading) return <DashboardSkeleton />;
 
@@ -407,7 +487,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
         <AlertTriangle className="mx-auto mb-3 h-7 w-7 text-destructive" />
         <h2 className="font-display text-lg text-foreground">Não foi possível carregar o painel</h2>
         <p className="mt-1 text-sm text-muted-foreground">{loadError}</p>
-        <Button className="mt-4" variant="outline" onClick={() => window.location.reload()}>
+        <Button className="mt-4" variant="outline" onClick={() => { setLoading(true); setRecarregar((n) => n + 1); }}>
           Tentar novamente
         </Button>
       </Card>
@@ -511,6 +591,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
                   <span className="h-2 w-2 rounded-full bg-champagne" /> Previsto
                 </span>
               </div>
+              {chartsReady ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={receitaHist} barGap={3}>
                   <CartesianGrid strokeDasharray="2 6" stroke="hsl(var(--border))" vertical={false} />
@@ -529,6 +610,9 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
                   <Bar dataKey="previsto" fill="hsl(var(--champagne))" radius={[6, 6, 0, 0]} maxBarSize={26} />
                 </BarChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="h-[260px] animate-pulse rounded-xl bg-muted/40" />
+              )}
             </>
           ) : areaData.length === 0 ? (
             <EmptyState message="Sem processos cadastrados." />
@@ -709,6 +793,8 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
             <div className="space-y-1.5">
               {prazosSemana.map((p: any) => {
                 const diff = Math.ceil((new Date(p.data_vencimento).getTime() - Date.now()) / 86400000);
+                const cliente = umSo<any>(p.cliente);
+                const processo = umSo<any>(p.processo);
                 return (
                   <Link
                     key={p.id}
@@ -724,7 +810,7 @@ function DashboardGestor({ verFinanceiro, verEquipe }: { verFinanceiro: boolean;
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{p.titulo}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {p.clientes?.nome ?? "—"} • {p.processos?.numero_cnj ?? "—"}
+                        {cliente?.nome ?? "—"} • {processo?.numero_cnj ?? "—"}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -904,7 +990,7 @@ function DashboardOperacional({ userId }: { userId: string }) {
       const itemIds = (respRes.data ?? []).map((r) => r.item_id);
 
       const baseQuery = supabase.from("controladoria_itens")
-        .select("id, titulo, tipo, data_vencimento, prioridade, status, processos(numero_cnj), clientes(nome)")
+        .select(SELECT_ITEM_PRAZO)
         .in("status", ["pendente", "em_andamento"]);
 
       const [hojeRes, semanaRes, processosRes] = await Promise.all([
@@ -915,7 +1001,7 @@ function DashboardOperacional({ userId }: { userId: string }) {
         // Prazos da semana (meus prazos fatais/processuais)
         itemIds.length > 0
           ? supabase.from("controladoria_itens")
-              .select("id, titulo, tipo, data_vencimento, prioridade, status, processos(numero_cnj), clientes(nome)")
+              .select(SELECT_ITEM_PRAZO)
               .in("id", itemIds)
               .in("tipo", ["prazo_fatal", "prazo_processual"])
               .neq("status", "concluido")
@@ -925,7 +1011,7 @@ function DashboardOperacional({ userId }: { userId: string }) {
           : Promise.resolve({ data: [] }),
         // Meus processos
         supabase.from("processos")
-          .select("id, numero_cnj, area_direito, status, atualizado_em, clientes(nome)")
+          .select("id, numero_cnj, area_direito, status, atualizado_em, cliente:clientes(nome)")
           .eq("responsavel_id", userId)
           .not("status", "in", '("encerrado","arquivado")')
           .order("atualizado_em", { ascending: false })
@@ -980,7 +1066,7 @@ function DashboardOperacional({ userId }: { userId: string }) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{t.titulo}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {t.clientes?.nome ?? "—"} • {t.processos?.numero_cnj ?? "—"}
+                      {umSo<any>(t.cliente)?.nome ?? "—"} • {umSo<any>(t.processo)?.numero_cnj ?? "—"}
                     </p>
                   </div>
                   <Badge
@@ -1009,7 +1095,7 @@ function DashboardOperacional({ userId }: { userId: string }) {
                       <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{p.titulo}</p>
-                        <p className="truncate text-xs text-muted-foreground">{p.processos?.numero_cnj ?? "—"}</p>
+                        <p className="truncate text-xs text-muted-foreground">{umSo<any>(p.processo)?.numero_cnj ?? "—"}</p>
                       </div>
                     </div>
                     <span className={cn("shrink-0 text-[11px] font-medium", diff <= 1 ? "text-destructive" : "text-muted-foreground")}>
@@ -1039,7 +1125,7 @@ function DashboardOperacional({ userId }: { userId: string }) {
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{p.numero_cnj ?? "Sem CNJ"}</p>
-                    <p className="truncate text-xs text-muted-foreground">{p.clientes?.nome ?? "—"}</p>
+                    <p className="truncate text-xs text-muted-foreground">{umSo<any>(p.cliente)?.nome ?? "—"}</p>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

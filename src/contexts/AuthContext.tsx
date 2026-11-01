@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { registrarEventoLogin } from "@/lib/auth-audit";
+import { invalidarCacheLogo } from "@/hooks/useBrandingLogo";
 import { usePreviewMode } from "@/contexts/PreviewModeContext";
 import { toast } from "sonner";
 
@@ -131,6 +132,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(prev => JSON.stringify(prev) === JSON.stringify(newSession?.user ?? null) ? prev : newSession?.user ?? null);
 
       if (newSession?.user) {
+        // Com sessão ativa a leitura de configuracoes_sistema é autorizada,
+        // então descartamos o resultado anônimo em cache (tela de login).
+        invalidarCacheLogo();
         setTimeout(() => loadUserData(newSession.user.id), 0);
         if (event === "SIGNED_IN" && authChannel) {
           authChannel.postMessage({ type: "signed-in", userId: newSession.user.id });

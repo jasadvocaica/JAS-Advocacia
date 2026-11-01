@@ -7,7 +7,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: ["./src/test/setup.ts"],
+    // vitest.setup-env roda PRIMEIRO: define as variáveis VITE_SUPABASE_* antes
+    // de qualquer módulo importar o client (que lança no import se faltarem).
+    setupFiles: ["./vitest.setup-env.ts", "./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
   resolve: {

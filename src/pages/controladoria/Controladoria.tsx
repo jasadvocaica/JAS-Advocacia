@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { formatDateTime, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { registrarErro } from "@/lib/telemetria";
 import {
   ControladoriaItem, TIPO_LABELS, STATUS_LABELS, PRIORIDADE_LABELS,
   TIPO_CLASS, STATUS_CLASS, PRIORIDADE_CLASS, KANBAN_COLUMNS, TipoItem, StatusItem, Prioridade,
@@ -114,7 +115,19 @@ export default function Controladoria() {
       .select("*, cliente:clientes(id, nome), processo:processos(id, numero_cnj, tipo_acao), responsavel:profiles!responsavel_id(id, nome, email), google_evento:controladoria_google_eventos(google_event_id, ultimo_sync, ultimo_erro)")
       .order("data_vencimento", { ascending: true });
     setLoading(false);
-    if (error) return console.error(error);
+    if (error) {
+      // Nunca falhar em silêncio: uma lista vazia por erro é indistinguível
+      // de "não há tarefas", o que faz o usuário perder prazos de vista.
+      registrarErro({
+        tipo: "api",
+        mensagem: `Controladoria: falha ao carregar itens — ${error.message}`,
+        modulo: "controladoria",
+        endpoint: "controladoria_itens",
+        statusHttp: (error as any).code ? Number((error as any).code) || null : null,
+      });
+      toast.error("Não foi possível carregar a Controladoria", { description: error.message });
+      return;
+    }
     const normalizados = (data ?? []).map((d: any) => ({
       ...d,
       responsavel: Array.isArray(d.responsavel) ? (d.responsavel[0] ?? null) : d.responsavel,
@@ -220,7 +233,16 @@ export default function Controladoria() {
       update.concluido_em = new Date().toISOString();
     }
     const { error } = await supabase.from("controladoria_itens").update(update).eq("id", itemId);
-    if (error) { console.error(error); loadItens(); }
+    if (error) {
+      registrarErro({
+        tipo: "api",
+        mensagem: `Controladoria: falha ao mover item no Kanban — ${error.message}`,
+        modulo: "controladoria",
+        endpoint: "controladoria_itens.update",
+      });
+      toast.error("Não foi possível mover a tarefa", { description: error.message });
+      loadItens();
+    }
   }
 
   // Move um item entre etapas do workflow direto pelo Kanban (drag-and-drop),
