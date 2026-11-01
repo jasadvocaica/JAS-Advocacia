@@ -11,6 +11,9 @@ export interface AgenteIA {
   exige_aprovacao: boolean;
   ativo: boolean;
   ordem: number;
+  executor?: string | null;
+  intervalo_minutos?: number | null;
+  proxima_execucao?: string | null;
 }
 
 export interface OperacaoDjen {
@@ -54,8 +57,12 @@ export const LABEL_STATUS_EXECUCAO: Record<ExecucaoAgente["status"], string> = {
   cancelada: "Cancelada",
 };
 
-async function chamar(corpo: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke("agentes-disparar", { body: corpo });
+export async function chamarEscritorio(corpo: Record<string, unknown>) {
+  return invocar("agentes-escritorio", corpo);
+}
+async function chamar(corpo: Record<string, unknown>) { return invocar("agentes-disparar", corpo); }
+async function invocar(funcao: string, corpo: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke(funcao, { body: corpo });
   if (error) {
     let msg = error.message;
     try {
@@ -77,10 +84,14 @@ export function useAgentesIA() {
   const [error, setError] = useState<string | null>(null);
   const [operacaoDjen, setOperacaoDjen] = useState<OperacaoDjen | null>(null);
 
+  const [passos, setPassos] = useState<{id:number;execucao_id:string;mensagem:string;criado_em:string}[]>([]);
+  const [consultas, setConsultas] = useState<{id:string;status:string;iniciado_em:string;finalizado_em:string|null;total_novas:number;total_erros:number}[]>([]);
+  const [tokens, setTokens] = useState<{limite:number;usados:number;reservados:number;disponiveis:number}|null>(null);
+  const [atualizadoEm, setAtualizadoEm] = useState<string|null>(null);
+
   const carregar = useCallback(async () => {
-    setLoading(true);
     setError(null);
-    const [ag, ex, operacao] = await Promise.all([
+    const [ag, ex, operacao, consultasResult, tokensResult, passosResult] = await Promise.all([
       supabase.from("agentes_ia").select("*").order("ordem"),
       supabase
         .from("agente_execucoes")
@@ -92,6 +103,9 @@ export function useAgentesIA() {
         .order("iniciado_em", { ascending: false })
         .limit(60),
       supabase.rpc("djen_resumo_operacional"),
+      supabase.from("pje_sync_log").select("id,status,iniciado_em,finalizado_em,total_novas,total_erros").order("iniciado_em",{ascending:false}).limit(20),
+      supabase.rpc("assistente_tokens_dia"),
+      supabase.from("agente_execucao_logs").select("id,execucao_id,mensagem,criado_em").order("criado_em",{ascending:false}).limit(20),
     ]);
 
     const erroInicial = ag.error || ex.error || operacao.error;
@@ -100,6 +114,10 @@ export function useAgentesIA() {
     setAgentes((ag.data ?? []) as AgenteIA[]);
     setExecucoes((ex.data ?? []) as unknown as ExecucaoAgente[]);
     setOperacaoDjen(operacao.error ? null : operacao.data as unknown as OperacaoDjen);
+    if (!passosResult.error) setPassos(passosResult.data ?? []);
+    if (!consultasResult.error) setConsultas(consultasResult.data ?? []);
+    if (!tokensResult.error) setTokens(tokensResult.data as unknown as typeof tokens);
+    if (!erroInicial) setAtualizadoEm(new Date().toISOString());
     setLoading(false);
   }, []);
 
@@ -110,9 +128,10 @@ export function useAgentesIA() {
   // Atualiza automaticamente enquanto houver execução em andamento.
   useEffect(() => {
     const emAndamento = execucoes.some((e) => e.status === "executando" || e.status === "pendente");
-    if (!emAndamento) return;
-    const t = setInterval(() => void carregar(), 4000);
-    return () => clearInterval(t);
+    const t = setInterval(() => { if (!document.hidden) void carregar(); }, emAndamento ? 4000 : 15000);
+    const aoFocar = () => void carregar();
+    window.addEventListener("focus", aoFocar);
+    return () => { clearInterval(t); window.removeEventListener("focus", aoFocar); };
   }, [execucoes, carregar]);
 
   const disparar = useCallback(
@@ -146,6 +165,7 @@ export function useAgentesIA() {
 
   return {
     agentes,
+    consultas, tokens, atualizadoEm, passos,
     operacaoDjen,
     execucoes,
     pendentesAprovacao,
