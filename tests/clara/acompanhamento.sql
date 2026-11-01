@@ -1,5 +1,5 @@
 -- Executado em banco descartável após os bootstraps DJEN e Clara.
-\i supabase/migrations/20261101192114_clara_acompanhamento_3d.sql
+\i supabase/migrations/20261101192720_clara_acompanhamento_3d.sql
 begin;
 insert into auth.users(id) values('00000000-0000-4000-8000-000000000991'),('00000000-0000-4000-8000-000000000992');
 insert into public.profiles(id,nome) values('00000000-0000-4000-8000-000000000991','Gestora A'),('00000000-0000-4000-8000-000000000992','Gestora B');

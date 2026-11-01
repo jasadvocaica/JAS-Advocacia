@@ -11,7 +11,7 @@ As tabelas de agentes e homologação não estavam publicadas em `supabase_realt
 
 Cron ativo: coleta e triagem DJEN a cada cinco minutos, escritório-analistas a cada cinco minutos, além das rotinas existentes de alertas, Datajud, marketing e retenção. `djen-agenda` HTTP permanece inativo; a agenda continua sob o conector existente. O teto global de 50 mil tokens/dia permanece intacto.
 
-A usuária informou HostGator com EasyPanel. Foi informado o painel `wwtcfz.easypanel.host` e o projeto recém-criado `3D`, ainda sem serviço/worker informado. Uma tentativa HTTPS pública foi barrada pelo proxy do ambiente Codex (CONNECT 403), antes de alcançar o servidor. Não foram validados recursos, backups ou execução na VPS; é necessário permitir esse domínio na configuração de rede do ambiente antes de inspecionar o painel. O M1 da Clara continua exigindo disparo explícito; abrir a cena nunca inicia geração ou agenda um worker.
+A usuária informou HostGator com EasyPanel. Foi informado o endereço do painel EasyPanel e o projeto recém-criado `3D`, ainda sem serviço/worker informado. Uma tentativa HTTPS pública foi barrada pelo proxy do ambiente Codex (CONNECT 403), antes de alcançar o servidor. Não foram validados recursos, backups ou execução na VPS; é necessário permitir esse domínio na configuração de rede do ambiente antes de inspecionar o painel. O M1 da Clara continua exigindo disparo explícito; abrir a cena nunca inicia geração ou agenda um worker.
 
 ## Entrega inicial implementada
 - Motor Three.js carregado apenas na rota da planta; geometria primitiva compartilhada, materiais reutilizados, sem assets 3D externos.
@@ -47,3 +47,5 @@ Próximo marco de infraestrutura: identificar no EasyPanel o serviço JAS, CPU/R
 Build de produção e TypeScript aprovados; lint dos novos módulos 3D sem erros. PostgreSQL descartável aprovado. Chromium confirmou WebGL, os estados e a retomada com zero erros de página; largura móvel 390px sem overflow horizontal. O relatório final do CI identifica a suíte completa e os testes de banco/servidor.
 
 A usuária autorizou avaliar SSH/root como forma de configuração da VPS. Não foi solicitada senha no chat; ainda são necessários IP/porta e acesso configurado nas credenciais/rede do ambiente. Isso não altera a ausência de worker validado.
+
+Instalação conferida: migração `20261101192720_clara_acompanhamento_3d` alinhada com o histórico do Supabase; endpoint `clara-acompanhar` versão 2, SHA de deploy `b1a1a34cf16cf2863b1a3d83c51d0b0b243e50edf8e4fb833fead25a3aae2513`. IP, porta SSH e usuário foram informados pela usuária e não são necessários no repositório. A política observada não possui destinos TCP concedidos nem identidade SSH configurada; não houve autenticação ou instalação na VPS.
