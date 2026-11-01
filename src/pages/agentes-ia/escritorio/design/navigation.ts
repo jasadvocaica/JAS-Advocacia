@@ -7,6 +7,7 @@ import {
   FolderOpen,
   HandCoins,
   LayoutDashboard,
+  LayoutGrid,
   ListTodo,
   Megaphone,
   PlugZap,
@@ -49,6 +50,13 @@ export const OFFICE_NAV: { label: string; items: OfficeNavItem[] }[] = [
         to: "/escritorio/planta",
         section: "planta",
         icon: Building2,
+      },
+      {
+        label: "Escritório Isométrico",
+        to: "/escritorio/isometrico",
+        section: "isometrico",
+        icon: LayoutGrid,
+        hint: "Planta por salas com a Central dos agentes",
       },
       {
         label: "Agentes de IA",
@@ -171,6 +179,7 @@ export const OFFICE_SECONDARY = [
 export const OFFICE_SECTIONS = {
   comando: "Central de Comando",
   planta: "Escritório Virtual 3D",
+  isometrico: "Escritório Isométrico",
   chat: "Conversas",
   equipe: "Agentes de IA",
   configurar: "Personalizar agente",
