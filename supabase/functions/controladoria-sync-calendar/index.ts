@@ -57,7 +57,7 @@ const corsHeaders = {
 };
 
 interface Payload {
-  action: "upsert" | "delete";
+  action: "upsert" | "delete" | "diagnostico";
   item_id: string;
   event_id?: string | null;
   calendar_id?: string | null;
@@ -161,6 +161,12 @@ Deno.serve(async (req) => {
     }
 
     const payload = (await req.json()) as Payload;
+    if (payload.action === "diagnostico") {
+      const calendario = await googleApi(`/calendars/${encodeURIComponent(CALENDAR_ID)}`, { method: "GET" });
+      return new Response(JSON.stringify({ ok: true, calendario_autorizado: true, fuso: calendario.timeZone }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Buscar mapping existente
     const { data: mapping, error: mappingError } = await admin

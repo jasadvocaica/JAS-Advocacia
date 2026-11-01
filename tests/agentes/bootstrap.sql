@@ -8,7 +8,7 @@ create table auth.users(id uuid primary key);
 create function auth.uid() returns uuid language sql as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
 $$;
-create table public.profiles(id uuid primary key, ativo boolean not null default true);
+create table public.profiles(id uuid primary key, nome text, ativo boolean not null default true);
 create function public.is_interno_ativo(_user_id uuid) returns boolean language sql as $$
   select exists(select 1 from public.profiles where id = _user_id and ativo);
 $$;
@@ -60,6 +60,7 @@ end; $$;
 create table public.controladoria_google_eventos (
   item_id uuid primary key references public.controladoria_itens on delete cascade,
   google_event_id text, google_calendar_id text, ultimo_erro text
+  ,ultimo_sync timestamptz
 );
 create table public.pje_sync_log(finalizado_em timestamptz, status text);
 create schema cron;
@@ -81,6 +82,7 @@ returns bigint language sql as $$ select nextval('net.request_id'); $$;
 \i supabase/migrations/20261031120000_agentes_ia_controle.sql
 \i supabase/migrations/20261101142313_agentes_djen_nativos.sql
 \i supabase/migrations/20261101143142_djen_agenda_recuperavel.sql
+\i supabase/migrations/20261101151455_agenda_djen_conector.sql
 grant usage on schema public to anon, authenticated, service_role;
 grant all on all tables in schema public to service_role;
 grant all on all sequences in schema public to service_role;

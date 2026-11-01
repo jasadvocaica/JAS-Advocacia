@@ -1,3 +1,4 @@
+import { respostaComLimite, LimiteTokensError } from './limites.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.104.1';
 import { consultar, ferramentas, type Acesso, type Fonte } from './tools.ts';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS'};
@@ -40,9 +41,8 @@ Deno.serve(async(req:Request)=>{
   for(let rodada=0;rodada<4;rodada++){
    if(await cancelado())throw new Error('cancelado');const atual=await acesso(db,uid);if(atual.escopo!==a.escopo)throw new Error('Permissões alteradas durante a consulta');
    if(JSON.stringify(input).length>32000){incompleta=true;break;}
-   const resp=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.any([req.signal,AbortSignal.timeout(45000)]),headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:cfg.modelo,store:false,instructions:INSTRUCOES+` Data atual: ${new Date().toISOString()}. Fuso do escritório: America/Cuiaba.`,input,tools:ferramentas(atual),max_output_tokens:2000,parallel_tool_calls:false})});
-   if(!resp.ok)throw new Error(resp.status===429?'Limite da API OpenAI atingido':'Falha da API OpenAI');
-   const ai=await resp.json();entrada+=Number(ai.usage?.input_tokens??0);saida+=Number(ai.usage?.output_tokens??0);
+   const ai=await respostaComLimite({key,payload:{model:cfg.modelo,instructions:INSTRUCOES+` Data atual: ${new Date().toISOString()}. Fuso do escritório: America/Cuiaba.`,input,tools:ferramentas(atual),parallel_tool_calls:false},requestId:requestId!,rodada,rpc:(nome,args)=>admin.rpc(nome,args),signal:AbortSignal.any([req.signal,AbortSignal.timeout(45000)])});
+   entrada+=ai.usage.input_tokens;saida+=ai.usage.output_tokens;
    await admin.from('assistente_consumo').update({tokens_entrada:entrada,tokens_saida:saida,custo_estimado_usd:(entrada*.40+saida*1.60)/1e6}).eq('id',requestId).eq('user_id',uid);
    if(await cancelado())throw new Error('cancelado');
    const calls=(ai.output??[]).filter((x:any)=>x.type==='function_call');
@@ -63,5 +63,5 @@ Deno.serve(async(req:Request)=>{
   const {data:salva,error:e}=await q.select('id,titulo,mensagens,arquivada,criado_em,atualizado_em').single();if(e)throw new Error('Não foi possível salvar a conversa');
   await admin.from('assistente_consumo').update({status:'concluido',conversa_id:salva.id,ferramentas:auditoria,reserva_usd:0}).eq('id',requestId).eq('user_id',uid);
   return json({conversa:salva,consumo:{tokens_entrada:entrada,tokens_saida:saida,custo_estimado_usd:(entrada*.40+saida*1.60)/1e6}});
- }catch(e){const message=e instanceof Error?e.message:'Falha ao processar';if(admin&&requestId&&uid)await admin.from('assistente_consumo').update({status:message==='cancelado'?'cancelado':'falha',tokens_entrada:entrada,tokens_saida:saida,custo_estimado_usd:(entrada*.40+saida*1.60)/1e6,ferramentas:auditoria,erro_codigo:message==='cancelado'?'cancelado':'falha_processamento'}).eq('id',requestId).eq('user_id',uid);return json({error:message==='cancelado'?'Geração interrompida':message},message==='cancelado'?409:500);}
+ }catch(e){const message=e instanceof Error?e.message:'Falha ao processar';if(admin&&requestId&&uid)await admin.from('assistente_consumo').update({status:message==='cancelado'?'cancelado':'falha',tokens_entrada:entrada,tokens_saida:saida,custo_estimado_usd:(entrada*.40+saida*1.60)/1e6,ferramentas:auditoria,erro_codigo:message==='cancelado'?'cancelado':'falha_processamento'}).eq('id',requestId).eq('user_id',uid);return json({error:message==='cancelado'?'Geração interrompida':message},message==='cancelado'?409:e instanceof LimiteTokensError?429:500);}
 });

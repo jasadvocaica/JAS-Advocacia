@@ -9834,6 +9834,10 @@ export type Database = {
       }
     }
     Functions: {
+      assistente_tokens_dia: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       djen_resumo_operacional: {
         Args: Record<PropertyKey, never>
         Returns: Json

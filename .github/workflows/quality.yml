@@ -36,12 +36,19 @@ jobs:
           supabase/functions/agentes-disparar/index.ts
           supabase/functions/pje-comunica-sync/index.ts
           supabase/functions/controladoria-sync-calendar/index.ts
+          supabase/functions/assistente-chat/index.ts
       - name: Validar transações DJEN em banco descartável
         run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/agentes/bootstrap.sql -f tests/agentes/fluxo.sql
       - name: Validar execuções concorrentes
         env:
           JAS_TEST_PGHOST: localhost
         run: python3 tests/agentes/concorrencia.py
+      - name: Validar limite diário de tokens
+        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/assistente/tokens-bootstrap.sql -f tests/assistente/tokens.sql
+      - name: Validar concorrência do orçamento
+        env:
+          JAS_TEST_PGHOST: localhost
+        run: python3 tests/assistente/tokens-concorrencia.py
 
   validar:
     runs-on: ubuntu-latest

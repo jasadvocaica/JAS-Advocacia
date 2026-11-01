@@ -81,6 +81,20 @@ do $$ begin
 end; $$;
 
 -- RPCs administrativas não são executáveis por usuários nem anonimamente.
+do $$ declare v_item uuid; v_revisao bigint; v_ok boolean; v_falhou boolean := false; begin
+  select item_id,revisao into v_item,v_revisao from djen_agenda_fila limit 1;
+  perform public.djen_reservar_agenda_conector(25);
+  if exists(select 1 from public.djen_reservar_agenda_conector(25)) then raise exception 'Reservou o mesmo trabalho duas vezes'; end if;
+  v_ok := public.djen_confirmar_agenda_conector(v_item,v_revisao-1,'teste','juridico@julianaaraujoadvocacia.com');
+  if v_ok then raise exception 'Confirmou revisão antiga'; end if;
+  begin
+    perform public.djen_confirmar_agenda_conector(v_item,v_revisao,'teste','calendario-fora-do-escopo');
+  exception when raise_exception then v_falhou := true;
+  end;
+  if not v_falhou then raise exception 'Aceitou calendário fora do escopo'; end if;
+  v_ok := public.djen_confirmar_agenda_conector(v_item,v_revisao,'evento-sintetico-teste','juridico@julianaaraujoadvocacia.com');
+  if not v_ok or exists(select 1 from djen_agenda_fila where item_id=v_item) then raise exception 'Não confirmou evento'; end if;
+end; $$;
 insert into public.agente_execucoes(id, agente_id, status)
 select '00000000-0000-0000-0000-000000000200', id, 'executando'
 from public.agentes_ia where slug='minuta-pecas';

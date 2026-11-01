@@ -1,5 +1,7 @@
 # Colocar o sistema online — passo a passo
 
+> Atualização de 01/11/2026: os dois primeiros agentes DJEN agora executam no Supabase sem n8n. A implantação, os testes reais e os limites atuais estão em [agentes-djen-operacao.md](agentes-djen-operacao.md). O roteiro abaixo é histórico para agentes externos opcionais; n8n não é requisito para coleta e triagem DJEN.
+
 Situação em 31/10/2026. Objetivo: sistema acessível por URL e agentes de IA funcionando.
 
 ## O diagnóstico
