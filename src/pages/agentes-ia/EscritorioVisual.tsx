@@ -1,4 +1,5 @@
-import PlantaEscritorio from "./escritorio/PlantaEscritorio";
+import { lazy, Suspense } from "react";
+const PlantaEscritorio = lazy(() => import("./escritorio/PlantaEscritorio"));
 import { SALAS, salaAgente, type SalaId } from "./escritorio/salas";
 import { useState } from "react";
 import {
@@ -173,13 +174,21 @@ export default function EscritorioVisual({
     >
       {modo === "planta" && (
         <>
-          <PlantaEscritorio
-            agentes={agentes}
-            execucoes={execucoes}
-            sala={sala}
-            selecionarSala={entrarSala}
-            selecionarAgente={setSelecionado}
-          />
+          <Suspense
+            fallback={
+              <p className="op-3d-loading" role="status">
+                Carregando o ambiente 3D…
+              </p>
+            }
+          >
+            <PlantaEscritorio
+              agentes={agentes}
+              execucoes={execucoes}
+              sala={sala}
+              selecionarSala={entrarSala}
+              selecionarAgente={setSelecionado}
+            />
+          </Suspense>
           {detalhesSala && (
             <aside
               className="jas-room-float"

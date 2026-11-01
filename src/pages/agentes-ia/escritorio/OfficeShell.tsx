@@ -1,63 +1,50 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import {
-  ArrowLeft,
-  LayoutGrid,
-  Terminal,
-  MessageSquare,
-  Users,
-  ClipboardCheck,
-  History,
   Activity,
-  Plus,
+  CheckCheck,
+  ChevronDown,
+  Menu,
+  Moon,
   RefreshCw,
+  Settings,
+  Sun,
+  Terminal,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
+import { NotificacoesBadge } from "@/components/layout/NotificacoesBadge";
+import OfficeSidebar from "./design/OfficeSidebar";
+import { OFFICE_SECTIONS, type SecaoOffice } from "./design/navigation";
+import {
+  readPreference,
+  savePreference,
+  useOfficeAppearance,
+} from "./design/useOfficeAppearance";
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-500.css";
+import "@fontsource/inter/latin-600.css";
+import "@fontsource/inter/latin-700.css";
 import "./escritorio.css";
-const SECOES = [
-  {
-    id: "comando",
-    nome: "Central de Comando",
-    icone: Terminal,
-    caminho: "/escritorio",
-  },
-  {
-    id: "planta",
-    nome: "Escritório 3D",
-    icone: LayoutGrid,
-    caminho: "/escritorio/planta",
-  },
-  {
-    id: "chat",
-    nome: "Conversas",
-    icone: MessageSquare,
-    caminho: "/escritorio/chat",
-  },
-  { id: "equipe", nome: "Equipe", icone: Users, caminho: "/escritorio/equipe" },
-  {
-    id: "entregas",
-    nome: "Entregas",
-    icone: ClipboardCheck,
-    caminho: "/escritorio/entregas",
-  },
-  {
-    id: "historico",
-    nome: "Histórico",
-    icone: History,
-    caminho: "/escritorio/historico",
-  },
-  {
-    id: "operacao",
-    nome: "Operação",
-    icone: Activity,
-    caminho: "/escritorio/operacao",
-  },
-] as const;
-export type SecaoOffice = (typeof SECOES)[number]["id"];
-export function secaoOffice(pathname: string): SecaoOffice {
-  const id = pathname.split("/")[2] || "comando";
-  return SECOES.some((s) => s.id === id) ? (id as SecaoOffice) : "comando";
-}
+import "./design/office-product.css";
+export { secaoOffice } from "./design/navigation";
 export default function OfficeShell({
   secao,
   children,
@@ -77,111 +64,201 @@ export default function OfficeShell({
   trabalhando: number;
   atualizadoEm: string | null;
 }) {
-  const [agora, setAgora] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setAgora(new Date()), 60000);
-    return () => clearInterval(t);
-  }, []);
-  const titulo = SECOES.find((s) => s.id === secao)!.nome;
+  const { profile, signOut } = useAuth();
+  const { theme, toggleTheme, reduceMotion, setReduceMotion } =
+    useOfficeAppearance();
+  const [collapsed, setCollapsed] = useState(
+    () => readPreference("jas-office-sidebar", "expanded") === "collapsed",
+  );
+  const [mobile, setMobile] = useState(false);
+  const toggle = () =>
+    setCollapsed((v) => {
+      savePreference("jas-office-sidebar", v ? "expanded" : "collapsed");
+      return !v;
+    });
+  const nome = profile?.nome ?? "Minha conta";
+  const iniciais = nome
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("");
   return (
-    <div className="jas-office-shell">
-      <header className="office-shell-header">
-        <Link to="/" className="office-back" aria-label="Voltar ao sistema JAS">
-          <ArrowLeft size={16} />
-          <span>Voltar ao JAS</span>
-        </Link>
-        <div className="office-shell-brand">
-          <img src="/logo-juliana-araujo.png" alt="Juliana Araújo Advocacia" />
-          <div>
-            <h1>Escritório virtual</h1>
-            <p>
-              {trabalhando} em execução <span>·</span> {pendentes} para revisão
-            </p>
+    <div className="office-product" data-sidebar-collapsed={collapsed}>
+      <a className="op-skip-link" href="#office-content">
+        Pular para o conteúdo
+      </a>
+      <aside className="op-desktop-sidebar">
+        <OfficeSidebar
+          secao={secao}
+          collapsed={collapsed}
+          toggle={toggle}
+          contratar={contratar}
+        />
+      </aside>
+      <Sheet open={mobile} onOpenChange={setMobile}>
+        <SheetContent side="left" className="op-mobile-sidebar">
+          <SheetTitle className="sr-only">Navegação do escritório</SheetTitle>
+          <SheetDescription className="sr-only">
+            Módulos e ferramentas do escritório inteligente.
+          </SheetDescription>
+          <OfficeSidebar
+            secao={secao}
+            collapsed={false}
+            toggle={() => setMobile(false)}
+            contratar={contratar}
+            onNavigate={() => setMobile(false)}
+          />
+        </SheetContent>
+      </Sheet>
+      <div className="op-workspace">
+        <header className="op-topbar">
+          <button
+            className="op-icon-button op-mobile-menu"
+            aria-label="Abrir menu do escritório"
+            onClick={() => setMobile(true)}
+          >
+            <Menu size={20} />
+          </button>
+          <div className="op-breadcrumb">
+            <span>Escritório Inteligente</span>
+            <i>/</i>
+            <strong>{OFFICE_SECTIONS[secao]}</strong>
           </div>
-        </div>
-        <div className="office-shell-clock">
-          <time>
-            {agora.toLocaleTimeString("pt-BR", {
-              timeZone: "America/Cuiaba",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </time>
+          <div className="op-global-search">
+            <GlobalSearch label="Buscar no escritório…" />
+          </div>
+          <div className="op-topbar-controls">
+            <Link
+              to="/escritorio"
+              className="op-icon-button op-command-shortcut"
+              aria-label="Abrir Central de Comando"
+              title="Central de Comando"
+            >
+              <Terminal size={17} />
+            </Link>
+            <Link
+              to="/escritorio/historico"
+              className="op-running"
+              aria-label={`${trabalhando} execuções em andamento`}
+              title="Execuções em andamento registradas no sistema"
+            >
+              <Activity size={14} />
+              <span>{trabalhando} em execução</span>
+            </Link>
+            <Link
+              to="/escritorio/entregas"
+              className="op-icon-button op-approvals"
+              aria-label={`${pendentes} resultados para revisar`}
+              title="Entregas para revisão"
+            >
+              <CheckCheck size={18} />
+              {pendentes > 0 && <b>{pendentes}</b>}
+            </Link>
+            <NotificacoesBadge />
+            <button
+              className="op-icon-button"
+              aria-label={
+                theme === "light" ? "Usar tema escuro" : "Usar tema claro"
+              }
+              onClick={toggleTheme}
+            >
+              {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="op-account"
+                aria-label="Abrir perfil e preferências"
+              >
+                <span className="op-account-avatar">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" />
+                  ) : (
+                    iniciais
+                  )}
+                </span>
+                <span className="op-account-name">
+                  <strong>{nome.split(" ")[0]}</strong>
+                  <small>Minha conta</small>
+                </span>
+                <ChevronDown size={12} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="op-profile-menu">
+                <DropdownMenuLabel>{nome}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={reduceMotion}
+                  onCheckedChange={setReduceMotion}
+                >
+                  Reduzir animações
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/configuracoes/escritorio">
+                    <Settings size={15} className="mr-2" />
+                    Configurações do escritório
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => void signOut()}>
+                  <LogOut size={15} className="mr-2" />
+                  Sair da conta
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+        <main
+          id="office-content"
+          className="office-shell-main"
+          data-view={secao}
+          aria-label={OFFICE_SECTIONS[secao]}
+          tabIndex={-1}
+        >
+          {secao !== "planta" && (
+            <div className="op-page-heading">
+              <div>
+                <p>ESCRITÓRIO INTELIGENTE</p>
+                <h1>{OFFICE_SECTIONS[secao]}</h1>
+                <span>
+                  {secao === "comando"
+                    ? "Da sua solicitação ao resultado. Tudo acompanhado, em um só lugar."
+                    : secao === "chat"
+                      ? "Acompanhe as rotinas e converse com seus analistas."
+                      : secao === "equipe"
+                        ? "Pessoas virtuais, funções e rotinas do escritório."
+                        : secao === "entregas"
+                          ? "Resultados que precisam da sua decisão."
+                          : secao === "historico"
+                            ? "Execuções e passos registrados pelos agentes."
+                            : "Saúde das rotinas e consumo de inteligência artificial."}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={recarregar}
+                disabled={loading}
+                className="op-refresh"
+              >
+                <RefreshCw size={14} />
+                <span>Atualizar</span>
+              </Button>
+            </div>
+          )}
+          {children}
+        </main>
+        <footer className="op-workspace-status">
           <span>
-            {agora.toLocaleDateString("pt-BR", {
-              timeZone: "America/Cuiaba",
-              day: "2-digit",
-              month: "long",
-            })}
+            <i />
+            {atualizadoEm
+              ? `Atualizado às ${new Date(atualizadoEm).toLocaleTimeString("pt-BR", { timeZone: "America/Cuiaba", hour: "2-digit", minute: "2-digit" })}`
+              : "Consultando registros…"}
           </span>
-        </div>
-        <div className="office-shell-actions">
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Atualizar dados do escritório"
-            onClick={recarregar}
-            disabled={loading}
-          >
-            <RefreshCw size={15} />
-          </Button>
-          <Button
-            size="sm"
-            onClick={contratar}
-            aria-label="Contratar agente"
-            className="jas-office-top-button"
-          >
-            <Plus size={14} />
-            <span>Contratar agente</span>
-          </Button>
-        </div>
-      </header>
-      <nav className="office-shell-nav" aria-label="Menu do escritório virtual">
-        {SECOES.map((s) => (
-          <NavLink
-            key={s.id}
-            to={s.caminho}
-            end={s.id === "comando"}
-            className={secao === s.id ? "office-nav-active" : ""}
-            aria-current={secao === s.id ? "page" : undefined}
-          >
-            <s.icone size={15} />
-            <span>{s.nome}</span>
-            {s.id === "entregas" && pendentes > 0 && <b>{pendentes}</b>}
-          </NavLink>
-        ))}
-      </nav>
-      <main className="office-shell-main" data-view={secao} aria-label={titulo}>
-        {secao !== "planta" && (
-          <div className="office-section-heading">
-            <p>JULIANA ARAÚJO · ESCRITÓRIO VIRTUAL</p>
-            <h2>{titulo}</h2>
-            <span>
-              {secao === "comando"
-                ? "Envie um comando com TXT e acompanhe a Clara em homologação."
-                : secao === "chat"
-                  ? "Um canal para acompanhar e conversar com os agentes."
-                  : secao === "equipe"
-                    ? "Pessoas virtuais, funções e rotinas do escritório."
-                    : secao === "entregas"
-                      ? "Resultados que precisam da sua decisão."
-                      : secao === "historico"
-                        ? "Execuções e passos registrados pelos agentes."
-                        : "Saúde das rotinas e consumo de inteligência artificial."}
-            </span>
-          </div>
-        )}
-        {children}
-      </main>
-      <footer className="office-shell-status">
-        <span>
-          <i />
-          {atualizadoEm
-            ? `Última atualização ${new Date(atualizadoEm).toLocaleTimeString("pt-BR", { timeZone: "America/Cuiaba", hour: "2-digit", minute: "2-digit" })}`
-            : "Consultando registros…"}
-        </span>
-        <span>Atividade baseada nas execuções reais · America/Cuiaba</span>
-      </footer>
+          <span>
+            Juliana Araújo Advocacia <b>·</b> America/Cuiaba
+          </span>
+        </footer>
+      </div>
     </div>
   );
 }

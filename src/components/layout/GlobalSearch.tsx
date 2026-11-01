@@ -10,7 +10,14 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import { Search, Users, Briefcase, ClipboardCheck, FileText, Loader2 } from "lucide-react";
+import {
+  Search,
+  Users,
+  Briefcase,
+  ClipboardCheck,
+  FileText,
+  Loader2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -35,7 +42,7 @@ const VAZIO: ResultadosAgrupados = {
   documentos: [],
 };
 
-export function GlobalSearch() {
+export function GlobalSearch({ label = "Buscar..." }: { label?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [termo, setTermo] = useState("");
   const [carregando, setCarregando] = useState(false);
@@ -93,7 +100,9 @@ export function GlobalSearch() {
           ? supabase
               .from("processos")
               .select("id, numero_cnj, tipo_acao, vara")
-              .or(`numero_cnj.ilike.${ilike},tipo_acao.ilike.${ilike},vara.ilike.${ilike}`)
+              .or(
+                `numero_cnj.ilike.${ilike},tipo_acao.ilike.${ilike},vara.ilike.${ilike}`,
+              )
               .limit(6)
           : Promise.resolve({ data: [] as any[] }),
         podeControladoria
@@ -124,7 +133,8 @@ export function GlobalSearch() {
         processos: (resProcessos.data ?? []).map((p: any) => ({
           id: p.id,
           titulo: p.numero_cnj || "Processo sem número",
-          subtitulo: [p.tipo_acao, p.vara].filter(Boolean).join(" • ") || undefined,
+          subtitulo:
+            [p.tipo_acao, p.vara].filter(Boolean).join(" • ") || undefined,
           rota: `/processos/${p.id}`,
         })),
         tarefas: (resTarefas.data ?? []).map((t: any) => ({
@@ -151,7 +161,7 @@ export function GlobalSearch() {
       setOpen(false);
       navigate(rota);
     },
-    [navigate]
+    [navigate],
   );
 
   const totalResultados =
@@ -169,7 +179,7 @@ export function GlobalSearch() {
         className="gap-2 text-muted-foreground hover:text-foreground"
       >
         <Search className="w-4 h-4" />
-        <span className="hidden sm:inline">Buscar...</span>
+        <span className="hidden sm:inline">{label}</span>
         <kbd className="hidden md:inline-flex pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
           <span className="text-xs">⌘</span>K
         </kbd>
@@ -209,7 +219,9 @@ export function GlobalSearch() {
                   <div className="flex-1 min-w-0">
                     <div className="truncate">{r.titulo}</div>
                     {r.subtitulo && (
-                      <div className="text-xs text-muted-foreground truncate">{r.subtitulo}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {r.subtitulo}
+                      </div>
                     )}
                   </div>
                 </CommandItem>
@@ -229,9 +241,13 @@ export function GlobalSearch() {
                   >
                     <Briefcase className="w-4 h-4 mr-2 text-muted-foreground" />
                     <div className="flex-1 min-w-0">
-                      <div className="truncate font-mono text-xs">{r.titulo}</div>
+                      <div className="truncate font-mono text-xs">
+                        {r.titulo}
+                      </div>
                       {r.subtitulo && (
-                        <div className="text-xs text-muted-foreground truncate">{r.subtitulo}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {r.subtitulo}
+                        </div>
                       )}
                     </div>
                   </CommandItem>
@@ -242,9 +258,8 @@ export function GlobalSearch() {
 
           {resultados.tarefas.length > 0 && (
             <>
-              {(resultados.clientes.length > 0 || resultados.processos.length > 0) && (
-                <CommandSeparator />
-              )}
+              {(resultados.clientes.length > 0 ||
+                resultados.processos.length > 0) && <CommandSeparator />}
               <CommandGroup heading="Tarefas / Controladoria">
                 {resultados.tarefas.map((r) => (
                   <CommandItem
