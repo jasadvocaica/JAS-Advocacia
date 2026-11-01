@@ -40,3 +40,7 @@ Referência: Especificação Mestra v1.0 de 01/11/2026, aceita por Juliana nesta
 A seção 20 da especificação determina: “Não avance para mudanças destrutivas ou produção sem aprovação.” Por isso, a migração M1 e o novo executor são preparados e testados localmente antes de qualquer instalação no projeto ativo. A alternativa revisável é um schema `homologacao`, sem exposição na API pública e sem dados copiados, mais uma função dedicada que usa a OpenAI já configurada no servidor. Sua instalação precisa de confirmação do ambiente, pois o único projeto disponível é o JAS de produção.
 
 Nenhuma tabela de clientes de produção foi alterada durante esta auditoria. Não foram lidos, exportados ou solicitados valores de chaves, tokens ou senhas.
+
+## Atualização após autorização de homologação
+
+Após a auditoria, Juliana autorizou explicitamente instalar o schema privado de homologação e o executor Clara no projeto JAS. A instalação e o teste real foram concluídos, com 503 tokens e um cadastro fictício, sem mudança na contagem de clientes de produção. A ausência de projeto Supabase separado e de acesso verificado à VPS continua registrada; a alternativa isolada no JAS foi escolhida pela usuária. Evidências completas: `docs/clara-m1-operacao.md`, seção de homologação real.
