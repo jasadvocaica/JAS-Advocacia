@@ -45,7 +45,7 @@ jobs:
           JAS_TEST_PGHOST: localhost
         run: python3 tests/agentes/concorrencia.py
       - name: Validar escritório e revisão humana
-        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/escritorio/bootstrap.sql -f tests/escritorio/fluxo.sql
+        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/escritorio/bootstrap.sql -f tests/escritorio/fluxo.sql -f supabase/migrations/20261101165318_escritorio_salas.sql -f supabase/migrations/20261101165445_escritorio_chat_privilegios.sql -f tests/escritorio/salas-chat.sql
       - name: Validar limite diário de tokens
         run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/assistente/tokens-bootstrap.sql -f tests/assistente/tokens.sql
       - name: Validar concorrência do orçamento
