@@ -2,6 +2,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import AgentesIA from "./AgentesIA";
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    profile: { nome: "Juliana Araújo" },
+    user: null,
+    hasPermission: () => true,
+    signOut: vi.fn(),
+  }),
+}));
 vi.mock("./hooks/useAgentesIA", () => ({
   chamarEscritorio: vi.fn(),
   LABEL_STATUS_EXECUCAO: {},
@@ -31,10 +39,10 @@ const abrir = (url = "/escritorio/planta") =>
     </MemoryRouter>,
   );
 describe("Áreas independentes do escritório", () => {
-  it("abre a planta sem misturar chat e painéis de consumo", () => {
+  it("abre a planta sem misturar chat e painéis de consumo", async () => {
     abrir();
     expect(
-      screen.getByRole("group", { name: /Planta isométrica/ }),
+      await screen.findByRole("group", { name: /Planta isométrica/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("log")).not.toBeInTheDocument();
     expect(screen.queryByText("Consumo OpenAI hoje")).not.toBeInTheDocument();

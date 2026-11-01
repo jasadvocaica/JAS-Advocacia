@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { OfficeStatus } from "./design/OfficeUI";
 import { CLARA_EXEMPLO } from "../../../../supabase/functions/_shared/clara";
 interface Tarefa {
   id: string;
@@ -163,23 +164,18 @@ export default function CentralComando() {
     }
   }
   return (
-    <section
-      className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"
-      aria-label="Central de Comando"
-    >
-      <div className="space-y-4 rounded-xl border bg-card p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] text-amber-900">
-            HOMOLOGAÇÃO · M1
-          </span>
-          <span className="text-xs text-muted-foreground">
-            Encaminhamento automático para Clara
-          </span>
+    <section className="op-command-grid" aria-label="Central de Comando">
+      <div className="op-panel space-y-5">
+        <div className="op-composer-heading">
+          <div>
+            <h2>O que vamos organizar hoje?</h2>
+            <p>Envie sua demanda e acompanhe cada etapa da execução.</p>
+          </div>
+          <OfficeStatus tone="warning">Homologação</OfficeStatus>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Disponível nesta etapa: cadastro de cliente fictícia por TXT, com
-          prévia e aprovação. Consultas processuais e outros comandos ainda não
-          estão habilitados.
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          A Clara prepara o cadastro de uma cliente fictícia por TXT. Você
+          confere os dados e aprova antes da gravação no ambiente isolado.
         </p>
         {habilitado === false && (
           <div
@@ -233,7 +229,7 @@ export default function CentralComando() {
               setArquivo("texto-colado.txt");
             }}
             maxLength={12000}
-            rows={9}
+            rows={5}
             placeholder="Cole os dados fictícios da cliente ou anexe um TXT."
           />
         </label>
@@ -256,6 +252,14 @@ export default function CentralComando() {
           <Play size={14} className="mr-2" />
           {ocupado ? "Processando…" : "Enviar comando"}
         </Button>
+        <div
+          className="op-command-capabilities"
+          aria-label="Capacidades disponíveis"
+        >
+          <span>Disponível: cadastro por TXT</span>
+          <span>PDF e planilhas: não habilitados</span>
+          <span>Limite global: 50 mil tokens/dia</span>
+        </div>
         {erro && (
           <p
             role="alert"
@@ -287,7 +291,7 @@ export default function CentralComando() {
               ))}
             </dl>
             {tarefa.pendencias?.length > 0 && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+              <div className="op-warning-box rounded-lg border p-3 text-xs">
                 <strong className="flex items-center gap-2">
                   <AlertTriangle size={14} />
                   Pendências que bloqueiam o cadastro
@@ -326,7 +330,7 @@ export default function CentralComando() {
           </div>
         )}
         {tarefa?.cliente_id && (
-          <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-xs text-emerald-950">
+          <div className="op-success-box rounded-lg border p-4 text-xs">
             <strong>Cadastro confirmado na homologação.</strong>
             <p className="mt-1 break-all">ID: {tarefa.cliente_id}</p>
             <p>
@@ -335,7 +339,14 @@ export default function CentralComando() {
           </div>
         )}
       </div>
-      <aside className="space-y-4 rounded-xl border bg-card p-5">
+      <aside className="op-panel space-y-5">
+        <div className="op-agent-identity">
+          <div className="op-agent-avatar">CL</div>
+          <div>
+            <strong>Clara</strong>
+            <span>Assistente de cadastro · TXT</span>
+          </div>
+        </div>
         <h3 className="text-sm font-semibold">Plano e execução</h3>
         {!tarefa ? (
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -347,11 +358,16 @@ export default function CentralComando() {
             <p className="rounded-md bg-muted px-3 py-2 text-xs font-medium">
               {ESTADOS[tarefa.estado] ?? tarefa.estado}
             </p>
-            <p className="break-all text-[10px] text-muted-foreground">
-              Tarefa: {tarefa.id}
-              <br />
-              Hash SHA-256: {tarefa.hash}
-            </p>
+            <details className="text-[10px] text-muted-foreground">
+              <summary className="cursor-pointer">
+                Identificação da execução
+              </summary>
+              <p className="mt-2 break-all">
+                Tarefa: {tarefa.id}
+                <br />
+                Hash SHA-256: {tarefa.hash}
+              </p>
+            </details>
             <ol className="space-y-3">
               {tarefa.eventos.map((e) => (
                 <li key={e.id} className="border-l-2 border-primary/20 pl-3">
