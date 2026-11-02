@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Escritório isométrico · JAS</title>
+  <link rel="icon" href="assets/logo-marinho.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Aberto dentro do sistema JAS (/escritorio/isometrico). Os dados chegam pela página do app. -->
+  <canvas id="cena" aria-label="Escritório em visão isométrica com os agentes de IA"></canvas>
+
+  <header class="topo">
+    <div class="marca">
+      <div class="logo"><img src="assets/logo.webp" alt="Juliana Araújo Advocacia & Assessoria Jurídica"></div>
+      <div class="marca-txt">
+        <span class="sobre">Escritório virtual</span>
+        <span id="resumo" class="resumo">—</span>
+      </div>
+    </div>
+    <div class="relogio">
+      <span id="hora">--:--</span>
+      <span id="data"></span>
+    </div>
+  </header>
+
+  <nav class="salas" id="salas" aria-label="Salas"></nav>
+
+  <aside class="painel" id="painel" hidden>
+    <button class="fechar" id="fechar" aria-label="Fechar">×</button>
+    <div id="painel-conteudo"></div>
+  </aside>
+
+  <div class="controles">
+    <button id="z-mais" title="Aproximar" aria-label="Aproximar">+</button>
+    <button id="z-menos" title="Afastar" aria-label="Afastar">−</button>
+    <button id="centro" title="Ver o escritório inteiro" aria-label="Ver o escritório inteiro">⤢</button>
+    <button id="luz" title="Luz: automática pela hora" aria-label="Alternar dia e noite">◐</button>
+  </div>
+
+  <div class="dica" id="dica" hidden></div>
+  <div class="avisos" id="avisos" aria-live="polite"></div>
+
+  <script src="js/iso.js"></script>
+  <script src="js/mapa.js"></script>
+  <script src="js/moveis.js"></script>
+  <script src="js/equipe.js"></script>
+  <script src="js/pessoas.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/ponte.js"></script>
+  <script src="js/central.js"></script>
+</body>
+</html>
