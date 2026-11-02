@@ -39,10 +39,11 @@ async function processoPorCnj(db: SupabaseClient, n: string) {
 // ------------------------------------------------------------------ pesquisa em fontes oficiais
 export interface ContextoIA { key: string; modelo: string; execucao_id: string; agente_id: string; tarefa_id: string; proximaRodada: () => number }
 
-// A taxa da busca na web não vem em tokens: reservamos o equivalente (US$ 0,01 ≈ 25 mil tokens de entrada
-// no gpt-4.1-mini) mais folga para o conteúdo das páginas, e confirmamos o uso real + a taxa.
+// A taxa da busca na web não vem em tokens: confirmamos o uso real + o equivalente da taxa (US$ 0,01 ≈ 25 mil
+// tokens de entrada no gpt-4.1-mini). O conteúdo das páginas varia muito e, se o custo passar do reservado, o
+// motor se desliga por segurança; por isso a reserva da pesquisa é sempre o teto (200 mil tokens ≈ US$ 0,08).
 const TAXA_BUSCA_TOKENS = 25000;
-const FOLGA_PAGINAS_TOKENS = 60000;
+const RESERVA_PESQUISA_TOKENS = 200000;
 
 async function pesquisarOficial(db: SupabaseClient, ctx: ContextoIA, pergunta: string) {
   const rodada = ctx.proximaRodada();
@@ -65,7 +66,7 @@ async function pesquisarOficial(db: SupabaseClient, ctx: ContextoIA, pergunta: s
   const { input_tokens } = await count.json();
   const reserva = await db.rpc("ia_reservar", {
     _id: ctx.execucao_id, _rodada: rodada, _agente: ctx.agente_id, _tarefa: ctx.tarefa_id, _modelo: ctx.modelo,
-    _entrada: Math.min(200000, input_tokens + TAXA_BUSCA_TOKENS + FOLGA_PAGINAS_TOKENS), _saida_max: 1500,
+    _entrada: Math.max(RESERVA_PESQUISA_TOKENS, Math.min(200000, input_tokens)), _saida_max: 1500,
   });
   if (reserva.error || reserva.data?.ok !== true) throw new Error("Sem orçamento de IA para pesquisar agora.");
   const resp = await fetch("https://api.openai.com/v1/responses", {

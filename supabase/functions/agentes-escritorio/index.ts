@@ -5,6 +5,7 @@ import {
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { respostaComLimite } from "../assistente-chat/limites.ts";
 import { usuarioInterno } from "../_shared/interno.ts";
+import { pedidoSugestao, textoDaResposta, validarSugestao } from "./sugerir.ts";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -144,6 +145,49 @@ Deno.serve(async (req) => {
           403,
         );
       return json({ ok: true, id: body.agente_id });
+    }
+    if (body.acao === "sugerir_agente") {
+      // Só sugere; quem salva é a pessoa, no editor. Custo entra no orçamento de IA do motor (conta da Gestora).
+      const relato = typeof body.relato === "string" ? body.relato.trim() : "";
+      if (relato.length < 15 || relato.length > 3000)
+        return json({ error: "Descreva o agente em 15 a 3.000 caracteres." }, 400);
+      const key = Deno.env.get("OPENAI_API_KEY");
+      const { data: cfgIA } = await db.from("assistente_config").select("modelo,habilitado").single();
+      if (!key || !cfgIA?.habilitado) return json({ error: "OpenAI desativada no sistema" }, 409);
+      const g = await db.rpc("motor_gatilhos", { _usuario: userId });
+      const { data: lista } = await db.from("agentes_ia").select("id,nome,executor,ativo").eq("ativo", true);
+      const conta = (lista ?? []).find((a) => a.id === g.data?.gestora_id) ??
+        (lista ?? []).find((a) => /manu/i.test(a.nome)) ?? (lista ?? [])[0];
+      if (!conta) return json({ error: "Nenhum agente ativo para registrar o custo." }, 409);
+      const payload = pedidoSugestao(relato, cfgIA.modelo);
+      const init = {
+        method: "POST",
+        redirect: "error" as const,
+        signal: AbortSignal.timeout(60000),
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      };
+      const contagem = await fetch("https://api.openai.com/v1/responses/input_tokens", { ...init, body: JSON.stringify(payload) });
+      if (!contagem.ok) return json({ error: "Não foi possível medir o pedido. Nada foi cobrado." }, 502);
+      const { input_tokens } = await contagem.json();
+      const id = crypto.randomUUID();
+      const reserva = await db.rpc("ia_reservar", {
+        _id: id, _rodada: 0, _agente: conta.id, _tarefa: null, _modelo: cfgIA.modelo, _entrada: input_tokens, _saida_max: 3000,
+      });
+      if (reserva.error) throw new Error(reserva.error.message);
+      if (reserva.data?.ok !== true) return json({ error: "Sem orçamento de IA hoje para sugerir o agente." }, 409);
+      const resp = await fetch("https://api.openai.com/v1/responses", {
+        ...init, body: JSON.stringify({ ...payload, store: false, max_output_tokens: 3000 }),
+      });
+      if (!resp.ok) return json({ error: resp.status === 429 ? "Limite da API OpenAI atingido" : "Falha da API OpenAI" }, 502);
+      const ai = await resp.json();
+      await db.rpc("ia_confirmar", { _id: id, _rodada: 0, _entrada: ai.usage?.input_tokens ?? 0, _saida: ai.usage?.output_tokens ?? 0 });
+      let bruto: unknown;
+      try {
+        bruto = JSON.parse(textoDaResposta(ai));
+      } catch {
+        return json({ error: "A IA não devolveu uma sugestão legível. Tente de novo." }, 502);
+      }
+      return json({ ok: true, sugestao: validarSugestao(bruto) });
     }
     if (body.acao === "contratar") {
       if (body.sala != null && !salas.includes(body.sala))

@@ -27,6 +27,8 @@ import {
 import { SALAS } from "../salas";
 import "./agent-editor.css";
 import { PERSONA_TEMPLATES, templateConfig } from "./personaTemplates";
+import CriarComIA from "./CriarComIA";
+import { chamarMotor } from "../missoes/motor";
 
 const inicial: ConfigAgente = {
   nome: "",
@@ -124,6 +126,8 @@ export default function AgentEditor({
 }) {
   const navigate = useNavigate();
   const [modelo, setModelo] = useState("");
+  // Ferramentas do motor sugeridas pela IA; concedidas logo depois de criar o agente.
+  const [ferramentasMotor, setFerramentasMotor] = useState<string[]>([]);
   const agent = agentes.find((a) => a.id === agenteId);
   const agentRef = useRef(agent);
   agentRef.current = agent;
@@ -234,6 +238,18 @@ export default function AgentEditor({
       setRev(d.revisao);
       setBase(validated);
       setSaved(true);
+      if (!agenteId && ferramentasMotor.length) {
+        const falhas: string[] = [];
+        for (const ferramenta of ferramentasMotor) {
+          try {
+            await chamarMotor({ acao: "ferramenta", agente_id: d.agente_id, ferramenta, conceder: true });
+          } catch {
+            falhas.push(ferramenta);
+          }
+        }
+        if (falhas.length)
+          setError(`Agente criado, mas ${falhas.length} ferramenta(s) não foram liberadas. Libere na aba Ferramentas da Central de Agentes.`);
+      }
       await recarregar();
       if (!agenteId)
         navigate(`/escritorio/equipe/${d.agente_id}/editar`, { replace: true });
@@ -335,6 +351,20 @@ export default function AgentEditor({
           <span>{config.ativo ? "Ligado após salvar" : "Pausado após salvar"}</span>
         </div>
       </header>
+
+      {!agenteId && (
+        <CriarComIA
+          config={config}
+          aplicar={(c) => {
+            setConfig(c);
+            setSaved(false);
+            setError(null);
+            setTab("prompt");
+          }}
+          ferramentas={ferramentasMotor}
+          setFerramentas={setFerramentasMotor}
+        />
+      )}
 
       {!agenteId && (
         <div className="agent-template-picker">

@@ -159,6 +159,27 @@
 }
 .agent-template-picker p { margin: 10px 0 0; font-size: 12px; color: var(--op-muted); line-height: 1.5; }
 
+/* ---------- criar com IA ---------- */
+.ae-ia {
+  display: grid;
+  gap: 10px;
+  background: color-mix(in srgb, var(--op-gold) 8%, var(--op-surface));
+  border: 1px solid color-mix(in srgb, var(--op-gold) 45%, transparent);
+  border-radius: var(--ae-radius);
+  padding: 16px 20px;
+  margin-bottom: 14px;
+}
+.ae-ia > label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--op-text); }
+.ae-ia-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ae-ia-acoes small, .ae-ia fieldset small { font-size: 12px; color: var(--op-muted); }
+.ae-ia-erro { margin: 0; font-size: 12.5px; color: #c0392b; }
+.ae-ia-resultado { display: grid; gap: 10px; font-size: 13px; color: var(--op-text); }
+.ae-ia-resultado p { margin: 0; }
+.ae-ia fieldset { display: grid; gap: 6px; border: 1px solid var(--op-line); border-radius: 10px; padding: 10px 12px; }
+.ae-ia legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
+.ae-ia fieldset label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ae-ia ul { margin: 6px 0 0 18px; font-size: 12.5px; color: var(--op-muted); }
+
 /* ---------- abas ---------- */
 .agent-editor-tabs {
   display: flex;
