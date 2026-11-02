@@ -26,9 +26,11 @@ const painel = (missoes: Missao[], motor_ligado = false): Painel => ({
   atividades: [{ id: 1, acao: "tarefa.delegada", ator_tipo: "agente", ator: "Manu", criado_em: "2026-11-01T12:05:00Z" }],
 });
 const agentes = [
-  { id: "a1", slug: "manu", nome: "Manu", ativo: true },
-  { id: "a2", slug: "rafael", nome: "Rafael", ativo: true },
+  { id: "a1", slug: "manu", nome: "Manu", ativo: true, executor: "analista_operacional" },
+  { id: "a2", slug: "rafael", nome: "Rafael", ativo: true, executor: "analista_operacional" },
+  { id: "a3", slug: "monitor-djen", nome: "Monitor DJEN", ativo: true, executor: null },
 ] as AgenteIA[];
+const gatilhos = { djen_automatico: false, gestora_id: null, djen_max_dia: 20, na_fila: 0, criadas_hoje: 0 };
 
 beforeEach(() => invoke.mockReset());
 
@@ -92,7 +94,11 @@ describe("Sala da Gestora", () => {
   const responder = (aprovacoes: unknown[]) =>
     invoke.mockImplementation((_f: string, opcoes?: { body?: { acao?: string } }) => {
       const acao = opcoes?.body?.acao;
-      return Promise.resolve({ data: acao === "painel" ? painel([]) : acao === "aprovacoes" ? { aprovacoes } : { ok: true }, error: null });
+      const data = acao === "painel" ? painel([]) : acao === "aprovacoes" ? { aprovacoes }
+        : acao === "gatilhos" ? gatilhos
+        : acao === "ajustar_gatilhos" ? { ...gatilhos, djen_automatico: true, gestora_id: "a1", djen_max_dia: 10 }
+        : { ok: true };
+      return Promise.resolve({ data, error: null });
     });
 
   it("aprova com o escopo exato que a pessoa viu", async () => {
@@ -122,9 +128,26 @@ describe("Sala da Gestora", () => {
   it("só liga o motor depois de confirmar", async () => {
     responder([]);
     render(<SalaGestora agentes={agentes} execucoes={[]} mensagens={[]} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Ligar/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ligar" }));
     expect(invoke).not.toHaveBeenCalledWith("motor-missoes", { body: { acao: "ajustar", ligado: true } });
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Ligar" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("motor-missoes", { body: { acao: "ajustar", ligado: true } }));
+  });
+
+  it("liga as missões automáticas do DJEN para a Manu, com teto diário", async () => {
+    responder([]);
+    render(<SalaGestora agentes={agentes} execucoes={[]} mensagens={[]} />);
+    const ligar = await screen.findByRole("button", { name: "Ligar missões automáticas do DJEN" });
+    const gestora = screen.getByLabelText("Gestora") as HTMLSelectElement;
+    expect(Array.from(gestora.options).map((o) => o.text)).toEqual(["Manu", "Rafael"]);
+    expect(gestora.value).toBe("a1");
+    fireEvent.change(screen.getByLabelText("Máximo por dia"), { target: { value: "10" } });
+    fireEvent.click(ligar);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("motor-missoes", {
+        body: { acao: "ajustar_gatilhos", djen_automatico: true, gestora_id: "a1", djen_max_dia: 10 },
+      }),
+    );
+    expect(await screen.findByRole("button", { name: "Desligar missões automáticas do DJEN" })).toBeInTheDocument();
   });
 });

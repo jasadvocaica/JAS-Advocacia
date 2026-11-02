@@ -316,6 +316,22 @@ Deno.serve(async (req) => {
         if (r.error) throw r.error;
         return json(r.data);
       }
+      case "gatilhos": {
+        const r = await db.rpc("motor_gatilhos", { _usuario: usuario });
+        if (r.error) return json({ error: r.error.message }, 403);
+        return json(r.data);
+      }
+      case "ajustar_gatilhos": {
+        if (body.gestora_id != null && !UUID.test(body.gestora_id)) return json({ error: "Agente inválido" }, 400);
+        const r = await db.rpc("motor_ajustar_gatilhos", {
+          _usuario: usuario,
+          _djen_automatico: typeof body.djen_automatico === "boolean" ? body.djen_automatico : null,
+          _gestora: body.gestora_id ?? null,
+          _djen_max_dia: Number.isInteger(body.djen_max_dia) ? body.djen_max_dia : null,
+        });
+        if (r.error) return json({ error: r.error.message }, 400);
+        return json(r.data);
+      }
       case "ferramentas": {
         if (!UUID.test(body.agente_id ?? "")) return json({ error: "Agente inválido" }, 400);
         const r = await db.rpc("motor_ferramentas_agente", { _usuario: usuario, _agente: body.agente_id });

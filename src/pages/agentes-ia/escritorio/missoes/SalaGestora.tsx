@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { AgenteIA, ExecucaoAgente, MensagemEscritorio } from "../../hooks/useAgentesIA";
 import { OfficeEmpty, OfficeStatus } from "../design/OfficeUI";
 import { Indicador } from "./CentralMissoes";
+import GatilhoDjen from "./GatilhoDjen";
 import { chamarMotor, dolar, hora, useAprovacoes, usePainelMotor, type Aprovacao } from "./motor";
 import "./missoes.css";
 
@@ -206,6 +207,8 @@ export default function SalaGestora({
             </Button>
           </div>
         </div>
+
+        <GatilhoDjen agentes={agentes} motorLigado={painel.motor_ligado} />
 
         <div className="op-panel">
           <h3><Users size={18} /> Agentes em operação</h3>

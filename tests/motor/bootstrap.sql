@@ -22,3 +22,6 @@ create table public.agente_execucoes(id uuid primary key default gen_random_uuid
  disparado_por uuid, origem text not null default 'manual', status public.status_execucao not null default 'pendente',
  entrada jsonb not null default '{}', saida jsonb, resumo text, erro text, iniciado_em timestamptz not null default now(), finalizado_em timestamptz);
 grant select, insert, update on public.agentes_ia, public.agente_execucoes, public.teste_pessoas, public.teste_permissoes to service_role;
+create table public.pje_publicacoes(id uuid primary key default gen_random_uuid(), numero_processo text,
+ sigla_tribunal text, nome_orgao text, tipo_comunicacao text, texto_publicacao text,
+ data_disponibilizacao date, link_certidao text);
