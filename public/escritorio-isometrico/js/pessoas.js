@@ -423,6 +423,25 @@ const PESSOAS = (() => {
         { t: 'esperar', s: entre(6, 11), st: `Conversando em ${nome}` });
     }
 
+    // Vai até a mesa de outro agente entregar uma tarefa da missão e volta (pensar() leva de volta).
+    levarTarefa(outro, titulo) {
+      const s = outro.casa;
+      if (!s || this.fora || outro === this || this.cliente) return false;
+      const [tx, ty] = this.tile;
+      const perto = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]
+        .map(([dx, dy]) => [s.x + dx, s.y + dy])
+        .find(([x, y]) => rota(tx, ty, x, y));
+      if (!perto) return false;
+      const curto = titulo.length > 40 ? titulo.slice(0, 39) + '…' : titulo;
+      this.limpar();
+      this.q.push({ t: 'ir', x: perto[0], y: perto[1], st: `Levando tarefa para ${outro.nome}` },
+        { t: 'falar', txt: `${outro.nome}, pode cuidar disso? ${curto}` },
+        { t: 'esperar', s: 2.2, st: `Passando a tarefa para ${outro.nome}` },
+        { t: 'fn', f: () => { if (!outro.fora) outro.dizer('Deixa comigo!'); } },
+        { t: 'esperar', s: 1.8 });
+      return true;
+    }
+
     diligencia() {
       const e = PT.elevador;
       this.q.push({ t: 'falar', txt: sorteio(FALAS.saida) },

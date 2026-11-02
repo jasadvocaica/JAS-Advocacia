@@ -55,6 +55,7 @@ export default function EscritorioIsometrico({ agentes, execucoes, atualizadoEm,
         execucoes: execucoes.map((x) => ({
           id: x.id, agente_id: x.agente_id, status: x.status, origem: x.origem, resumo: x.resumo,
           erro: x.erro, iniciado_em: x.iniciado_em, finalizado_em: x.finalizado_em,
+          missao_id: typeof x.entrada?.missao_id === "string" ? x.entrada.missao_id : null,
         })),
       },
       window.location.origin,

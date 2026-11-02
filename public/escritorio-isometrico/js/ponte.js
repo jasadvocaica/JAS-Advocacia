@@ -55,6 +55,14 @@ const VIVO = (() => {
     }
   }
 
+  function entregarNaMesa(x) {
+    const anterior = st.execucoes
+      .filter(o => o.missao_id === x.missao_id && o.agente_id !== x.agente_id && Date.parse(o.iniciado_em) <= Date.parse(x.iniciado_em))
+      .sort((a, b) => Date.parse(b.iniciado_em) - Date.parse(a.iniciado_em))[0];
+    const de = anterior && pessoa(anterior.agente_id), para = pessoa(x.agente_id);
+    if (de && para && de.levarTarefa(para, x.resumo || 'tarefa da missão')) E.aviso(`${de.nome} passou uma tarefa para ${para.nome}`);
+  }
+
   function aplicar(novo) {
     const antes = new Map(st.execucoes.map(x => [x.id, x.status]));
     st = novo;
@@ -67,6 +75,8 @@ const VIVO = (() => {
         if (x.status === 'aguardando_aprovacao') E.aviso(`${a.nome} entregou para revisão`);
         else if (x.status === 'erro' && s0) E.aviso(`Erro em ${a.nome}: ${x.erro || 'veja o histórico'}`.slice(0, 140));
         else if (x.status === 'executando' && !s0) E.aviso(`${a.nome} começou a trabalhar`);
+        // Tarefa nova de uma missão: quem trabalhou antes nela vai até a mesa de quem recebeu.
+        if (!s0 && x.missao_id && (x.status === 'executando' || x.status === 'pendente')) entregarNaMesa(x);
       }
     }
     primeira = false;

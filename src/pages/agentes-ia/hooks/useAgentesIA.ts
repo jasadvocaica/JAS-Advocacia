@@ -186,6 +186,26 @@ export function useAgentesIA() {
     void carregar();
   }, [carregar]);
 
+  // Tempo real: qualquer mudança nas execuções recarrega em seguida (agrupando rajadas).
+  useEffect(() => {
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const canal = supabase
+      .channel(`agentes-execucoes-${crypto.randomUUID()}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "agente_execucoes" },
+        () => {
+          if (espera) clearTimeout(espera);
+          espera = setTimeout(() => void carregar(), 400);
+        },
+      )
+      .subscribe();
+    return () => {
+      if (espera) clearTimeout(espera);
+      void supabase.removeChannel(canal);
+    };
+  }, [carregar]);
+
   // Atualiza automaticamente enquanto houver execução em andamento.
   useEffect(() => {
     const emAndamento = execucoes.some(
