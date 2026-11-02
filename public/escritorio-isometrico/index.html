@@ -45,13 +45,27 @@
   <div class="dica" id="dica" hidden></div>
   <div class="avisos" id="avisos" aria-live="polite"></div>
 
-  <script src="js/iso.js"></script>
-  <script src="js/mapa.js"></script>
-  <script src="js/moveis.js"></script>
-  <script src="js/equipe.js"></script>
-  <script src="js/pessoas.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/ponte.js"></script>
-  <script src="js/central.js"></script>
+  <!-- Carrega os scripts um de cada vez e tenta de novo se o servidor recusar (a Hostinger
+       responde 429 quando muitos arquivos são pedidos juntos e o escritório ficava vazio). -->
+  <script>
+  (function () {
+    var arquivos = ["iso", "mapa", "moveis", "equipe", "pessoas", "app", "ponte", "central"];
+    var tentativas = 6;
+    function carregar(i, tentativa) {
+      if (i >= arquivos.length) return;
+      var s = document.createElement("script");
+      s.src = "js/" + arquivos[i] + ".js" + (tentativa ? "?t=" + tentativa : "");
+      s.async = false;
+      s.onload = function () { carregar(i + 1, 0); };
+      s.onerror = function () {
+        s.remove();
+        if (tentativa + 1 >= tentativas) { console.error("Não carregou js/" + arquivos[i] + ".js"); return; }
+        setTimeout(function () { carregar(i, tentativa + 1); }, 400 * Math.pow(2, tentativa));
+      };
+      document.body.appendChild(s);
+    }
+    carregar(0, 0);
+  })();
+  </script>
 </body>
 </html>
