@@ -21,6 +21,7 @@ import "@fontsource/inter/latin-600.css";
 import "@fontsource/inter/latin-700.css";
 import "./escritorio.css";
 import "./design/office-product.css";
+import "./design/office-live.css";
 import "./design/office-shell.css";
 export { secaoOffice } from "./design/navigation";
 
@@ -87,6 +88,9 @@ export default function OfficeShell({
             ))}
           </nav>
           <div className="os-controles">
+            <button type="button" className="os-criar" onClick={contratar}>
+              <Plus size={15} /> <span>Criar agente</span>
+            </button>
             <Link to="/escritorio/historico" className="os-pilula" title="Execuções em andamento registradas no sistema"
               aria-label={`${trabalhando} execuções em andamento`}>
               <Activity size={14} /> {trabalhando} em execução

@@ -6,6 +6,7 @@ import CentralMissoes from "./escritorio/missoes/CentralMissoes";
 import SalaGestora from "./escritorio/missoes/SalaGestora";
 import OfficeShell, { secaoOffice } from "./escritorio/OfficeShell";
 import AgentEditor from "./escritorio/agent-editor/AgentEditor";
+import LiveOperations from "./escritorio/LiveOperations";
 import { useMatch, useNavigate, useLocation } from "react-router-dom";
 import ChatEscritorio from "./escritorio/ChatEscritorio";
 import EscritorioVisual, { horario } from "./EscritorioVisual";
@@ -190,15 +191,27 @@ export default function AgentesIA() {
           imersivo={imersivo}
           setImersivo={setImersivo}
           cena3d={() => (
-            <EscritorioVisual
-              agentes={agentes}
-              execucoes={execucoes}
-              rodar={rodar}
-              ocupado={executando !== null}
-              recarregar={recarregar}
-              revisar={setRevisao}
-              modo="planta"
-            />
+            <div className="office-floor-workspace">
+              <EscritorioVisual
+                agentes={agentes}
+                execucoes={execucoes}
+                rodar={rodar}
+                ocupado={executando !== null}
+                recarregar={recarregar}
+                revisar={setRevisao}
+                modo="planta"
+                atualizadoEm={error ? null : atualizadoEm}
+              />
+              <LiveOperations
+                agentes={agentes}
+                execucoes={execucoes}
+                passos={passos}
+                atualizadoEm={atualizadoEm}
+                erro={!!error}
+                ocupado={executando !== null}
+                rodar={rodar}
+              />
+            </div>
           )}
         />
       )}

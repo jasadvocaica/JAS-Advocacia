@@ -474,3 +474,94 @@
 .op-command-compact .op-command-capabilities {
   font-size: 9px;
 }
+
+/* Warm daylight, compact controls and a quiet canvas. Activity lives beside it. */
+.office-floor-workspace .live-office {
+  background: #f4f1eb;
+}
+.office-floor-workspace .live-office-brand {
+  top: 18px;
+  left: 18px;
+  gap: 9px;
+}
+.office-floor-workspace .live-office-brand strong {
+  font-size: 14px;
+}
+.office-floor-workspace .live-office-monogram {
+  width: 33px;
+  height: 42px;
+  border-radius: 7px;
+}
+.office-floor-workspace .live-office-state {
+  left: 18px;
+  top: 76px;
+  padding: 6px 9px;
+  font-size: 9px;
+  background: #fffdf5d9;
+  border-color: #e0d9cb;
+}
+.office-floor-workspace .live-office-toolbar {
+  top: 18px;
+  right: 18px;
+  background: #fffdf5ed;
+  border-color: #e0d9cb;
+}
+.office-floor-workspace .live-office-agent-shortcut {
+  width: 230px;
+  left: 18px;
+  bottom: 92px;
+  background: #fffefaed;
+  border-color: #e0d9cb;
+}
+.office-floor-workspace .live-office-agent-shortcut > button {
+  padding: 11px;
+}
+.office-floor-workspace .live-office-dock {
+  left: 18px;
+  right: 18px;
+  bottom: 25px;
+  background: #fffefaed;
+  border-color: #e0d9cb;
+}
+.office-floor-workspace .live-office-dock button {
+  padding: 6px 9px;
+  font-size: 9px;
+}
+.office-floor-workspace .live-office-dock button[aria-pressed="true"] {
+  background: #e9e4d4;
+  color: #35493b;
+}
+.office-floor-workspace .live-office-help {
+  left: 22px;
+}
+.office-floor-workspace .live-office-fallback {
+  background: #f4f1eb;
+}
+.office-floor-workspace .live-office-panel {
+  top: 112px;
+  right: 18px;
+  bottom: 92px;
+}
+@media (max-width: 760px) {
+  .office-floor-workspace .live-office-toolbar {
+    top: 72px;
+    right: 12px;
+  }
+  .office-floor-workspace .live-office-state {
+    top: 126px;
+    left: 12px;
+    right: 12px;
+  }
+  .office-floor-workspace .live-office-panel {
+    top: 165px;
+    right: 12px;
+  }
+  .office-floor-workspace .live-office-agent-shortcut {
+    left: 12px;
+    width: 220px;
+  }
+  .office-floor-workspace .live-office-dock {
+    left: 12px;
+    right: 12px;
+  }
+}

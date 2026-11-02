@@ -74,6 +74,21 @@
   gap: 6px;
   flex: none;
 }
+.os-criar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #c9a45c;
+  color: #0b1236;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.os-criar:hover {
+  background: #d8b673;
+}
 .os-pilula {
   display: inline-flex;
   align-items: center;
@@ -184,6 +199,9 @@
   }
 }
 @media (max-width: 640px) {
+  .os-criar span {
+    display: none;
+  }
   .os-topo {
     padding: 0 8px;
     gap: 6px;
