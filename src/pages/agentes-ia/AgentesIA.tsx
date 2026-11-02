@@ -2,6 +2,7 @@ import VpsConnector from "./escritorio/agent-editor/VpsConnector";
 import CentralComando from "./escritorio/CentralComando";
 import OfficeShell, { secaoOffice } from "./escritorio/OfficeShell";
 import AgentEditor from "./escritorio/agent-editor/AgentEditor";
+import LiveOperations from "./escritorio/LiveOperations";
 import { useMatch, useNavigate, useLocation } from "react-router-dom";
 import ChatEscritorio from "./escritorio/ChatEscritorio";
 import EscritorioVisual, { horario } from "./EscritorioVisual";
@@ -161,23 +162,39 @@ export default function AgentesIA() {
         </div>
       ) : null}
 
-      <EscritorioVisual
-        agentes={agentes}
-        execucoes={execucoes}
-        rodar={rodar}
-        ocupado={executando !== null}
-        recarregar={recarregar}
-        revisar={setRevisao}
-        modo={
-          secao === "planta"
-            ? "planta"
-            : secao === "equipe"
-              ? "equipe"
-              : "somente-dialogos"
-        }
-        contratarAberto={contratarAberto}
-        onContratarAberto={setContratarAberto}
-      />
+      <div
+        className={secao === "planta" ? "office-floor-workspace" : "contents"}
+      >
+        <EscritorioVisual
+          agentes={agentes}
+          execucoes={execucoes}
+          rodar={rodar}
+          ocupado={executando !== null}
+          recarregar={recarregar}
+          revisar={setRevisao}
+          modo={
+            secao === "planta"
+              ? "planta"
+              : secao === "equipe"
+                ? "equipe"
+                : "somente-dialogos"
+          }
+          contratarAberto={contratarAberto}
+          onContratarAberto={setContratarAberto}
+          atualizadoEm={error ? null : atualizadoEm}
+        />
+        {secao === "planta" && (
+          <LiveOperations
+            agentes={agentes}
+            execucoes={execucoes}
+            passos={passos}
+            atualizadoEm={atualizadoEm}
+            erro={!!error}
+            ocupado={executando !== null}
+            rodar={rodar}
+          />
+        )}
+      </div>
       {editor && (
         <AgentEditor
           agenteId={editMatch?.params.agenteId}

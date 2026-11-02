@@ -24,6 +24,7 @@ import type { AgenteIA, ExecucaoAgente } from "../../hooks/useAgentesIA";
 import { salaAgente, type SalaId } from "../salas";
 import { readPreference, savePreference } from "../design/useOfficeAppearance";
 import PlantaEscritorio from "../PlantaEscritorio";
+import { agentVisualStates } from "../agentState";
 import "./office3d.css";
 interface Props {
   agentes: AgenteIA[];
@@ -31,6 +32,7 @@ interface Props {
   sala: SalaId;
   selecionarSala: (id: SalaId) => void;
   selecionarAgente: (a: AgenteIA) => void;
+  atualizadoEm?: string | null;
 }
 const links: Record<string, string> = {
   recepcao: "/clientes",
@@ -58,7 +60,7 @@ export default function LiveOffice3D(props: Props) {
     [selected, setSelected] = useState<string | null>(null),
     [room, setRoom] = useState<string | null>(null),
     [follow, setFollow] = useState(false),
-    [ambient, setAmbient] = useState(false),
+    [ambient, setAmbient] = useState(true),
     [reduced, setReduced] = useState(false),
     [quality, setQuality] = useState<Quality>(() => {
       const saved = readPreference("jas-office-3d-quality", "media");
@@ -82,7 +84,10 @@ export default function LiveOffice3D(props: Props) {
         return {
           id: a.id,
           nome: a.nome,
-          point: { x: r.x + 1 + same * 1.5, z: r.z + 4 },
+          point: {
+            x: r.x + 1.4 + (same % 3) * 2.2,
+            z: r.z + 3.4 + Math.floor(same / 3) * 1.5,
+          },
           color: ["#355475", "#7a8e7a", "#8e6973"][i % 3],
         };
       }),
@@ -130,6 +135,11 @@ export default function LiveOffice3D(props: Props) {
   useEffect(() => {
     engine.current?.state(task?.estado, stale);
   }, [task?.estado, task?.id, stale, nativeKey, fallback]);
+  useEffect(() => {
+    engine.current?.agentStates(
+      agentVisualStates(props.agentes, props.execucoes, props.atualizadoEm),
+    );
+  }, [props.agentes, props.execucoes, props.atualizadoEm, nativeKey, fallback]);
   useEffect(() => {
     engine.current?.options({ ambient, reduce: reduced, quality, follow });
     savePreference("jas-office-3d-quality", quality);

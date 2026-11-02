@@ -1,0 +1,401 @@
+/* The office keeps the floor and operational controls in independent areas. */
+html[data-office-theme="light"] .op-sidebar {
+  background: #fffefa;
+  color: #596453;
+  border-right: 1px solid #e6e3d9;
+}
+html[data-office-theme="light"] .op-brand strong {
+  color: #273a35;
+}
+html[data-office-theme="light"] .op-brand em {
+  color: #80867b;
+}
+html[data-office-theme="light"] .op-brand svg {
+  background: #172a45;
+  border-radius: 8px;
+  padding: 4px;
+}
+html[data-office-theme="light"] .op-nav-search label {
+  background: #f3f3ed;
+  border-color: #e6e3d9;
+}
+html[data-office-theme="light"] .op-nav-search input {
+  color: #273a35;
+}
+html[data-office-theme="light"] .op-nav-group {
+  color: #92968a;
+}
+html[data-office-theme="light"] .op-nav-item {
+  color: #56635f;
+}
+html[data-office-theme="light"] .op-nav-item:hover,
+html[data-office-theme="light"] .op-nav-selected {
+  background: #eeeadd;
+  color: #384c3d;
+}
+html[data-office-theme="light"] .op-sidebar-tools {
+  border-color: #e6e3d9;
+}
+html[data-office-theme="light"] .op-hire {
+  background: #344e41;
+  color: #fff;
+}
+html[data-office-theme="light"] .op-nav-submenu {
+  border-color: #d5dbcc;
+  color: #56635f;
+}
+.op-create-agent {
+  display: inline-flex;
+  gap: 7px;
+  flex-shrink: 0;
+  background: #344e41;
+  color: white;
+  border-radius: 8px;
+}
+.op-create-agent:hover {
+  background: #263f32;
+}
+.office-product .office-shell-main[data-view="planta"] {
+  padding: 18px;
+  overflow: auto;
+  background: var(--op-bg);
+}
+.office-floor-workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+}
+.office-floor-workspace > .jas-office-scene {
+  min-width: 0;
+  border: 1px solid var(--op-line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.office-floor-workspace .live-office {
+  flex: 1;
+  min-height: 590px;
+}
+.office-live-rail {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  background: var(--op-surface);
+  color: var(--op-text);
+  border: 1px solid var(--op-line);
+  border-radius: 16px;
+  padding: 20px 16px;
+}
+.office-live-eyebrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: #8c754a;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.office-live-rail h2 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  margin-top: 10px;
+}
+.office-live-rail header > p {
+  font-size: 11px;
+  color: var(--op-muted);
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.office-live-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 20px 0 24px;
+}
+.office-live-metrics a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  background: var(--op-soft);
+  border: 1px solid var(--op-line);
+  border-radius: 10px;
+}
+.office-live-metrics strong {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--op-text);
+}
+.office-live-metrics span {
+  font-size: 10px;
+  color: var(--op-muted);
+}
+.office-live-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 13px;
+}
+.office-live-section-title h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.office-live-section-title a {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--op-muted);
+}
+.office-live-roster {
+  display: grid;
+  gap: 9px;
+}
+.office-live-roster article {
+  padding: 12px;
+  border: 1px solid var(--op-line);
+  border-radius: 10px;
+}
+.office-live-roster article[data-working="true"] {
+  border-color: #79b391;
+  background: #f2faf5;
+  color: #253b2f;
+}
+.office-live-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.office-live-person > div {
+  min-width: 0;
+}
+.office-live-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 36px;
+  border-radius: 10px;
+  background: #ede8da;
+  color: #72603e;
+  font-size: 11px;
+  font-weight: 600;
+}
+.office-live-person strong {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.office-live-person small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--op-muted);
+}
+.office-live-person i,
+.office-live-rail footer i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #a4acb4;
+  flex-shrink: 0;
+}
+.office-live-person i[data-state="Trabalhando"] {
+  background: #278353;
+  box-shadow: 0 0 0 3px #27835318;
+}
+.office-live-person i[data-state="Aguarda sua revisão"] {
+  background: #b48a3e;
+}
+.office-live-person i[data-state="Precisa de atenção"] {
+  background: #c44343;
+}
+.office-live-person-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid var(--op-line);
+}
+.office-live-person-actions a,
+.office-live-person-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 4px 0;
+}
+.office-live-person-actions span {
+  font-size: 9px;
+  color: var(--op-muted);
+}
+.office-live-person-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.office-live-add {
+  width: 100%;
+  margin: 12px 0 25px;
+  gap: 7px;
+}
+.office-live-timeline {
+  display: grid;
+  gap: 15px;
+}
+.office-live-timeline li {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  line-height: 1.7;
+}
+.office-live-timeline time {
+  color: var(--op-muted);
+  flex-shrink: 0;
+  font-size: 9px;
+  padding-top: 1px;
+}
+.office-live-timeline strong {
+  font-size: 10px;
+  font-weight: 600;
+}
+.office-live-timeline p {
+  color: var(--op-muted);
+  overflow-wrap: anywhere;
+}
+.office-live-empty {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--op-muted);
+  padding: 10px 0;
+}
+.office-live-rail footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--op-muted);
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--op-line);
+}
+.office-live-rail footer[data-fresh="true"] i {
+  background: #278353;
+}
+.office-team-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 22px;
+  background: var(--op-surface);
+  border: 1px solid var(--op-line);
+  border-radius: 12px;
+}
+.office-team-intro > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.office-team-intro strong {
+  display: block;
+  font-size: 14px;
+}
+.office-team-intro small {
+  display: block;
+  margin-top: 5px;
+  color: var(--op-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.office-team-intro a {
+  display: flex;
+  gap: 7px;
+}
+.office-edit-agent {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  margin-top: 12px;
+  border: 1px solid var(--op-line);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--op-text);
+  background: var(--op-soft);
+}
+.office-edit-agent:hover {
+  border-color: var(--op-gold);
+}
+@media (max-width: 1250px) {
+  .office-floor-workspace {
+    grid-template-columns: minmax(0, 1fr) 270px;
+    gap: 12px;
+  }
+  .op-global-search > button {
+    width: 150px;
+  }
+  .office-product .office-shell-main[data-view="planta"] {
+    padding: 12px;
+  }
+}
+@media (max-width: 1050px) {
+  .office-floor-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    flex: none;
+  }
+  .office-floor-workspace .live-office {
+    height: 68dvh;
+    flex: none;
+  }
+  .office-live-rail {
+    overflow: visible;
+  }
+  .office-live-roster {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .op-create-agent {
+    font-size: 11px;
+    padding-inline: 10px;
+  }
+  .op-topbar-controls {
+    margin-left: auto;
+  }
+  .op-global-search {
+    display: none;
+  }
+  .office-product .office-shell-main[data-view="planta"] {
+    padding: 8px;
+  }
+  .office-floor-workspace .live-office {
+    min-height: 570px;
+  }
+  .office-team-intro {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 16px;
+  }
+  .office-team-intro > div {
+    align-items: flex-start;
+  }
+  .office-live-roster {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
