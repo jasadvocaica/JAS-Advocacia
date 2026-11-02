@@ -25,7 +25,11 @@ const CAMPO: Record<string, string> = {
   data_vencimento: "Vencimento",
   prioridade: "Prioridade",
   processo_id: "Processo",
+  autor: "Para",
+  comentario: "Comentário",
+  mensagem: "Resposta",
 };
+const OCULTOS = new Set(["post_id", "conta_id", "comentario_id"]);
 
 function valorCampo(chave: string, v: unknown) {
   if (v == null || v === "") return "—";
@@ -41,7 +45,7 @@ function PedidoAcao({ a, decidir, ocupado }: { a: Aprovacao; decidir: (aprovar: 
         <small>{a.agente ?? "Sistema"} · pedido às {hora(a.criada_em)} · vale até {new Date(a.valida_ate).toLocaleDateString("pt-BR")}</small>
       </div>
       <dl>
-        {Object.entries(a.parametros).map(([k, v]) => (
+        {Object.entries(a.parametros).filter(([k]) => !OCULTOS.has(k)).map(([k, v]) => (
           <div key={k}><dt>{CAMPO[k] ?? k}</dt><dd>{valorCampo(k, v)}</dd></div>
         ))}
       </dl>

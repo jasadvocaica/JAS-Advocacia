@@ -73,6 +73,34 @@ export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
       ["titulo", "descricao", "data_vencimento", "prioridade", "processo_id"],
     ),
   },
+  ...Object.fromEntries(
+    ([
+      ["zernio_indicadores", "Totais do Instagram sincronizados pelo Zernio (alcance, curtidas, comentários, engajamento médio) no período."],
+      ["zernio_publicacoes", "Publicações do Instagram com métricas, das mais engajadas para as menos, no período."],
+      ["zernio_comentarios", "Comentários recentes de terceiros no Instagram e se já foram respondidos pelo escritório."],
+      ["zernio_conversas", "Conversas recentes do direct do Instagram (só a última mensagem)."],
+      ["zernio_anuncios", "Campanhas de Meta Ads e métricas diárias (gasto, impressões, cliques, CTR, CPC, CPM, conversões)."],
+      ["zernio_saude", "Estado da integração Zernio: conexão, última sincronização, falhas e recursos do plano."],
+    ] as const).map(([slug, descricao]) => [slug, {
+      slug,
+      classe: "leitura" as Classe,
+      descricao: `${descricao} Se a resposta disser disponivel=false, informe que não há dados e NÃO estime números.`,
+      parametros: objeto({ dias: { type: "integer", minimum: 1, maximum: 365, description: "Período em dias (padrão 30)" } }, ["dias"]),
+    }]),
+  ),
+  zernio_responder_comentario: {
+    slug: "zernio_responder_comentario",
+    classe: "sensivel",
+    descricao:
+      "PROPÕE uma resposta a um comentário do Instagram. Não envia: cria pedido na Central de Aprovações e só é enviada após aprovação humana.",
+    parametros: objeto(
+      {
+        comentario_id: texto(120, "Campo id do comentário (vem de zernio_comentarios)"),
+        mensagem: texto(1000, "Texto da resposta, no tom do escritório, sem promessa de resultado"),
+      },
+      ["comentario_id", "mensagem"],
+    ),
+  },
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -123,6 +151,20 @@ export function validarParametros(slug: string, bruto: unknown): Record<string, 
         processo_id: uuidOuNulo(a.processo_id, "processo_id"),
       };
     }
+    case "zernio_indicadores":
+    case "zernio_publicacoes":
+    case "zernio_comentarios":
+    case "zernio_conversas":
+    case "zernio_anuncios":
+    case "zernio_saude": {
+      const dias = Number.isInteger(a.dias) ? Math.min(365, Math.max(1, a.dias as number)) : 30;
+      return { dias };
+    }
+    case "zernio_responder_comentario":
+      return {
+        comentario_id: textoValido(a.comentario_id, 3, 120, "comentario_id"),
+        mensagem: textoValido(a.mensagem, 2, 1000, "mensagem"),
+      };
     default:
       throw new Error("Ferramenta desconhecida");
   }

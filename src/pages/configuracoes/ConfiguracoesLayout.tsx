@@ -38,7 +38,7 @@ const SECOES: SecaoNav[] = [
   { to: "/configuracoes/controladoria", label: "Controladoria", icon: ClipboardCheck, descricao: "Prazos, feriados, alertas" },
   { to: "/configuracoes/financeiro", label: "Financeiro", icon: DollarSign, descricao: "Inadimplência, índices, banco" },
   { to: "/configuracoes/documentos", label: "Documentos", icon: FileText, descricao: "Formatação e categorias" },
-  { to: "/configuracoes/integracoes", label: "Integrações", icon: Plug, descricao: "Calendar, DataJud, e-mail" },
+  { to: "/configuracoes/integracoes", label: "Integrações", icon: Plug, descricao: "Zernio, Calendar, DataJud, e-mail" },
   { to: "/configuracoes/email", label: "Email (Resend)", icon: Mail, descricao: "Chave do Resend, remetente e log" },
   { to: "/configuracoes/bia", label: "Bia (IA)", icon: Sparkles, descricao: "Autonomia e estilo da assistente" },
   { to: "/configuracoes/sistema", label: "Sistema", icon: SettingsIcon, descricao: "Fuso, notificações, sobre" },

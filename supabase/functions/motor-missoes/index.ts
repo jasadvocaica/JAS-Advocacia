@@ -13,6 +13,7 @@ import {
   type SituacaoOrcamento,
 } from "../_shared/motor.ts";
 import { validarConfigAgente } from "../_shared/agentes-config.ts";
+import { criarCliente, decifrar, semSegredos } from "../_shared/zernio.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -97,6 +98,30 @@ async function executarFerramenta(db: SupabaseClient, tarefa: { tarefa_id: strin
       if (r.error) throw new Error(r.error.message);
       return { tarefa_criada: r.data };
     }
+    case "zernio_indicadores":
+    case "zernio_publicacoes":
+    case "zernio_comentarios":
+    case "zernio_conversas":
+    case "zernio_anuncios":
+    case "zernio_saude": {
+      const r = await db.rpc("zernio_consulta_agente", { _tipo: slug.replace("zernio_", ""), _dias: p.dias });
+      if (r.error) throw new Error("Dados do Zernio indisponíveis");
+      return r.data;
+    }
+    case "zernio_responder_comentario": {
+      // Conferido no banco: o comentário existe e pode ser respondido. O pedido leva tudo que será enviado.
+      const c = await db.rpc("zernio_comentario_para_resposta", { _externo: p.comentario_id });
+      if (c.error || !c.data) throw new Error("Comentário não encontrado ou sem permissão de resposta.");
+      const parametros = { post_id: c.data.post_externo_id, conta_id: c.data.conta_externa_id, comentario_id: c.data.comentario_id,
+        autor: c.data.autor_usuario, comentario: c.data.texto, mensagem: p.mensagem };
+      const r = await db.rpc("motor_pedir_aprovacao", {
+        _tarefa: tarefa.tarefa_id, _ferramenta: slug, _parametros: parametros,
+        _resumo: `Responder no Instagram a @${c.data.autor_usuario ?? "seguidor"}`,
+        _riscos: "Publica uma resposta pública em nome do escritório. Confira o texto e as regras da OAB antes de aprovar.",
+      });
+      if (r.error) throw new Error(r.error.message);
+      return { pedido_aprovacao: r.data, situacao: "aguardando aprovação humana; nada foi enviado" };
+    }
     case "criar_item_controladoria": {
       const r = await db.rpc("motor_pedir_aprovacao", {
         _tarefa: tarefa.tarefa_id, _ferramenta: slug, _parametros: p,
@@ -114,6 +139,23 @@ function formatarCnj(n: string) {
   return `${n.slice(0, 7)}-${n.slice(7, 9)}.${n.slice(9, 13)}.${n.slice(13, 14)}.${n.slice(14, 16)}.${n.slice(16)}`;
 }
 
+/** Resposta aprovada: só sai com ações externas liberadas na integração. Idempotency-Key = id do pedido. */
+async function responderComentario(db: SupabaseClient, id: string, p: Record<string, string>) {
+  const c = await db.rpc("zernio_conexao", { _com_cifra: true });
+  if (c.error || !c.data?.chave_cifrada) throw new Error("Integração Zernio sem credencial.");
+  if (!c.data.acoes_externas_com_aprovacao) throw new Error("Ações externas estão desligadas na integração Zernio.");
+  const segredo = Deno.env.get("COFRE_ENCRYPTION_KEY");
+  if (!segredo) throw new Error("Chave de criptografia do servidor ausente.");
+  const api = criarCliente({ chave: await decifrar(c.data.chave_cifrada, segredo) });
+  try {
+    const r = await api.post<{ data?: { commentId?: string } }>(`/v1/inbox/comments/${encodeURIComponent(p.post_id)}`,
+      { accountId: p.conta_id, message: p.mensagem, commentId: p.comentario_id }, id);
+    return { resposta_id: r.dados?.data?.commentId ?? null };
+  } catch (e) {
+    throw new Error(semSegredos(e instanceof Error ? e.message : "Falha ao responder"));
+  }
+}
+
 /** Executa a ação sensível já aprovada. O id do item é o id do pedido: repetir nunca duplica. */
 async function executarAprovada(db: SupabaseClient, id: string) {
   const ini = await db.rpc("aprovacao_iniciar_execucao", { _id: id });
@@ -121,6 +163,11 @@ async function executarAprovada(db: SupabaseClient, id: string) {
   const a = ini.data?.[0];
   if (!a) return { executada: false };
   try {
+    if (a.ferramenta === "zernio_responder_comentario") {
+      const resultado = await responderComentario(db, id, a.parametros);
+      await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: resultado });
+      return { executada: true, ...resultado };
+    }
     if (a.ferramenta !== "criar_item_controladoria") throw new Error("Ferramenta sem execução registrada");
     const p = a.parametros;
     const r = await db.from("controladoria_itens").upsert({

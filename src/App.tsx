@@ -113,6 +113,7 @@ const ProcessosConfig = lazy(() => import("@/pages/configuracoes/processos/Proce
 const ControladoriaConfig = lazy(() => import("@/pages/configuracoes/controladoria/ControladoriaConfig"));
 const DocumentosConfig = lazy(() => import("@/pages/configuracoes/documentos/DocumentosConfig"));
 const IntegracoesConfig = lazy(() => import("@/pages/configuracoes/integracoes/IntegracoesConfig"));
+const ZernioIntegracao = lazy(() => import("@/pages/configuracoes/integracoes/ZernioIntegracao"));
 const BiaPreferencias = lazy(() => import("@/pages/configuracoes/bia/BiaPreferencias"));
 const ConfiguracoesEmail = lazy(() => import("@/pages/configuracoes/email/ConfiguracoesEmail"));
 const Notificacoes = lazy(() => import("@/pages/Notificacoes"));
@@ -395,6 +396,7 @@ const AppRoutes = () => {
           <Route path="financeiro" element={<ConfiguracoesFinanceiro />} />
           <Route path="documentos" element={<DocumentosConfig />} />
           <Route path="integracoes" element={<IntegracoesConfig />} />
+          <Route path="integracoes/zernio" element={<ZernioIntegracao />} />
           <Route path="bia" element={<BiaPreferencias />} />
           <Route path="email" element={<ConfiguracoesEmail />} />
           <Route path="sistema" element={<SistemaLayout />}>

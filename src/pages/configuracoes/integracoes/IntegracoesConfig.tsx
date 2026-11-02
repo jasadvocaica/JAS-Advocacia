@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, HardDrive, Database, Calendar, Save, ArrowRight } from "lucide-react";
+import { Mail, HardDrive, Database, Calendar, Save, ArrowRight, Megaphone } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useConfiguracoes } from "@/hooks/useConfiguracoes";
 
@@ -52,6 +52,20 @@ export default function IntegracoesConfig() {
 
   return (
     <div className="space-y-6">
+      <Link
+        to="/configuracoes/integracoes/zernio"
+        className="flex items-center justify-between rounded-lg border bg-card p-4 hover:bg-muted transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <Megaphone className="w-5 h-5 text-gold" />
+          <div>
+            <div className="font-medium">Zernio · Instagram e Meta Ads</div>
+            <div className="text-xs text-muted-foreground">Chave de API, contas, sincronização e dados para o Marketing e os agentes</div>
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-muted-foreground" />
+      </Link>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
