@@ -11,6 +11,7 @@ import {
   Sun,
   Terminal,
   LogOut,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ import "@fontsource/inter/latin-600.css";
 import "@fontsource/inter/latin-700.css";
 import "./escritorio.css";
 import "./design/office-product.css";
+import "./design/office-live.css";
 export { secaoOffice } from "./design/navigation";
 export default function OfficeShell({
   secao,
@@ -129,6 +131,9 @@ export default function OfficeShell({
             <GlobalSearch label="Buscar no escritório…" />
           </div>
           <div className="op-topbar-controls">
+            <Button className="op-create-agent" size="sm" onClick={contratar}>
+              <Plus size={16} /> Criar agente
+            </Button>
             <Link
               to="/escritorio"
               className="op-icon-button op-command-shortcut"
@@ -220,17 +225,19 @@ export default function OfficeShell({
                 <p>ESCRITÓRIO INTELIGENTE</p>
                 <h1>{OFFICE_SECTIONS[secao]}</h1>
                 <span>
-                  {secao === "configurar" ? "Configure papel, instruções e fontes do seu agente." : secao === "comando"
-                    ? "Da sua solicitação ao resultado. Tudo acompanhado, em um só lugar."
-                    : secao === "chat"
-                      ? "Acompanhe as rotinas e converse com seus analistas."
-                      : secao === "equipe"
-                        ? "Pessoas virtuais, funções e rotinas do escritório."
-                        : secao === "entregas"
-                          ? "Resultados que precisam da sua decisão."
-                          : secao === "historico"
-                            ? "Execuções e passos registrados pelos agentes."
-                            : "Saúde das rotinas e consumo de inteligência artificial."}
+                  {secao === "configurar"
+                    ? "Configure papel, instruções e fontes do seu agente."
+                    : secao === "comando"
+                      ? "Da sua solicitação ao resultado. Tudo acompanhado, em um só lugar."
+                      : secao === "chat"
+                        ? "Acompanhe as rotinas e converse com seus analistas."
+                        : secao === "equipe"
+                          ? "Pessoas virtuais, funções e rotinas do escritório."
+                          : secao === "entregas"
+                            ? "Resultados que precisam da sua decisão."
+                            : secao === "historico"
+                              ? "Execuções e passos registrados pelos agentes."
+                              : "Saúde das rotinas e consumo de inteligência artificial."}
                 </span>
               </div>
               <Button
