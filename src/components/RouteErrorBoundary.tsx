@@ -13,6 +13,12 @@ interface Props {
 
 interface State {
   error: Error | null;
+  recarregando?: boolean;
+}
+
+/** Falha ao baixar um pedaço da aplicação (import dinâmico ou CSS pré-carregado pelo Vite). */
+export function isFalhaAoBaixarArquivo(msg: string) {
+  return /Unable to preload CSS|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(msg);
 }
 
 /**
@@ -46,6 +52,24 @@ export class RouteErrorBoundary extends Component<Props, State> {
       componentStack: info.componentStack ?? null,
       contexto: { name: error.name, transient: isTransientDomError || undefined },
     });
+
+    // Arquivo da página (JS/CSS) que não baixou: logo após publicar na Hostinger ou quando o
+    // servidor limita requisições (429). Recarrega sozinho uma vez por rota, com uma pausa curta;
+    // se falhar de novo em menos de 1 minuto, mostra a tela de erro para não entrar em loop.
+    if (isFalhaAoBaixarArquivo(msg)) {
+      try {
+        const chave = `chunk-auto-reload:${this.props.resetKey ?? window.location.pathname}`;
+        const ultima = Number(sessionStorage.getItem(chave) ?? 0);
+        if (Date.now() - ultima > 60_000) {
+          sessionStorage.setItem(chave, String(Date.now()));
+          this.setState({ recarregando: true });
+          setTimeout(() => window.location.reload(), 1500);
+          return;
+        }
+      } catch {
+        // sessionStorage indisponível: mostra a tela de erro.
+      }
+    }
 
     // Erro causado por extensões de tradução / mutações externas no DOM.
     // Estratégia: na PRIMEIRA ocorrência por rota, recarrega automaticamente
@@ -91,6 +115,13 @@ export class RouteErrorBoundary extends Component<Props, State> {
   };
 
   render() {
+    if (this.state.error && this.state.recarregando) {
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center p-6 text-sm text-muted-foreground" role="status">
+          <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Carregando a versão mais recente do sistema…
+        </div>
+      );
+    }
     if (this.state.error) {
       return (
         <div className="min-h-[60vh] flex items-center justify-center p-6">
