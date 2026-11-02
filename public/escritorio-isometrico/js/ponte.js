@@ -17,7 +17,7 @@ const VIVO = (() => {
     concluida: 'Concluída', rejeitada: 'Rejeitada', erro: 'Erro', cancelada: 'Cancelada'
   };
   const DEZ_MIN = 10 * 60000;   // como no escritório 3D: sem confirmação há 10 min, não conta como trabalhando
-  let st = { agentes: [], execucoes: [], atualizadoEm: null, ocupado: false };
+  let st = { agentes: [], execucoes: [], mensagens: [], atualizadoEm: null, ocupado: false };
   let recebido = false, primeira = true;
   const pessoa = id => SIM.equipe.find(p => p.id === id);
   const agente = id => st.agentes.find(a => a.id === id);
@@ -26,7 +26,7 @@ const VIVO = (() => {
   function recalcular() {
     const extra = {};
     const somar = (id, campo, valor) => {
-      const v = extra[id] || (extra[id] = { trabalhando: null, fila: 0, revisao: 0 });
+      const v = extra[id] || (extra[id] = { trabalhando: null, fila: 0, revisao: 0, erro: null });
       if (campo === 'trabalhando') { if (!v.trabalhando) v.trabalhando = valor; } else v[campo] += 1;
     };
     const agora = Date.now();
@@ -36,6 +36,18 @@ const VIVO = (() => {
       else if (x.status === 'pendente') somar(x.agente_id, 'fila');
       else if (x.status === 'aguardando_aprovacao') somar(x.agente_id, 'revisao');
     }
+    // Erro recente (30 min) que não foi seguido de outra execução do mesmo agente.
+    const ultimaPorAgente = new Map();
+    for (const x of st.execucoes) {
+      const u = ultimaPorAgente.get(x.agente_id);
+      if (!u || Date.parse(x.iniciado_em) > Date.parse(u.iniciado_em)) ultimaPorAgente.set(x.agente_id, x);
+    }
+    for (const [id, x] of ultimaPorAgente) {
+      if (x.status === 'erro' && agora - Date.parse(x.finalizado_em || x.iniciado_em) < 30 * 60000) {
+        const v = extra[id] || (extra[id] = { trabalhando: null, fila: 0, revisao: 0, erro: null });
+        v.erro = x.erro || 'Falha na execução';
+      }
+    }
     for (const c of (window.CENTRAL ? CENTRAL.simulados() : [])) {
       if (c.etapa === 'trabalhando') somar(c.agente, 'trabalhando', { id: 'sim' + c.id, titulo: c.titulo });
       else if (c.etapa === 'fila') somar(c.agente, 'fila');
@@ -43,9 +55,9 @@ const VIVO = (() => {
     }
     for (const p of SIM.equipe) {
       if (p.dona) continue;
-      const x = extra[p.id] || { trabalhando: null, fila: 0, revisao: 0 };
+      const x = extra[p.id] || { trabalhando: null, fila: 0, revisao: 0, erro: null };
       const eraT = p.vivo && p.vivo.trabalhando;
-      p.vivo = { trabalhando: x.trabalhando, fila: x.fila, revisao: x.revisao, conversando: false };
+      p.vivo = { trabalhando: x.trabalhando, fila: x.fila, revisao: x.revisao, erro: x.erro, conversando: false };
       const novoTrab = x.trabalhando && (!eraT || eraT.id !== x.trabalhando.id);
       if (novoTrab && !p.fora && p.seat !== p.casa) p.limpar();   // volta para a mesa
       if (novoTrab && !p.fala && !primeira) p.dizer('Deixa comigo!');
@@ -63,8 +75,20 @@ const VIVO = (() => {
     if (de && para && de.levarTarefa(para, x.resumo || 'tarefa da missão')) E.aviso(`${de.nome} passou uma tarefa para ${para.nome}`);
   }
 
+  // Mensagem nova de um agente para outro: quem escreveu vai até a mesa de quem recebe.
+  function conversasNovas(anteriores) {
+    for (const m of st.mensagens) {
+      if (anteriores.has(m.id) || m.origem === 'sistema' || !m.agente_id || !m.destinatario_id) continue;
+      if (Date.now() - Date.parse(m.criado_em) > 5 * 60000) continue;
+      const de = pessoa(m.agente_id), para = pessoa(m.destinatario_id);
+      const curto = m.texto.length > 60 ? m.texto.slice(0, 59) + '…' : m.texto;
+      if (de && para && de.irAte(para, curto, 'Combinado!', `Conversando com ${para.nome}`)) E.aviso(`${de.nome} foi falar com ${para.nome}`);
+    }
+  }
+
   function aplicar(novo) {
     const antes = new Map(st.execucoes.map(x => [x.id, x.status]));
+    const msgsAntes = new Set(st.mensagens.map(m => m.id));
     st = novo;
     recebido = true;
     recalcular();
@@ -72,13 +96,19 @@ const VIVO = (() => {
       for (const x of st.execucoes) {
         const s0 = antes.get(x.id), a = agente(x.agente_id);
         if (!a || s0 === x.status) continue;
-        if (x.status === 'aguardando_aprovacao') E.aviso(`${a.nome} entregou para revisão`);
+        if (x.status === 'aguardando_aprovacao') {
+          E.aviso(`${a.nome} entregou para revisão`);
+          // leva a entrega até a mesa da Dra. Juliana
+          const d = SIM.equipe.find(p => p.dona), p = pessoa(x.agente_id);
+          if (d && p) p.irAte(d, 'Entrega pronta para sua revisão.', null, 'Levando entrega para revisão');
+        }
         else if (x.status === 'erro' && s0) E.aviso(`Erro em ${a.nome}: ${x.erro || 'veja o histórico'}`.slice(0, 140));
         else if (x.status === 'executando' && !s0) E.aviso(`${a.nome} começou a trabalhar`);
         // Tarefa nova de uma missão: quem trabalhou antes nela vai até a mesa de quem recebeu.
         if (!s0 && x.missao_id && (x.status === 'executando' || x.status === 'pendente')) entregarNaMesa(x);
       }
     }
+    if (!primeira) conversasNovas(msgsAntes);
     primeira = false;
     const c = E.custom && E.custom();
     if (E.painelAberto && E.painelAberto() === 'custom' && c && c.atualizar) c.atualizar();
@@ -88,14 +118,16 @@ const VIVO = (() => {
     if (ev.origin !== location.origin || ev.source !== PAI) return;
     const m = ev.data || {};
     if (m.destino !== 'escritorio-isometrico') return;
-    if (m.tipo === 'estado') aplicar({ agentes: m.agentes || [], execucoes: m.execucoes || [], atualizadoEm: m.atualizadoEm || null, ocupado: !!m.ocupado });
+    if (m.tipo === 'estado') aplicar({ agentes: m.agentes || [], execucoes: m.execucoes || [], mensagens: m.mensagens || [], atualizadoEm: m.atualizadoEm || null, ocupado: !!m.ocupado });
   });
 
   /* ---------- selo acima da cabeça ---------- */
   function selo(ctx, p, x, y, pilula) {
     if (!p.vivo) return;
     const v = p.vivo;
-    if (v.trabalhando) {
+    if (v.erro) {
+      pilula('⚠ Parou com erro', x, y - 14, { fundo: '#7a1f1f', cor: '#fff', borda: '#ef5b5b' });
+    } else if (v.trabalhando) {
       const t = v.trabalhando.titulo, curto = t.length > 26 ? t.slice(0, 25) + '…' : t;
       ctx.globalAlpha = 0.75 + 0.25 * Math.sin(performance.now() / 260);
       pilula('✎ ' + curto, x, y - 14, { fundo: 'rgba(201,164,92,0.95)', cor: '#020726', borda: '#ecd59a', fonte: '600 10px Montserrat, sans-serif' });

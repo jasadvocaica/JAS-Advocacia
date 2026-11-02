@@ -169,6 +169,10 @@ begin
   assert exists(select 1 from jsonb_array_elements(p->'missoes') m, jsonb_array_elements(m->'tarefas') t where t->>'agente' = 'Rafael');
   begin perform public.motor_painel('00000000-0000-4000-8000-000000000002'); assert false, 'não gestor viu o painel';
   exception when insufficient_privilege then null; end;
+  assert (p->'consumo_agentes') is not null, 'consumo por agente no painel';
+  assert jsonb_array_length(public.motor_ferramentas_agente('00000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002')) >= 5;
+  assert exists(select 1 from jsonb_array_elements(public.motor_ferramentas_agente('00000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000002')) x where x->>'slug' = 'criar_item_controladoria' and (x->>'concedida')::boolean);
   raise notice 'painel: OK';
 end $$;
 reset role;

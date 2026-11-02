@@ -1,217 +1,57 @@
-import {
-  Bot,
-  Crown,
-  KanbanSquare,
-  Building2,
-  CalendarDays,
-  ChartNoAxesCombined,
-  FileText,
-  FolderOpen,
-  HandCoins,
-  LayoutDashboard,
-  LayoutGrid,
-  ListTodo,
-  Megaphone,
-  PlugZap,
-  Settings2,
-  Server,
-  ShieldCheck,
-  Terminal,
-  UsersRound,
-  Workflow,
-  MessageSquare,
-} from "lucide-react";
-import type { Modulo } from "@/contexts/AuthContext";
-export interface OfficeNavItem {
+import { Bot, Building2, Crown, KanbanSquare, MessageSquare, Server, Terminal } from "lucide-react";
+
+/**
+ * Navegação do Escritório Virtual: só o que é do escritório.
+ * Processos, agenda, publicações, financeiro e demais módulos continuam no menu do JAS.
+ */
+export interface OfficeTab {
   label: string;
   to: string;
+  section: SecaoOffice;
   icon: typeof Bot;
-  section?: string;
-  modulo?: Modulo;
-  hint?: string;
-  children?: { label: string; to: string }[];
 }
-export const OFFICE_NAV: { label: string; items: OfficeNavItem[] }[] = [
-  {
-    label: "Operação inteligente",
-    items: [
-      {
-        label: "Visão Geral",
-        to: "/dashboard-gestor",
-        icon: LayoutDashboard,
-        hint: "Painel executivo existente",
-      },
-      {
-        label: "Sala da Gestora",
-        to: "/escritorio/gestora",
-        section: "gestora",
-        icon: Crown,
-        hint: "Manu, aprovações e orçamento de IA",
-      },
-      {
-        label: "Central de Missões",
-        to: "/escritorio/missoes",
-        section: "missoes",
-        icon: KanbanSquare,
-      },
-      {
-        label: "Central de Comando",
-        to: "/escritorio",
-        section: "comando",
-        icon: Terminal,
-      },
-      {
-        label: "Escritório Virtual 3D",
-        to: "/escritorio/planta",
-        section: "planta",
-        icon: Building2,
-      },
-      {
-        label: "Escritório Isométrico",
-        to: "/escritorio/isometrico",
-        section: "isometrico",
-        icon: LayoutGrid,
-        hint: "Planta por salas com a Central dos agentes",
-      },
-      {
-        label: "Agentes de IA",
-        to: "/escritorio/equipe",
-        section: "equipe",
-        icon: Bot,
-      },
-      {
-        label: "Tarefas e Execuções",
-        to: "/escritorio/historico",
-        section: "historico",
-        icon: ListTodo,
-      },
-      {
-        label: "Automações e Workflows",
-        to: "/fluxos",
-        icon: Workflow,
-        modulo: "controladoria",
-        hint: "Biblioteca de fluxos existente",
-      },
-    ],
-  },
-  {
-    label: "Escritório jurídico",
-    items: [
-      {
-        label: "Processos e Clientes",
-        to: "/clientes",
-        icon: UsersRound,
-        modulo: "clientes",
-        children: [
-          { label: "Clientes", to: "/clientes" },
-          { label: "Processos", to: "/processos" },
-        ],
-      },
-      { label: "Agenda e Prazos", to: "/agenda", icon: CalendarDays },
-      {
-        label: "Publicações DJEN",
-        to: "/ferramentas/publicacoes-pje",
-        icon: FileText,
-        modulo: "processos",
-      },
-      {
-        label: "Documentos",
-        to: "/documentos",
-        icon: FolderOpen,
-        modulo: "documentos",
-      },
-    ],
-  },
-  {
-    label: "Gestão",
-    items: [
-      {
-        label: "Financeiro",
-        to: "/financeiro",
-        icon: HandCoins,
-        modulo: "financeiro",
-      },
-      {
-        label: "Marketing",
-        to: "/marketing",
-        icon: Megaphone,
-        modulo: "marketing",
-      },
-      {
-        label: "Relatórios e Indicadores",
-        to: "/escritorio/operacao",
-        section: "operacao",
-        icon: ChartNoAxesCombined,
-        hint: "Indicadores operacionais e consumo de IA",
-      },
-    ],
-  },
-  {
-    label: "Administração",
-    items: [
-      {
-        label: "Skills e Integrações",
-        to: "/configuracoes/integracoes",
-        icon: PlugZap,
-        hint: "Conectores existentes; gerenciador de skills previsto para próxima fase",
-      },
-      {
-        label: "Equipe e Permissões",
-        to: "/usuarios",
-        icon: ShieldCheck,
-        children: [
-          { label: "Equipe do escritório", to: "/equipe" },
-          { label: "Usuários e permissões", to: "/usuarios" },
-        ],
-      },
-      {
-        label: "Configurações",
-        to: "/configuracoes/escritorio",
-        icon: Settings2,
-      },
-    ],
-  },
-];
-export const OFFICE_SECONDARY = [
-  {
-    label: "Conectar VPS",
-    to: "/escritorio/operacao#conectar-vps",
-    icon: Server,
-  },
-  {
-    label: "Conversas",
-    to: "/escritorio/chat",
-    section: "chat",
-    icon: MessageSquare,
-  },
-  {
-    label: "Entregas para revisão",
-    to: "/escritorio/entregas",
-    section: "entregas",
-    icon: ShieldCheck,
-  },
-];
+
 export const OFFICE_SECTIONS = {
-  comando: "Central de Comando",
-  gestora: "Sala da Gestora",
-  missoes: "Central de Missões",
-  planta: "Escritório Virtual 3D",
-  isometrico: "Escritório Isométrico",
-  chat: "Conversas",
-  equipe: "Agentes de IA",
+  escritorio: "Escritório Virtual",
+  agentes: "Central de Agentes",
   configurar: "Personalizar agente",
+  missoes: "Missões",
+  gestora: "Aprovações",
+  chat: "Conversas",
+  comando: "Central de Comando",
+  operacao: "Operação de IA",
+  historico: "Execuções",
   entregas: "Entregas para revisão",
-  historico: "Tarefas e Execuções",
-  operacao: "Relatórios e Indicadores",
 } as const;
 export type SecaoOffice = keyof typeof OFFICE_SECTIONS;
+
+export const OFFICE_TABS: OfficeTab[] = [
+  { label: "Escritório", to: "/escritorio", section: "escritorio", icon: Building2 },
+  { label: "Agentes", to: "/escritorio/agentes", section: "agentes", icon: Bot },
+  { label: "Missões", to: "/escritorio/missoes", section: "missoes", icon: KanbanSquare },
+  { label: "Aprovações", to: "/escritorio/gestora", section: "gestora", icon: Crown },
+  { label: "Conversas", to: "/escritorio/chat", section: "chat", icon: MessageSquare },
+  { label: "Comando", to: "/escritorio/comando", section: "comando", icon: Terminal },
+  { label: "Operação", to: "/escritorio/operacao", section: "operacao", icon: Server },
+];
+
+// Endereços antigos continuam abrindo a tela certa (favoritos e links já enviados).
+const ALIAS: Record<string, SecaoOffice> = {
+  planta: "escritorio",
+  isometrico: "escritorio",
+  equipe: "agentes",
+};
+
 export function secaoOffice(pathname: string): SecaoOffice {
-  const id = pathname.split("/")[2] || "comando";
-  return id in OFFICE_SECTIONS ? (id as SecaoOffice) : "comando";
+  const id = pathname.split("/")[2] || "escritorio";
+  if (id in ALIAS) return ALIAS[id];
+  return id in OFFICE_SECTIONS ? (id as SecaoOffice) : "escritorio";
 }
-export const normalizarMenu = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+
+/** Aba ativa na barra: subtelas ficam marcadas na aba de origem. */
+export function abaAtiva(secao: SecaoOffice): SecaoOffice {
+  if (secao === "configurar") return "agentes";
+  if (secao === "historico") return "operacao";
+  if (secao === "entregas") return "gestora";
+  return secao;
+}

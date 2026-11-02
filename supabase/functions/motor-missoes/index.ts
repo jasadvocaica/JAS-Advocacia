@@ -316,6 +316,12 @@ Deno.serve(async (req) => {
         if (r.error) throw r.error;
         return json(r.data);
       }
+      case "ferramentas": {
+        if (!UUID.test(body.agente_id ?? "")) return json({ error: "Agente inválido" }, 400);
+        const r = await db.rpc("motor_ferramentas_agente", { _usuario: usuario, _agente: body.agente_id });
+        if (r.error) return json({ error: r.error.message }, 403);
+        return json({ ferramentas: r.data });
+      }
       case "criar_missao": {
         if (!UUID.test(body.agente_id ?? "")) return json({ error: "Agente inválido" }, 400);
         const r = await db.rpc("motor_criar_missao", {

@@ -35,7 +35,7 @@ interface Props {
 const links: Record<string, string> = {
   recepcao: "/clientes",
   diretoria: "/dashboard-gestor",
-  comando: "/escritorio",
+  comando: "/escritorio/comando",
   operacional: "/controladoria",
   controladoria: "/controladoria",
   processos: "/processos",
@@ -353,7 +353,7 @@ export default function LiveOffice3D(props: Props) {
                   <Eye size={14} />
                   {follow ? "Parar de seguir" : "Acompanhar avatar"}
                 </button>
-                <Link to="/escritorio">
+                <Link to="/escritorio/comando">
                   Central de Comando <ArrowUpRight size={14} />
                 </Link>
               </div>
@@ -406,7 +406,7 @@ export default function LiveOffice3D(props: Props) {
                   )}
                   <Link
                     className="live-office-task-link"
-                    to="/escritorio"
+                    to="/escritorio/comando"
                     onClick={() => openTask(task.id)}
                   >
                     Abrir tarefa e revisão <ArrowUpRight size={14} />
@@ -436,7 +436,7 @@ export default function LiveOffice3D(props: Props) {
                 {snapshot?.tarefas.map((t) => (
                   <Link
                     key={t.id}
-                    to="/escritorio"
+                    to="/escritorio/comando"
                     onClick={() => openTask(t.id)}
                   >
                     {STATUS[t.estado] ?? t.estado}

@@ -1,0 +1,203 @@
+/* Moldura enxuta do Escritório Virtual: barra azul-marinho com dourado, sem menu lateral. */
+.office-product.os-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  grid-template-columns: none;
+}
+.os-topo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  flex: none;
+  padding: 0 16px;
+  background: #0b1236;
+  color: #e9edf6;
+  border-bottom: 1px solid #c9a45c44;
+}
+.os-voltar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c9a45c;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.os-voltar:hover,
+.os-voltar:focus-visible {
+  background: #ffffff12;
+  outline: none;
+}
+.os-logo {
+  height: 30px;
+  width: auto;
+}
+.os-abas {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+}
+.os-abas::-webkit-scrollbar {
+  display: none;
+}
+.os-aba {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #c3cadb;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.os-aba:hover {
+  color: #fff;
+}
+.os-aba[data-ativa="true"] {
+  color: #fff;
+  border-bottom-color: #c9a45c;
+}
+.os-aba svg {
+  color: #c9a45c;
+}
+.os-controles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.os-pilula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #c3cadb;
+  padding: 5px 10px;
+  border: 1px solid #ffffff22;
+  border-radius: 20px;
+}
+.os-icone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: #e9edf6;
+}
+.os-icone:hover,
+.os-conta:hover {
+  background: #ffffff14;
+}
+.os-icone b {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #c9a45c;
+  color: #0b1236;
+  font-size: 10px;
+  line-height: 16px;
+}
+.os-shell .os-controles [aria-label^="Notifica"],
+.os-shell .os-controles button svg {
+  color: #e9edf6;
+}
+.os-conta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 20px;
+  color: #c3cadb;
+}
+.os-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+  background: #c9a45c;
+  color: #0b1236;
+}
+.os-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.os-conteudo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 28px;
+  background: var(--op-bg);
+  color: var(--op-text);
+}
+.os-shell[data-cena="true"] .os-conteudo {
+  padding: 0;
+  overflow: hidden;
+}
+.os-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.os-cabecalho h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--op-text);
+}
+.os-cabecalho p {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--op-muted);
+}
+.os-cabecalho-acoes {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.os-rodape {
+  margin-top: 24px;
+  font-size: 11px;
+  color: var(--op-muted);
+}
+@media (max-width: 900px) {
+  .os-pilula {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .os-topo {
+    padding: 0 8px;
+    gap: 6px;
+  }
+  .os-logo {
+    display: none;
+  }
+  .os-aba span {
+    display: none;
+  }
+  .os-conteudo {
+    padding: 16px;
+  }
+  .os-cabecalho {
+    flex-direction: column;
+  }
+}

@@ -26,7 +26,7 @@ const abrir = () =>
       </OfficeShell>
     </MemoryRouter>,
   );
-beforeEach(() => localStorage.clear());
+beforeEach(() => { try { localStorage.clear(); } catch { /* Node sem localStorage */ } });
 describe("Navegação e aparência do escritório", () => {
   it("preserva a preferência de tema e restaura o ambiente ao sair", () => {
     const before = document.documentElement.getAttribute("data-office-theme");
@@ -53,29 +53,23 @@ describe("Navegação e aparência do escritório", () => {
       "dark",
     );
   });
-  it("encontra módulos por busca sem acentos e mantém navegação acessível recolhida", () => {
+  it("mostra só as áreas do escritório e volta ao JAS", () => {
     abrir();
-    fireEvent.change(screen.getByRole("textbox", { name: "Pesquisar menu" }), {
-      target: { value: "publicacoes" },
-    });
-    expect(
-      screen.getByRole("link", { name: "Publicações DJEN" }),
-    ).toHaveAttribute("href", "/ferramentas/publicacoes-pje");
-    expect(
-      screen.queryByRole("link", { name: "Financeiro" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Limpar pesquisa do menu" }),
+    const barra = screen.getByRole("navigation", { name: "Áreas do escritório" });
+    expect(barra).toHaveTextContent("Escritório");
+    expect(screen.getByRole("link", { name: "Comando" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("link", { name: "Financeiro" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voltar ao sistema JAS" })).toHaveAttribute("href", "/");
+  });
+  it("no modo imersivo some a moldura", () => {
+    render(
+      <MemoryRouter>
+        <OfficeShell secao="escritorio" contratar={vi.fn()} recarregar={vi.fn()} loading={false} pendentes={0} trabalhando={0} atualizadoEm={null} imersivo>
+          <p>Cena</p>
+        </OfficeShell>
+      </MemoryRouter>,
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Recolher menu lateral" }),
-    );
-    expect(screen.getByRole("link", { name: "Financeiro" })).toHaveAttribute(
-      "href",
-      "/financeiro",
-    );
-    expect(
-      screen.getByRole("button", { name: "Expandir menu lateral" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Áreas do escritório" })).not.toBeInTheDocument();
+    expect(screen.getByText("Cena")).toBeInTheDocument();
   });
 });

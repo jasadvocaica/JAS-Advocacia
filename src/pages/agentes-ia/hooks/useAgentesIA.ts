@@ -199,6 +199,14 @@ export function useAgentesIA() {
           espera = setTimeout(() => void carregar(), 400);
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "escritorio_mensagens" },
+        () => {
+          if (espera) clearTimeout(espera);
+          espera = setTimeout(() => void carregar(), 400);
+        },
+      )
       .subscribe();
     return () => {
       if (espera) clearTimeout(espera);

@@ -50,6 +50,7 @@ export interface Atividade {
 export interface Painel {
   motor_ligado: boolean;
   orcamento: Orcamento;
+  consumo_agentes?: Record<string, { custo_usd: number; tokens: number }>;
   missoes: Missao[];
   atividades: Atividade[];
 }

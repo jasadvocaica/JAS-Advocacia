@@ -260,7 +260,7 @@ export default function AgentEditor({
   return (
     <section className="agent-editor" aria-label="Editor de agentes">
       <div className="agent-editor-toolbar">
-        <Link to="/escritorio/equipe">
+        <Link to="/escritorio/agentes">
           <ArrowLeft size={14} />
           Voltar à equipe
         </Link>

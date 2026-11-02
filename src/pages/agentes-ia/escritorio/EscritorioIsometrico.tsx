@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AgenteIA, ExecucaoAgente } from "../hooks/useAgentesIA";
+import type { AgenteIA, ExecucaoAgente, MensagemEscritorio } from "../hooks/useAgentesIA";
 
 /**
  * Escritório isométrico (public/escritorio-isometrico) ligado aos agentes reais.
@@ -13,10 +13,13 @@ export const ORIGEM_ESCRITORIO = "escritorio-isometrico";
 interface Props {
   agentes: AgenteIA[];
   execucoes: ExecucaoAgente[];
+  mensagens?: MensagemEscritorio[];
   atualizadoEm: string | null;
   ocupado: boolean;
   rodar: (agente: AgenteIA) => Promise<void> | void;
   revisar: (execucao: ExecucaoAgente) => void;
+  /** Ocupa toda a área do pai (Escritório Virtual), sem moldura. */
+  preencher?: boolean;
 }
 
 /** O que muda a planta (quem existe e em que sala). Nome e estado vão pela mensagem. */
@@ -31,7 +34,7 @@ export function enderecoEscritorio(agentes: AgenteIA[]): string {
   return `/escritorio-isometrico/index.html#d=${encodeURIComponent(JSON.stringify({ agentes: equipe }))}`;
 }
 
-export default function EscritorioIsometrico({ agentes, execucoes, atualizadoEm, ocupado, rodar, revisar }: Props) {
+export default function EscritorioIsometrico({ agentes, execucoes, mensagens = [], atualizadoEm, ocupado, rodar, revisar, preencher = false }: Props) {
   const ref = useRef<HTMLIFrameElement>(null);
   const navigate = useNavigate();
   // recarrega o escritório só quando entra/sai agente ou alguém muda de sala
@@ -57,10 +60,14 @@ export default function EscritorioIsometrico({ agentes, execucoes, atualizadoEm,
           erro: x.erro, iniciado_em: x.iniciado_em, finalizado_em: x.finalizado_em,
           missao_id: typeof x.entrada?.missao_id === "string" ? x.entrada.missao_id : null,
         })),
+        mensagens: mensagens.slice(-40).map((m) => ({
+          id: m.id, agente_id: m.agente_id, destinatario_id: m.destinatario_id, origem: m.origem,
+          texto: m.texto.slice(0, 160), criado_em: m.criado_em,
+        })),
       },
       window.location.origin,
     );
-  }, [agentes, execucoes, atualizadoEm, ocupado]);
+  }, [agentes, execucoes, mensagens, atualizadoEm, ocupado]);
 
   useEffect(() => enviarEstado(), [enviarEstado]);
 
@@ -78,7 +85,7 @@ export default function EscritorioIsometrico({ agentes, execucoes, atualizadoEm,
         const x = execucoes.find((e) => e.id === m.execucao_id && e.status === "aguardando_aprovacao");
         if (x) revisar(x);
       } else if (m.tipo === "editar") {
-        if (agentes.some((x) => x.id === m.agente_id)) navigate(`/escritorio/equipe/${m.agente_id}/editar`);
+        if (agentes.some((x) => x.id === m.agente_id)) navigate(`/escritorio/agentes?agente=${m.agente_id}&aba=instrucoes`);
       }
     }
     window.addEventListener("message", ouvir);
@@ -86,7 +93,8 @@ export default function EscritorioIsometrico({ agentes, execucoes, atualizadoEm,
   }, [agentes, execucoes, ocupado, rodar, revisar, navigate, enviarEstado]);
 
   return (
-    <section aria-label="Escritório isométrico" className="overflow-hidden rounded-xl border" style={{ height: "calc(100dvh - 150px)", minHeight: 560 }}>
+    <section aria-label="Escritório isométrico" className={preencher ? "h-full overflow-hidden" : "overflow-hidden rounded-xl border"}
+      style={preencher ? undefined : { height: "calc(100dvh - 150px)", minHeight: 560 }}>
       <iframe
         ref={ref}
         key={src}

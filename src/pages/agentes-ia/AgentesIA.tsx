@@ -1,10 +1,11 @@
 import VpsConnector from "./escritorio/agent-editor/VpsConnector";
 import CentralComando from "./escritorio/CentralComando";
+import EscritorioVirtual from "./escritorio/virtual/EscritorioVirtual";
+import CentralAgentes from "./escritorio/agentes/CentralAgentes";
 import CentralMissoes from "./escritorio/missoes/CentralMissoes";
 import SalaGestora from "./escritorio/missoes/SalaGestora";
 import OfficeShell, { secaoOffice } from "./escritorio/OfficeShell";
 import AgentEditor from "./escritorio/agent-editor/AgentEditor";
-import EscritorioIsometrico from "./escritorio/EscritorioIsometrico";
 import { useMatch, useNavigate, useLocation } from "react-router-dom";
 import ChatEscritorio from "./escritorio/ChatEscritorio";
 import EscritorioVisual, { horario } from "./EscritorioVisual";
@@ -89,6 +90,7 @@ export default function AgentesIA() {
   const location = useLocation();
   const secao = editor ? "configurar" : secaoOffice(location.pathname);
   const [contratarAberto, setContratarAberto] = useState(false);
+  const [imersivo, setImersivo] = useState(false);
 
   const [executando, setExecutando] = useState<string | null>(null);
   const [revisao, setRevisao] = useState<ExecucaoAgente | null>(null);
@@ -157,8 +159,9 @@ export default function AgentesIA() {
         ).length
       }
       atualizadoEm={atualizadoEm}
+      imersivo={imersivo && secao === "escritorio"}
     >
-      {error ? (
+      {error && secao !== "escritorio" ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
@@ -171,16 +174,45 @@ export default function AgentesIA() {
         ocupado={executando !== null}
         recarregar={recarregar}
         revisar={setRevisao}
-        modo={
-          secao === "planta"
-            ? "planta"
-            : secao === "equipe"
-              ? "equipe"
-              : "somente-dialogos"
-        }
+        modo="somente-dialogos"
         contratarAberto={contratarAberto}
         onContratarAberto={setContratarAberto}
       />
+      {secao === "escritorio" && (
+        <EscritorioVirtual
+          agentes={agentes}
+          execucoes={execucoes}
+          mensagens={mensagens}
+          atualizadoEm={atualizadoEm}
+          ocupado={executando !== null}
+          rodar={rodar}
+          revisar={setRevisao}
+          imersivo={imersivo}
+          setImersivo={setImersivo}
+          cena3d={() => (
+            <EscritorioVisual
+              agentes={agentes}
+              execucoes={execucoes}
+              rodar={rodar}
+              ocupado={executando !== null}
+              recarregar={recarregar}
+              revisar={setRevisao}
+              modo="planta"
+            />
+          )}
+        />
+      )}
+      {secao === "agentes" && (
+        <CentralAgentes
+          agentes={agentes}
+          execucoes={execucoes}
+          mensagens={mensagens}
+          rodar={rodar}
+          revisar={setRevisao}
+          recarregar={recarregar}
+          ocupado={executando !== null}
+        />
+      )}
       {editor && (
         <AgentEditor
           agenteId={editMatch?.params.agenteId}
@@ -193,16 +225,6 @@ export default function AgentesIA() {
         <SalaGestora agentes={agentes} execucoes={execucoes} mensagens={mensagens} />
       )}
       {secao === "missoes" && <CentralMissoes agentes={agentes} />}
-      {secao === "isometrico" && (
-        <EscritorioIsometrico
-          agentes={agentes}
-          execucoes={execucoes}
-          atualizadoEm={atualizadoEm}
-          ocupado={executando !== null}
-          rodar={rodar}
-          revisar={setRevisao}
-        />
-      )}
       {secao === "chat" && (
         <ChatEscritorio
           agentes={agentes}
@@ -270,7 +292,7 @@ export default function AgentesIA() {
         </Card>
       ) : null}
 
-      {secao === "entregas" &&
+      {(secao === "entregas" || secao === "gestora") &&
         (pendentesAprovacao.length > 0 ? (
           <Card className="border-warning/40 bg-warning/5">
             <CardHeader className="pb-2">

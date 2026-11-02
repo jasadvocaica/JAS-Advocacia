@@ -386,7 +386,7 @@ const PESSOAS = (() => {
         return;
       }
       // agente sem tarefa real aparece como disponível, nunca com trabalho inventado
-      this.status = this.vivo ? (this.vivo.fila ? this.vivo.fila + ' na fila' : 'Disponível') : this.atividade;
+      this.status = this.vivo ? (this.vivo.erro ? 'Parou com erro: ' + this.vivo.erro : this.vivo.revisao ? 'Aguardando aprovação' : this.vivo.fila ? this.vivo.fila + ' na fila' : 'Disponível') : this.atividade;
       const r = Math.random();
       const fica = this.fixo ? 0.85 : 0.55;
       if (r < fica) {
@@ -423,7 +423,25 @@ const PESSOAS = (() => {
         { t: 'esperar', s: entre(6, 11), st: `Conversando em ${nome}` });
     }
 
-    // Vai até a mesa de outro agente entregar uma tarefa da missão e volta (pensar() leva de volta).
+    // Vai até a mesa de outra pessoa, fala, espera a resposta e volta (pensar() leva de volta).
+    irAte(outro, fala, resposta, status) {
+      const s = outro.casa;
+      if (!s || this.fora || outro === this || this.cliente) return false;
+      const [tx, ty] = this.tile;
+      const perto = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]
+        .map(([dx, dy]) => [s.x + dx, s.y + dy])
+        .find(([x, y]) => rota(tx, ty, x, y));
+      if (!perto) return false;
+      this.limpar();
+      this.q.push({ t: 'ir', x: perto[0], y: perto[1], st: status },
+        { t: 'falar', txt: fala },
+        { t: 'esperar', s: 2.4, st: status },
+        { t: 'fn', f: () => { if (resposta && !outro.fora) outro.dizer(resposta); } },
+        { t: 'esperar', s: 1.8 });
+      return true;
+    }
+
+    // Leva a tarefa da missão até a mesa de quem vai executar.
     levarTarefa(outro, titulo) {
       const s = outro.casa;
       if (!s || this.fora || outro === this || this.cliente) return false;

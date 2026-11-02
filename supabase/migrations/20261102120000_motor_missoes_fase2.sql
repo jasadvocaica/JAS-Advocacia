@@ -748,6 +748,9 @@ begin
   return jsonb_build_object(
     'motor_ligado', (select ligado from escritorio_privado.motor_config),
     'orcamento', escritorio_privado.ia_situacao_calc(),
+    'consumo_agentes', coalesce((select jsonb_object_agg(agente_id, jsonb_build_object('custo_usd', round(custo, 4), 'tokens', tokens))
+      from (select agente_id, sum(coalesce(custo_usd, reservado_usd)) custo, sum(coalesce(tokens_entrada,0) + coalesce(tokens_saida,0)) tokens
+            from escritorio_privado.ia_consumo where dia > escritorio_privado.hoje() - 30 group by agente_id) c), '{}'::jsonb),
     'missoes', coalesce((
       select jsonb_agg(x order by x->>'criada_em' desc) from (
         select jsonb_build_object(
@@ -772,6 +775,22 @@ begin
       left join public.agentes_ia ag on ag.id = a.ator_id), '[]'::jsonb));
 end $$;
 
+-- Ferramentas do catálogo com a indicação do que o agente já recebeu (tela da Central de Agentes).
+create function public.motor_ferramentas_agente(_usuario uuid, _agente uuid)
+returns jsonb language plpgsql stable security invoker set search_path='' as $$
+begin
+  if current_user <> 'service_role' then raise exception 'Somente backend' using errcode='42501'; end if;
+  if not public.is_gestor(_usuario) or not public.is_interno_ativo(_usuario) then
+    raise exception 'Gestor ativo necessário' using errcode='42501';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('slug', f.slug, 'nome', f.nome, 'descricao', f.descricao,
+      'classe', f.classe, 'modulo', f.modulo, 'concedida', af.agente_id is not null, 'concedida_em', af.concedida_em)
+      order by f.classe, f.nome)
+    from escritorio_privado.ferramentas f
+    left join escritorio_privado.agente_ferramentas af on af.ferramenta = f.slug and af.agente_id = _agente
+    where f.ativa), '[]'::jsonb);
+end $$;
+
 -- ---------------------------------------------------------------- privilégios
 revoke all on all tables in schema escritorio_privado from public, anon, authenticated;
 grant usage on schema escritorio_privado to service_role;
@@ -790,7 +809,7 @@ do $$ declare f text; begin
     'motor_devolver_tarefa(uuid,text)',
     'aprovacao_listar(uuid)','ia_situacao()','aprovacao_decidir(uuid,uuid,boolean,text,text)',
     'aprovacao_iniciar_execucao(uuid)','aprovacao_finalizar_execucao(uuid,boolean,jsonb)',
-    'motor_ajustar(uuid,boolean,numeric,numeric)','motor_painel(uuid)','motor_conceder_ferramenta(uuid,uuid,text,boolean)']
+    'motor_ajustar(uuid,boolean,numeric,numeric)','motor_painel(uuid)','motor_ferramentas_agente(uuid,uuid)','motor_conceder_ferramenta(uuid,uuid,text,boolean)']
   loop
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);

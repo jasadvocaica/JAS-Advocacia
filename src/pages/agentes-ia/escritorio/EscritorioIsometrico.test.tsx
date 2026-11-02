@@ -19,7 +19,8 @@ const rodar = vi.fn();
 const revisar = vi.fn();
 
 function Local() {
-  return <span data-testid="local">{useLocation().pathname}</span>;
+  const l = useLocation();
+  return <span data-testid="local">{l.pathname + l.search}</span>;
 }
 
 function abrir(ocupado = false) {
@@ -99,7 +100,7 @@ describe("Escritório isométrico", () => {
     doEscritorio(frame, { tipo: "editar", agente_id: "nao-existe" });
     expect(screen.getByTestId("local")).toHaveTextContent("/escritorio/isometrico");
     doEscritorio(frame, { tipo: "editar", agente_id: "a1" });
-    expect(screen.getByTestId("local")).toHaveTextContent("/escritorio/equipe/a1/editar");
+    expect(screen.getByTestId("local")).toHaveTextContent("/escritorio/agentes?agente=a1&aba=instrucoes");
   });
 
   it("responde 'pronto' mandando o estado para o escritório", () => {
