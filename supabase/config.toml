@@ -201,3 +201,11 @@ verify_jwt = false
 
 [functions.escritorio-vps]
 verify_jwt = false
+
+[functions.motor-missoes]
+# Chamada pelo despertador (pg_cron) com x-djen-cron-secret; as ações da tela conferem getUser no handler.
+verify_jwt = false
+
+[functions.zernio]
+# Chamada pela rotina de sincronização com x-djen-cron-secret; as ações da tela conferem getUser no handler.
+verify_jwt = false
