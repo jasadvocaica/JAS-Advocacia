@@ -70,10 +70,17 @@ deno check --no-config --import-map=tests/agentes/deno-imports.json supabase/fun
 7. Teste de aceite: uma missão cria tarefa, delega, lê dado real, propõe uma
    atividade, e a atividade só aparece na Controladoria depois de aprovada, uma vez.
 
+## Telas
+
+| Tela | Rota | O que faz |
+|---|---|---|
+| Sala da Gestora | `/escritorio/gestora` | Manu como Gestora Geral: Central de Aprovações (ação e orçamento), orçamento do mês e do dia, ligar/desligar o motor com confirmação, agentes em operação, comunicação entre agentes |
+| Central de Missões | `/escritorio/missoes` | Quadro por estado real (na fila, em execução, aguardando aprovação, concluídas, com falha), nova missão (Manu por padrão), detalhe com as tarefas delegadas, atividades recentes da auditoria |
+
+As duas leem a ação `painel` de `motor-missoes` (só gestor) e mostram aviso claro quando o motor ainda não está instalado. Testes: `src/pages/agentes-ia/escritorio/missoes/missoes.test.tsx`.
+
 ## Fica para as próximas fases
 
-- Tela da Central de Aprovações e do orçamento (a API já existe: `aprovacoes`,
-  `decidir`, `orcamento`, `decidir_orcamento`).
 - Pulso pelo worker da VPS (hoje: cron com segredo).
 - Gestora com distribuição por desempenho, salas e reuniões (Fase 3).
 - Consumo dos `eventos` (DJEN, falhas) pelo motor.

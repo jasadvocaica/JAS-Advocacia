@@ -156,3 +156,19 @@ begin
   raise notice 'devolução sem orçamento: OK';
 end $$;
 reset role;
+
+-- 13. Painel: só gestor; mostra missões, tarefas, orçamento e atividades.
+set role service_role;
+do $$
+declare p jsonb;
+begin
+  p := public.motor_painel('00000000-0000-4000-8000-000000000001');
+  assert jsonb_array_length(p->'missoes') >= 2, 'missões no painel';
+  assert jsonb_array_length(p->'atividades') between 1 and 25, 'atividades no painel';
+  assert (p->'orcamento'->>'teto_absoluto_usd')::numeric = 20;
+  assert exists(select 1 from jsonb_array_elements(p->'missoes') m, jsonb_array_elements(m->'tarefas') t where t->>'agente' = 'Rafael');
+  begin perform public.motor_painel('00000000-0000-4000-8000-000000000002'); assert false, 'não gestor viu o painel';
+  exception when insufficient_privilege then null; end;
+  raise notice 'painel: OK';
+end $$;
+reset role;

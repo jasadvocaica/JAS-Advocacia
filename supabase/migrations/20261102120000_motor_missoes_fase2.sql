@@ -737,6 +737,41 @@ begin
   return true;
 end $$;
 
+-- ---------------------------------------------------------------- painel (Sala da Gestora e Central de Missões)
+create function public.motor_painel(_usuario uuid)
+returns jsonb language plpgsql stable security invoker set search_path='' as $$
+begin
+  if current_user <> 'service_role' then raise exception 'Somente backend' using errcode='42501'; end if;
+  if not public.is_gestor(_usuario) or not public.is_interno_ativo(_usuario) then
+    raise exception 'Gestor ativo necessário' using errcode='42501';
+  end if;
+  return jsonb_build_object(
+    'motor_ligado', (select ligado from escritorio_privado.motor_config),
+    'orcamento', escritorio_privado.ia_situacao_calc(),
+    'missoes', coalesce((
+      select jsonb_agg(x order by x->>'criada_em' desc) from (
+        select jsonb_build_object(
+          'id', m.id, 'titulo', m.titulo, 'objetivo', m.objetivo, 'estado', m.estado, 'origem', m.origem,
+          'prioridade', m.prioridade, 'criada_em', m.criada_em, 'encerrada_em', m.encerrada_em,
+          'aprovacoes_abertas', (select count(*) from escritorio_privado.aprovacoes a
+              join escritorio_privado.missao_tarefas t on t.id = a.tarefa_id
+              where t.missao_id = m.id and a.estado in ('pendente','aprovada','executando')),
+          'tarefas', coalesce((select jsonb_agg(jsonb_build_object(
+              'id', t.id, 'titulo', t.titulo, 'estado', t.estado, 'agente_id', t.agente_id, 'agente', ag.nome,
+              'profundidade', t.profundidade, 'tentativas', t.tentativas,
+              'resumo', t.resultado->>'resumo', 'erro', t.erro, 'concluida_em', t.concluida_em) order by t.criada_em)
+            from escritorio_privado.missao_tarefas t join public.agentes_ia ag on ag.id = t.agente_id
+            where t.missao_id = m.id), '[]'::jsonb)) x
+        from escritorio_privado.missoes m
+        where m.estado = 'aberta' or m.encerrada_em > now() - interval '7 days'
+        order by m.criada_em desc limit 60) s), '[]'::jsonb),
+    'atividades', coalesce((
+      select jsonb_agg(jsonb_build_object('id', a.id, 'acao', a.acao, 'ator_tipo', a.ator_tipo,
+          'ator', case when a.ator_tipo = 'agente' then ag.nome end, 'criado_em', a.criado_em) order by a.id desc)
+      from (select * from escritorio_privado.auditoria order by id desc limit 25) a
+      left join public.agentes_ia ag on ag.id = a.ator_id), '[]'::jsonb));
+end $$;
+
 -- ---------------------------------------------------------------- privilégios
 revoke all on all tables in schema escritorio_privado from public, anon, authenticated;
 grant usage on schema escritorio_privado to service_role;
@@ -755,7 +790,7 @@ do $$ declare f text; begin
     'motor_devolver_tarefa(uuid,text)',
     'aprovacao_listar(uuid)','ia_situacao()','aprovacao_decidir(uuid,uuid,boolean,text,text)',
     'aprovacao_iniciar_execucao(uuid)','aprovacao_finalizar_execucao(uuid,boolean,jsonb)',
-    'motor_ajustar(uuid,boolean,numeric,numeric)','motor_conceder_ferramenta(uuid,uuid,text,boolean)']
+    'motor_ajustar(uuid,boolean,numeric,numeric)','motor_painel(uuid)','motor_conceder_ferramenta(uuid,uuid,text,boolean)']
   loop
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);

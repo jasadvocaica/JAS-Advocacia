@@ -1,7 +1,7 @@
 // Motor de missões (Fase 2). Nasce desligado: só trabalha depois que a gestão liga o motor.
 // Ações:
 //  - pulso (cron/worker com segredo): reserva tarefas prontas e executa com ferramentas;
-//  - criar_missao, aprovacoes, decidir, orcamento, decidir_orcamento, ajustar, ferramenta (pessoa logada).
+//  - painel, criar_missao, aprovacoes, decidir, orcamento, decidir_orcamento, ajustar, ferramenta (pessoa logada).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   executarRodadas,
@@ -264,6 +264,11 @@ Deno.serve(async (req) => {
 
     if (gestor.data !== true) return json({ error: "Gestor ativo necessário" }, 403);
     switch (body.acao) {
+      case "painel": {
+        const r = await db.rpc("motor_painel", { _usuario: usuario });
+        if (r.error) throw r.error;
+        return json(r.data);
+      }
       case "criar_missao": {
         if (!UUID.test(body.agente_id ?? "")) return json({ error: "Agente inválido" }, 400);
         const r = await db.rpc("motor_criar_missao", {

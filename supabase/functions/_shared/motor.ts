@@ -257,6 +257,7 @@ export interface OpcaoAumento {
 }
 
 const centavos = (v: number) => Math.round(v * 100) / 100;
+const usd = (v: number) => `US$ ${v.toFixed(2).replace(".", ",")}`;
 
 /** Avisa quando o dia passa de 80% com fila, quando a projeção estoura o mês ou quando a fila parou por limite. */
 export function motivoAviso(s: SituacaoOrcamento, bloqueouPorLimite = false): string | null {
@@ -280,7 +281,7 @@ export function simularAumento(s: SituacaoOrcamento): OpcaoAumento[] {
   opcoes.push({
     tipo: "extra_dia",
     valor_usd: extra,
-    descricao: `Só hoje +US$ ${extra.toFixed(2)}`,
+    descricao: `Só hoje +${usd(extra)}`,
     limite_dia_previsto_usd: centavos(s.limite_dia_usd + extra),
     mes_fecharia_em_usd: centavos(Math.min(s.orcamento_mensal_usd + s.extras_mes_usd + extra, s.gasto_mes_usd + extra + media * resto)),
   });
@@ -291,7 +292,7 @@ export function simularAumento(s: SituacaoOrcamento): OpcaoAumento[] {
     opcoes.push({
       tipo: "mensal",
       valor_usd: novoMensal,
-      descricao: `Mensal para US$ ${novoMensal.toFixed(2)}`,
+      descricao: `Mensal para ${usd(novoMensal)}`,
       limite_dia_previsto_usd: centavos(Math.max(0, disponivel) / Math.max(1, s.dias_restantes)),
       mes_fecharia_em_usd: centavos(Math.min(novoMensal + s.extras_mes_usd, s.gasto_mes_usd + media * resto)),
     });

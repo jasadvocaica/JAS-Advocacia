@@ -1,5 +1,7 @@
 import {
   Bot,
+  Crown,
+  KanbanSquare,
   Building2,
   CalendarDays,
   ChartNoAxesCombined,
@@ -37,6 +39,19 @@ export const OFFICE_NAV: { label: string; items: OfficeNavItem[] }[] = [
         to: "/dashboard-gestor",
         icon: LayoutDashboard,
         hint: "Painel executivo existente",
+      },
+      {
+        label: "Sala da Gestora",
+        to: "/escritorio/gestora",
+        section: "gestora",
+        icon: Crown,
+        hint: "Manu, aprovações e orçamento de IA",
+      },
+      {
+        label: "Central de Missões",
+        to: "/escritorio/missoes",
+        section: "missoes",
+        icon: KanbanSquare,
       },
       {
         label: "Central de Comando",
@@ -170,6 +185,8 @@ export const OFFICE_SECONDARY = [
 ];
 export const OFFICE_SECTIONS = {
   comando: "Central de Comando",
+  gestora: "Sala da Gestora",
+  missoes: "Central de Missões",
   planta: "Escritório Virtual 3D",
   chat: "Conversas",
   equipe: "Agentes de IA",
