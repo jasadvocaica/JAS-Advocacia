@@ -17,6 +17,8 @@ const arquivos = [
   "tests/motor/fluxo.sql",
   "supabase/migrations/20261102160000_motor_gatilho_djen.sql",
   "tests/motor/gatilho-djen.sql",
+  "supabase/migrations/20261102170000_telegram.sql",
+  "tests/motor/telegram.sql",
 ];
 for (const arquivo of arquivos) {
   try {

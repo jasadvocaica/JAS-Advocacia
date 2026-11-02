@@ -16,6 +16,7 @@ import type { AgenteIA, ExecucaoAgente, MensagemEscritorio } from "../../hooks/u
 import { OfficeEmpty, OfficeStatus } from "../design/OfficeUI";
 import { Indicador } from "./CentralMissoes";
 import GatilhoDjen from "./GatilhoDjen";
+import TelegramPainel from "../telegram/TelegramPainel";
 import { chamarMotor, dolar, hora, useAprovacoes, usePainelMotor, type Aprovacao } from "./motor";
 import "./missoes.css";
 
@@ -209,6 +210,7 @@ export default function SalaGestora({
         </div>
 
         <GatilhoDjen agentes={agentes} motorLigado={painel.motor_ligado} />
+        <TelegramPainel />
 
         <div className="op-panel">
           <h3><Users size={18} /> Agentes em operação</h3>

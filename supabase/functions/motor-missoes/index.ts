@@ -13,6 +13,7 @@ import {
   type SituacaoOrcamento,
 } from "../_shared/motor.ts";
 import { validarConfigAgente } from "../_shared/agentes-config.ts";
+import { usuarioInterno } from "../_shared/interno.ts";
 import { criarCliente, decifrar, semSegredos } from "../_shared/zernio.ts";
 
 const cors = {
@@ -281,9 +282,11 @@ Deno.serve(async (req) => {
       return json({ ok: true, processadas: resultados });
     }
 
-    const auth = await db.auth.getUser((req.headers.get("Authorization") ?? "").replace(/^Bearer /i, ""));
-    if (auth.error || !auth.data.user) return json({ error: "Sessão inválida" }, 401);
-    const usuario = auth.data.user.id;
+    // Telegram age em nome do usuário vinculado, só para aprovações e criar missão.
+    const viaTelegram = ["aprovacoes", "decidir", "criar_missao"].includes(body.acao) ? usuarioInterno(req, body) : null;
+    const auth = viaTelegram ? null : await db.auth.getUser((req.headers.get("Authorization") ?? "").replace(/^Bearer /i, ""));
+    if (!viaTelegram && (auth?.error || !auth?.data.user)) return json({ error: "Sessão inválida" }, 401);
+    const usuario = viaTelegram ?? auth!.data.user!.id;
     const [gestor, interno] = await Promise.all([
       db.rpc("is_gestor", { _user_id: usuario }),
       db.rpc("is_interno_ativo", { _user_id: usuario }),

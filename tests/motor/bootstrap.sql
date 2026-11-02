@@ -1,6 +1,6 @@
 -- Contratos mínimos da produção para testar o motor num banco DESCARTÁVEL.
 -- Nunca executar em projeto real.
-create role service_role;
+create role service_role bypassrls; -- como na produção
 create role authenticated;
 create role anon;
 create schema auth;

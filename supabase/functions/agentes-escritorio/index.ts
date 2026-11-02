@@ -4,6 +4,7 @@ import {
 } from "../_shared/agentes-config.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { respostaComLimite } from "../assistente-chat/limites.ts";
+import { usuarioInterno } from "../_shared/interno.ts";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -44,6 +45,9 @@ Deno.serve(async (req) => {
         .eq("id", body.agente_id)
         .single();
       userId = a?.supervisor_id;
+    } else if (body.acao === "conversar" && usuarioInterno(req, body)) {
+      // Conversa vinda do Telegram, já vinculada a este usuário pela função telegram.
+      userId = usuarioInterno(req, body)!;
     } else {
       const { data, error } = await db.auth.getUser(
         (req.headers.get("Authorization") ?? "").replace(/^Bearer /i, ""),

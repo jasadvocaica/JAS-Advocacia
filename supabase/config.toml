@@ -209,3 +209,8 @@ verify_jwt = false
 [functions.zernio]
 # Chamada pela rotina de sincronização com x-djen-cron-secret; as ações da tela conferem getUser no handler.
 verify_jwt = false
+
+[functions.telegram]
+# Recebe o webhook do Telegram (segredo no cabeçalho) e o aviso do banco (x-djen-cron-secret);
+# as ações da tela conferem getUser no handler.
+verify_jwt = false
