@@ -35,6 +35,9 @@ export function comando(texto: string): { nome: string; resto: string } {
   return { nome, resto: m[2].trim() };
 }
 
+/** Regra do Telegram para o secret_token do webhook. */
+export const segredoValido = (s: string) => /^[A-Za-z0-9_-]{1,256}$/.test(s);
+
 export const dadosBotao = (id: string, aprovar: boolean) => `ap:${id}:${aprovar ? "s" : "n"}`;
 
 export function lerBotao(dados: string): { id: string; aprovar: boolean } | null {

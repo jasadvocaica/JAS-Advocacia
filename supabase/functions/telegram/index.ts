@@ -9,6 +9,7 @@ import {
   comando,
   dadosBotao,
   lerBotao,
+  segredoValido,
   textoAprovacao,
   type Aprovacao,
 } from "./mensagens.ts";
@@ -21,8 +22,9 @@ const cors = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const TOKEN = () => Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
-const SEGREDO = () => Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "";
+// trim: ao colar no painel de segredos é comum vir espaço ou quebra de linha junto.
+const TOKEN = () => (Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "").trim();
+const SEGREDO = () => (Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "").trim();
 
 async function telegram(metodo: string, corpo: Record<string, unknown>) {
   const r = await fetch(`https://api.telegram.org/bot${TOKEN()}/${metodo}`, {
@@ -227,6 +229,10 @@ Deno.serve(async (req) => {
         const g = await db.rpc("is_gestor", { _user_id: usuario });
         if (g.data !== true) return json({ error: "Gestor ativo necessário" }, 403);
         if (!TOKEN() || !SEGREDO()) return json({ error: "Cadastre TELEGRAM_BOT_TOKEN e TELEGRAM_WEBHOOK_SECRET nos segredos das funções." }, 409);
+        if (!segredoValido(SEGREDO()))
+          return json({
+            error: "TELEGRAM_WEBHOOK_SECRET só pode ter letras, números, _ e - (até 256). Gere outro com o comando do guia e salve de novo.",
+          }, 409);
         await telegram("setWebhook", {
           url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/telegram`,
           secret_token: SEGREDO(),

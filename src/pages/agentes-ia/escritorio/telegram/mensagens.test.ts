@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ajuda, comando, dadosBotao, lerBotao, textoAprovacao } from "../../../../../supabase/functions/telegram/mensagens";
+import { ajuda, comando, dadosBotao, lerBotao, segredoValido, textoAprovacao } from "../../../../../supabase/functions/telegram/mensagens";
 
 describe("Telegram · mensagens", () => {
+  it("aceita só os caracteres que o Telegram permite no segredo do webhook", () => {
+    expect(segredoValido("Abc123_xyz-9")).toBe(true);
+    expect(segredoValido("@JulianaBot")).toBe(false);
+    expect(segredoValido("senha com espaço")).toBe(false);
+    expect(segredoValido("a+b/c=")).toBe(false);
+    expect(segredoValido("")).toBe(false);
+  });
+
   it("separa comandos, inclusive com o nome do bot e acento", () => {
     expect(comando("/vincular  ab12cd34ef ")).toEqual({ nome: "vincular", resto: "ab12cd34ef" });
     expect(comando("/missao@JasBot Revisar prazos\nda semana")).toEqual({ nome: "missao", resto: "Revisar prazos\nda semana" });
