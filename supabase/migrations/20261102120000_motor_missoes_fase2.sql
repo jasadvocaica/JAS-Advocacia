@@ -792,12 +792,16 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------- privilégios
-revoke all on all tables in schema escritorio_privado from public, anon, authenticated;
+-- Só as tabelas desta migration: as já existentes no schema (configurações dos agentes, workers) não mudam.
+revoke all on escritorio_privado.motor_config, escritorio_privado.ferramentas, escritorio_privado.agente_ferramentas, escritorio_privado.missoes, escritorio_privado.missao_tarefas, escritorio_privado.eventos, escritorio_privado.aprovacoes, escritorio_privado.auditoria, escritorio_privado.ia_orcamento, escritorio_privado.ia_extra_dia, escritorio_privado.ia_precos, escritorio_privado.ia_cotas, escritorio_privado.ia_consumo from public, anon, authenticated;
 grant usage on schema escritorio_privado to service_role;
-grant select, insert, update, delete on all tables in schema escritorio_privado to service_role;
+grant select, insert, update, delete on escritorio_privado.motor_config, escritorio_privado.ferramentas, escritorio_privado.agente_ferramentas, escritorio_privado.missoes, escritorio_privado.missao_tarefas, escritorio_privado.eventos, escritorio_privado.aprovacoes, escritorio_privado.auditoria, escritorio_privado.ia_orcamento, escritorio_privado.ia_extra_dia, escritorio_privado.ia_precos, escritorio_privado.ia_cotas, escritorio_privado.ia_consumo to service_role;
 revoke update, delete on escritorio_privado.auditoria from service_role;
-grant usage, select on all sequences in schema escritorio_privado to service_role;
-grant execute on all functions in schema escritorio_privado to service_role;
+grant usage, select on sequence escritorio_privado.eventos_id_seq, escritorio_privado.auditoria_id_seq to service_role;
+grant execute on function escritorio_privado.hoje(), escritorio_privado.escopo_hash(text, jsonb),
+  escritorio_privado.auditoria_imutavel(), escritorio_privado.auditar(text, uuid, text, text, jsonb),
+  escritorio_privado.ia_gasto(date, date, uuid), escritorio_privado.ia_limite_dia(date),
+  escritorio_privado.ia_cota_agente(uuid, date), escritorio_privado.ia_situacao_calc() to service_role;
 
 do $$ declare f text; begin
   foreach f in array array[

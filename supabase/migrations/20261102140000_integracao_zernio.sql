@@ -3,7 +3,6 @@
 -- Nasce sem chave, com coleta e sincronização automática DESLIGADAS. Publicação, resposta automática e
 -- alteração de anúncios ficam travadas (check) até haver decisão e implementação próprias.
 create schema if not exists marketing_privado;
-revoke all on schema marketing_privado from public, anon;
 grant usage on schema marketing_privado to service_role;
 
 create table marketing_privado.zernio_conexoes (
@@ -649,7 +648,8 @@ insert into escritorio_privado.ferramentas(slug,nome,descricao,classe,modulo) va
  ('zernio_responder_comentario','Responder comentário','PROPÕE resposta a um comentário. Só é enviada após aprovação humana e com ações externas liberadas.','sensivel','marketing');
 
 -- ---------------------------------------------------------------- privilégios
-revoke all on all tables in schema marketing_privado from public, anon, authenticated;
+-- Só as tabelas do Zernio: as do módulo de Marketing existente não mudam.
+revoke all on marketing_privado.zernio_conexoes, marketing_privado.zernio_contas, marketing_privado.zernio_sync_jobs, marketing_privado.zernio_sync_logs, marketing_privado.zernio_posts, marketing_privado.zernio_post_metricas, marketing_privado.zernio_comentarios, marketing_privado.zernio_conversas, marketing_privado.zernio_campanhas, marketing_privado.zernio_conjuntos, marketing_privado.zernio_anuncios, marketing_privado.zernio_anuncio_metricas from public, anon, authenticated;
 grant select, insert, update, delete on
   marketing_privado.zernio_conexoes, marketing_privado.zernio_contas, marketing_privado.zernio_sync_jobs,
   marketing_privado.zernio_sync_logs, marketing_privado.zernio_posts, marketing_privado.zernio_post_metricas,
