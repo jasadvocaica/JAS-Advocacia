@@ -36,4 +36,16 @@ describe("Telegram · mensagens", () => {
     expect(ajuda(false)).not.toContain("/missao");
     expect(ajuda(true)).toContain("/aprovacoes");
   });
+
+  it("mostra o post inteiro que será publicado, sem o id interno da conta", () => {
+    const t = textoAprovacao({
+      id: "x", tipo: "acao", agente: "Nina", resumo: "Publicar no instagram (@julianaaraujoadv) assim que aprovado", riscos: null,
+      parametros: { conta_id: "acc_123", plataforma: "instagram", conta: "@julianaaraujoadv", texto: "Você sabe quando pedir o BPC?",
+        midia_url: "https://cdn.exemplo.com/a.png", agendar_para: "2026-11-05T13:00:00.000Z" },
+      escopo_hash: "h", valida_ate: "2026-11-09T12:00:00Z",
+    });
+    expect(t).toContain("• Texto do post: Você sabe quando pedir o BPC?");
+    expect(t).toContain("• Quando: 05/11/2026, 09:00");
+    expect(t).not.toContain("acc_123");
+  });
 });

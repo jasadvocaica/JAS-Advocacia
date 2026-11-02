@@ -123,6 +123,25 @@ async function executarFerramenta(db: SupabaseClient, tarefa: { tarefa_id: strin
       if (r.error) throw new Error(r.error.message);
       return { pedido_aprovacao: r.data, situacao: "aguardando aprovação humana; nada foi enviado" };
     }
+    case "zernio_publicar_post": {
+      // Conferido no banco: a conta está conectada e selecionada. O pedido leva exatamente o que será publicado.
+      const c = await db.rpc("zernio_conta_para_post", { _conta: p.conta });
+      if (c.error || !c.data) throw new Error("Conta não encontrada, desconectada ou fora da seleção do Zernio.");
+      const parametros = {
+        conta_id: c.data.conta_id, plataforma: c.data.plataforma, conta: c.data.usuario ? `@${c.data.usuario}` : c.data.nome,
+        texto: p.texto, midia_url: p.midia_url, agendar_para: p.agendar_para,
+      };
+      const quando = p.agendar_para
+        ? new Date(p.agendar_para as string).toLocaleString("pt-BR", { timeZone: "America/Cuiaba", dateStyle: "short", timeStyle: "short" })
+        : "assim que aprovado";
+      const r = await db.rpc("motor_pedir_aprovacao", {
+        _tarefa: tarefa.tarefa_id, _ferramenta: slug, _parametros: parametros,
+        _resumo: `Publicar no ${c.data.plataforma} (${parametros.conta}) ${quando}`,
+        _riscos: "Publica em nome do escritório. Confira o texto, a imagem e o Provimento 205/2021 da OAB (sem promessa de resultado nem captação).",
+      });
+      if (r.error) throw new Error(r.error.message);
+      return { pedido_aprovacao: r.data, situacao: "aguardando aprovação humana; nada foi publicado" };
+    }
     case "criar_item_controladoria": {
       const r = await db.rpc("motor_pedir_aprovacao", {
         _tarefa: tarefa.tarefa_id, _ferramenta: slug, _parametros: p,
@@ -140,14 +159,37 @@ function formatarCnj(n: string) {
   return `${n.slice(0, 7)}-${n.slice(7, 9)}.${n.slice(9, 13)}.${n.slice(13, 14)}.${n.slice(14, 16)}.${n.slice(16)}`;
 }
 
-/** Resposta aprovada: só sai com ações externas liberadas na integração. Idempotency-Key = id do pedido. */
-async function responderComentario(db: SupabaseClient, id: string, p: Record<string, string>) {
+/** Cliente do Zernio para ação aprovada: só com credencial e ações externas liberadas na integração. */
+async function clienteParaAcao(db: SupabaseClient) {
   const c = await db.rpc("zernio_conexao", { _com_cifra: true });
   if (c.error || !c.data?.chave_cifrada) throw new Error("Integração Zernio sem credencial.");
   if (!c.data.acoes_externas_com_aprovacao) throw new Error("Ações externas estão desligadas na integração Zernio.");
   const segredo = Deno.env.get("COFRE_ENCRYPTION_KEY");
   if (!segredo) throw new Error("Chave de criptografia do servidor ausente.");
-  const api = criarCliente({ chave: await decifrar(c.data.chave_cifrada, segredo) });
+  return criarCliente({ chave: await decifrar(c.data.chave_cifrada, segredo) });
+}
+
+/** Post aprovado. Idempotency-Key = id do pedido: repetir nunca publica duas vezes. */
+async function publicarPost(db: SupabaseClient, id: string, p: Record<string, string | null>) {
+  const api = await clienteParaAcao(db);
+  try {
+    const r = await api.post<{ post?: { _id?: string; status?: string; platforms?: { platformPostUrl?: string }[] } }>("/v1/posts", {
+      content: p.texto,
+      platforms: [{ platform: p.plataforma, accountId: p.conta_id }],
+      ...(p.midia_url ? { mediaItems: [{ url: p.midia_url }] } : {}),
+      ...(p.agendar_para ? { scheduledFor: p.agendar_para } : { publishNow: true }),
+    }, id);
+    const post = r.dados?.post;
+    if (post?.status === "failed") throw new Error("O Zernio não conseguiu publicar (status failed).");
+    return { post_id: post?._id ?? null, status: post?.status ?? null, url: post?.platforms?.[0]?.platformPostUrl ?? null };
+  } catch (e) {
+    throw new Error(semSegredos(e instanceof Error ? e.message : "Falha ao publicar"));
+  }
+}
+
+/** Resposta aprovada: só sai com ações externas liberadas na integração. Idempotency-Key = id do pedido. */
+async function responderComentario(db: SupabaseClient, id: string, p: Record<string, string>) {
+  const api = await clienteParaAcao(db);
   try {
     const r = await api.post<{ data?: { commentId?: string } }>(`/v1/inbox/comments/${encodeURIComponent(p.post_id)}`,
       { accountId: p.conta_id, message: p.mensagem, commentId: p.comentario_id }, id);
@@ -166,6 +208,11 @@ async function executarAprovada(db: SupabaseClient, id: string) {
   try {
     if (a.ferramenta === "zernio_responder_comentario") {
       const resultado = await responderComentario(db, id, a.parametros);
+      await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: resultado });
+      return { executada: true, ...resultado };
+    }
+    if (a.ferramenta === "zernio_publicar_post") {
+      const resultado = await publicarPost(db, id, a.parametros);
       await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: resultado });
       return { executada: true, ...resultado };
     }

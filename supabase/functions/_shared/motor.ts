@@ -101,6 +101,24 @@ export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
       ["comentario_id", "mensagem"],
     ),
   },
+  zernio_publicar_post: {
+    slug: "zernio_publicar_post",
+    classe: "sensivel",
+    descricao:
+      "PROPÕE um post numa rede social conectada ao Zernio (agora ou agendado). Não publica: cria pedido na Central de Aprovações e só publica após aprovação humana.",
+    parametros: objeto(
+      {
+        conta: texto(120, "Usuário da conta conectada (ex.: julianaaraujoadv) ou o id da conta vindo de zernio_saude/zernio_publicacoes"),
+        texto: texto(2200, "Legenda completa do post, no tom do escritório, conforme o Provimento 205/2021 da OAB: informativa, sem promessa de resultado nem captação"),
+        midia_url: { type: ["string", "null"], description: "Endereço https público da imagem ou vídeo, se houver" },
+        agendar_para: {
+          type: ["string", "null"],
+          description: "Data e hora ISO 8601 com fuso (ex.: 2026-11-05T09:00:00-04:00); null para publicar assim que aprovado",
+        },
+      },
+      ["conta", "texto", "midia_url", "agendar_para"],
+    ),
+  },
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -165,6 +183,34 @@ export function validarParametros(slug: string, bruto: unknown): Record<string, 
         comentario_id: textoValido(a.comentario_id, 3, 120, "comentario_id"),
         mensagem: textoValido(a.mensagem, 2, 1000, "mensagem"),
       };
+    case "zernio_publicar_post": {
+      let midia: string | null = null;
+      if (a.midia_url != null && a.midia_url !== "") {
+        midia = textoValido(a.midia_url, 10, 1000, "midia_url");
+        let u: URL;
+        try {
+          u = new URL(midia);
+        } catch {
+          throw new Error("Campo inválido: midia_url");
+        }
+        if (u.protocol !== "https:") throw new Error("A mídia precisa de endereço https público");
+      }
+      let quando: string | null = null;
+      if (a.agendar_para != null && a.agendar_para !== "") {
+        const s = textoValido(a.agendar_para, 16, 40, "agendar_para");
+        const t = Date.parse(s);
+        if (!/(Z|[+-]\d{2}:?\d{2})$/.test(s) || Number.isNaN(t)) throw new Error("Campo inválido: agendar_para (use ISO 8601 com fuso)");
+        if (t < Date.now() + 10 * 60000) throw new Error("Agende com pelo menos 10 minutos de antecedência ou use null");
+        if (t > Date.now() + 90 * 86400000) throw new Error("Agende no máximo 90 dias à frente");
+        quando = new Date(t).toISOString();
+      }
+      return {
+        conta: textoValido(a.conta, 2, 120, "conta").replace(/^@/, ""),
+        texto: textoValido(a.texto, 2, 2200, "texto"),
+        midia_url: midia,
+        agendar_para: quando,
+      };
+    }
     default:
       throw new Error("Ferramenta desconhecida");
   }

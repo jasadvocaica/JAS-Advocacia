@@ -38,6 +38,24 @@ describe("ferramentas do motor", () => {
     expect(() => validarParametros("criar_item_controladoria", { ...p, data_vencimento: "10/11/2026" })).toThrow();
   });
 
+  it("post no Zernio: só https, agendamento com fuso e antecedência, nada fora do esquema", () => {
+    const daqui2dias = new Date(Date.now() + 2 * 86400000).toISOString().replace("Z", "-04:00");
+    const p = validarParametros("zernio_publicar_post", {
+      conta: "@julianaaraujoadv", texto: "Você sabe quando pedir o BPC?", midia_url: "https://cdn.exemplo.com/a.png",
+      agendar_para: daqui2dias, publicar_sem_aprovacao: true,
+    });
+    expect(Object.keys(p).sort()).toEqual(["agendar_para", "conta", "midia_url", "texto"]);
+    expect(p.conta).toBe("julianaaraujoadv");
+    expect(validarParametros("zernio_publicar_post", { conta: "x1", texto: "Oi", midia_url: null, agendar_para: null }))
+      .toEqual({ conta: "x1", texto: "Oi", midia_url: null, agendar_para: null });
+    const base = { conta: "x1", texto: "Oi", midia_url: null, agendar_para: null };
+    expect(() => validarParametros("zernio_publicar_post", { ...base, midia_url: "http://inseguro.com/a.png" })).toThrow();
+    expect(() => validarParametros("zernio_publicar_post", { ...base, agendar_para: "2026-11-05T09:00:00" })).toThrow();
+    expect(() => validarParametros("zernio_publicar_post", { ...base, agendar_para: new Date(Date.now() + 60000).toISOString() })).toThrow();
+    expect(() => validarParametros("zernio_publicar_post", { ...base, agendar_para: new Date(Date.now() + 100 * 86400000).toISOString() })).toThrow();
+    expect(ferramentasParaIA(["zernio_publicar_post"])[0].parameters.required).toEqual(["conta", "texto", "midia_url", "agendar_para"]);
+  });
+
   it("recusa ferramenta desconhecida", () => {
     expect(() => validarParametros("executar_sql", {})).toThrow("Ferramenta desconhecida");
   });

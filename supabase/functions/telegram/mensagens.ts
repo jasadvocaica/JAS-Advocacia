@@ -19,6 +19,11 @@ const CAMPO: Record<string, string> = {
   autor: "Para",
   comentario: "Comentário",
   mensagem: "Resposta",
+  plataforma: "Rede",
+  conta: "Conta",
+  texto: "Texto do post",
+  midia_url: "Imagem/vídeo",
+  agendar_para: "Quando",
 };
 const OCULTOS = new Set(["post_id", "conta_id", "comentario_id", "processo_id"]);
 
@@ -38,9 +43,14 @@ export function lerBotao(dados: string): { id: string; aprovar: boolean } | null
 }
 
 export function textoAprovacao(a: Aprovacao): string {
+  const valor = (k: string, v: unknown) =>
+    k === "data_vencimento" ? String(v).split("-").reverse().join("/")
+      : k === "agendar_para"
+        ? new Date(String(v)).toLocaleString("pt-BR", { timeZone: "America/Cuiaba", dateStyle: "short", timeStyle: "short" })
+        : String(v);
   const campos = Object.entries(a.parametros ?? {})
     .filter(([k, v]) => !OCULTOS.has(k) && v != null && v !== "")
-    .map(([k, v]) => `• ${CAMPO[k] ?? k}: ${k === "data_vencimento" ? String(v).split("-").reverse().join("/") : String(v)}`);
+    .map(([k, v]) => `• ${CAMPO[k] ?? k}: ${valor(k, v)}`);
   return [
     `🔔 Pedido de aprovação${a.agente ? ` · ${a.agente}` : ""}`,
     a.resumo,

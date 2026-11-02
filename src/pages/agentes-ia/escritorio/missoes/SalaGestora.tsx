@@ -30,10 +30,19 @@ const CAMPO: Record<string, string> = {
   autor: "Para",
   comentario: "Comentário",
   mensagem: "Resposta",
+  plataforma: "Rede",
+  conta: "Conta",
+  texto: "Texto do post",
+  midia_url: "Imagem/vídeo",
+  agendar_para: "Quando",
 };
 const OCULTOS = new Set(["post_id", "conta_id", "comentario_id"]);
 
 function valorCampo(chave: string, v: unknown) {
+  if (chave === "agendar_para")
+    return typeof v === "string"
+      ? new Date(v).toLocaleString("pt-BR", { timeZone: "America/Cuiaba", dateStyle: "short", timeStyle: "short" })
+      : "Assim que aprovado";
   if (v == null || v === "") return "—";
   if (chave === "data_vencimento" && typeof v === "string") return v.split("-").reverse().join("/");
   return String(v);
