@@ -1,4 +1,30 @@
 /* Central de Missões e Sala da Gestora: tokens --op-* do escritório (tema claro e escuro). */
+
+/* Central de Automações */
+.au-modelos > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.au-form { display: grid; gap: 12px; }
+.au-form label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--op-text); }
+.au-form select {
+  height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--op-line, #d6dbe6);
+  background: var(--op-surface, transparent); color: var(--op-text); font-size: 13px;
+}
+.au-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.au-dias { display: flex; flex-wrap: wrap; gap: 10px; border: 1px solid var(--op-line, #d6dbe6); border-radius: 8px; padding: 8px 10px; }
+.au-dias legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
+.au-dias label { display: flex; align-items: center; gap: 4px; font-weight: 500; }
+.au-botoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.au-botoes small { font-size: 12px; color: var(--op-muted); }
+.au-lista { display: grid; gap: 8px; }
+.au-lista li {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--op-line, #d6dbe6); border-radius: 10px;
+}
+.au-lista li > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.au-lista small { font-size: 12px; color: var(--op-muted); }
+.au-lista .au-erro { color: #c0392b; }
+@media (max-width: 640px) {
+  .au-lista li { grid-template-columns: 1fr; }
+}
 .mi {
   display: grid;
   gap: 20px;

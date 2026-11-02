@@ -399,6 +399,48 @@ Deno.serve(async (req) => {
         if (r.error) return json({ error: r.error.message }, 400);
         return json(r.data);
       }
+      case "automacoes": {
+        const [a, f] = await Promise.all([
+          db.rpc("motor_automacoes", { _usuario: usuario }),
+          db.rpc("motor_falhas", { _usuario: usuario }),
+        ]);
+        if (a.error || f.error) return json({ error: (a.error ?? f.error)!.message }, 403);
+        return json({ automacoes: a.data, falhas: f.data });
+      }
+      case "salvar_automacao": {
+        if (body.id != null && !UUID.test(body.id)) return json({ error: "Automação inválida" }, 400);
+        const d = body.dados ?? {};
+        if (!UUID.test(d.agente_id ?? "") || !["intervalo", "diaria", "semanal"].includes(d.frequencia))
+          return json({ error: "Escolha o agente e a frequência." }, 400);
+        const r = await db.rpc("motor_salvar_automacao", {
+          _usuario: usuario, _id: body.id ?? null,
+          _dados: {
+            nome: String(d.nome ?? "").trim().slice(0, 120), setor: d.setor, agente_id: d.agente_id,
+            instrucoes: String(d.instrucoes ?? "").trim().slice(0, 4000), frequencia: d.frequencia,
+            hora: typeof d.hora === "string" && /^\d{2}:\d{2}$/.test(d.hora) ? d.hora : null,
+            intervalo_minutos: Number.isInteger(d.intervalo_minutos) ? d.intervalo_minutos : null,
+            dias_semana: Array.isArray(d.dias_semana) ? d.dias_semana.filter((x: unknown) => Number.isInteger(x)) : [],
+            prioridade: Number.isInteger(d.prioridade) ? d.prioridade : 3,
+          },
+        });
+        if (r.error) return json({ error: r.error.message }, 400);
+        return json({ ok: true, id: r.data });
+      }
+      case "alternar_automacao":
+      case "executar_automacao":
+      case "retentar_tarefa":
+      case "cancelar_missao": {
+        if (!UUID.test(body.id ?? "")) return json({ error: "Pedido inválido" }, 400);
+        const r = body.acao === "alternar_automacao"
+          ? await db.rpc("motor_alternar_automacao", { _usuario: usuario, _id: body.id, _ativa: body.ativa === true })
+          : body.acao === "executar_automacao"
+          ? await db.rpc("motor_executar_automacao", { _usuario: usuario, _id: body.id })
+          : body.acao === "retentar_tarefa"
+          ? await db.rpc("motor_retentar_tarefa", { _usuario: usuario, _tarefa: body.id })
+          : await db.rpc("motor_cancelar_missao", { _usuario: usuario, _missao: body.id });
+        if (r.error) return json({ error: r.error.message }, 400);
+        return json({ ok: true, resultado: r.data });
+      }
       case "ferramentas": {
         if (!UUID.test(body.agente_id ?? "")) return json({ error: "Agente inválido" }, 400);
         const r = await db.rpc("motor_ferramentas_agente", { _usuario: usuario, _agente: body.agente_id });

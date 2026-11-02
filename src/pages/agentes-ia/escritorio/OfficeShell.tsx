@@ -29,6 +29,7 @@ const SUBTITULO: Partial<Record<SecaoOffice, string>> = {
   agentes: "Cada agente com identidade, instruções, ferramentas, histórico e consumo.",
   configurar: "Papel, instruções e fontes do agente. Salvo aqui, vale nas próximas execuções.",
   missoes: "Missões que os agentes executam, do pedido à entrega aprovada.",
+  automacoes: "Rotinas programadas dos agentes. Rodam no servidor, mesmo com o navegador fechado.",
   gestora: "Manu, a Gestora Geral: pedidos para aprovar, orçamento de IA e o motor.",
   chat: "Conversas e registros reais dos agentes.",
   comando: "Da sua solicitação ao resultado. Tudo acompanhado, em um só lugar.",

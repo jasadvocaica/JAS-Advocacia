@@ -3,6 +3,7 @@ import CentralComando from "./escritorio/CentralComando";
 import EscritorioVirtual from "./escritorio/virtual/EscritorioVirtual";
 import CentralAgentes from "./escritorio/agentes/CentralAgentes";
 import CentralMissoes from "./escritorio/missoes/CentralMissoes";
+import CentralAutomacoes from "./escritorio/missoes/CentralAutomacoes";
 import SalaGestora from "./escritorio/missoes/SalaGestora";
 import OfficeShell, { secaoOffice } from "./escritorio/OfficeShell";
 import AgentEditor from "./escritorio/agent-editor/AgentEditor";
@@ -239,6 +240,7 @@ export default function AgentesIA() {
         <SalaGestora agentes={agentes} execucoes={execucoes} mensagens={mensagens} />
       )}
       {secao === "missoes" && <CentralMissoes agentes={agentes} />}
+      {secao === "automacoes" && <CentralAutomacoes agentes={agentes} />}
       {secao === "chat" && (
         <ChatEscritorio
           agentes={agentes}

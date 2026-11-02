@@ -1,4 +1,4 @@
-import { Bot, Building2, Crown, KanbanSquare, MessageSquare, Server, Terminal } from "lucide-react";
+import { Bot, Building2, CalendarClock, Crown, KanbanSquare, MessageSquare, Server, Terminal } from "lucide-react";
 
 /**
  * Navegação do Escritório Virtual: só o que é do escritório.
@@ -16,6 +16,7 @@ export const OFFICE_SECTIONS = {
   agentes: "Central de Agentes",
   configurar: "Personalizar agente",
   missoes: "Missões",
+  automacoes: "Automações",
   gestora: "Aprovações",
   chat: "Conversas",
   comando: "Central de Comando",
@@ -29,6 +30,7 @@ export const OFFICE_TABS: OfficeTab[] = [
   { label: "Escritório", to: "/escritorio", section: "escritorio", icon: Building2 },
   { label: "Agentes", to: "/escritorio/agentes", section: "agentes", icon: Bot },
   { label: "Missões", to: "/escritorio/missoes", section: "missoes", icon: KanbanSquare },
+  { label: "Automações", to: "/escritorio/automacoes", section: "automacoes", icon: CalendarClock },
   { label: "Aprovações", to: "/escritorio/gestora", section: "gestora", icon: Crown },
   { label: "Conversas", to: "/escritorio/chat", section: "chat", icon: MessageSquare },
   { label: "Comando", to: "/escritorio/comando", section: "comando", icon: Terminal },
