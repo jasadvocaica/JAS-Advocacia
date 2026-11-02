@@ -214,3 +214,15 @@ verify_jwt = false
 # Recebe o webhook do Telegram (segredo no cabeçalho) e o aviso do banco (x-djen-cron-secret);
 # as ações da tela conferem getUser no handler.
 verify_jwt = false
+
+[functions.biblioteca-juridica]
+# Sessão e permissão de gestão verificadas no handler.
+verify_jwt = false
+
+[functions.biblioteca-juridica-sync]
+# Identidade OIDC do workflow JAS-Advocacia verificada no handler.
+verify_jwt = false
+
+[functions.documentos-assistente]
+# Sessão e permissões verificadas no handler; consultas sob RLS do usuário.
+verify_jwt = false

@@ -100,6 +100,12 @@ jobs:
       - name: Executar testes
         run: npm test
 
+      - name: Validar biblioteca e produção jurídica
+        run: |
+          npm run test:legislacao
+          npm run test:documentos:db
+          npm run test:documentos:edge
+
       - name: Gerar build de produção
         shell: bash
         run: |

@@ -1,4 +1,4 @@
-import { Editor } from "@tiptap/react";
+import { Editor, useEditorState } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,11 @@ export function BarraFerramentas({
 }: BarraFerramentasProps) {
   const [varsCustomizadas, setVarsCustomizadas] = useState<{ chave: string; nome_legivel: string }[]>([]);
   const [linkUrl, setLinkUrl] = useState("");
+  // A barra acompanha seleção e transações, sem depender de renderizações da página.
+  useEditorState({ editor, selector: ({ editor: atual }) => atual ? {
+    selection: atual.state.selection.from, selectionEnd: atual.state.selection.to,
+    marks: atual.state.storedMarks, doc: atual.state.doc,
+  } : null });
 
   useEffect(() => {
     supabase
@@ -56,8 +61,8 @@ export function BarraFerramentas({
   }, []);
 
   if (!editor) return null;
-  const chain: any = () => editor.chain().focus();
-  const can: any = editor.can();
+  const chain = () => editor.chain().focus();
+  const can = editor.can();
 
   const inserirVariavel = (variavel: string) => {
     editor.chain().focus().insertContent(variavel).run();
@@ -75,7 +80,7 @@ export function BarraFerramentas({
 
   const aplicarTamanhoFonte = (tam: string) => {
     // Usa textStyle com fontSize via CSS inline (compatível com export PDF/DOCX).
-    (editor.chain().focus() as any).setMark("textStyle", { fontSize: `${tam}pt` }).run();
+    editor.chain().focus().setFontSize(`${tam}pt`).run();
   };
 
   const variaveisPadrao = listarVariaveisPadrao();

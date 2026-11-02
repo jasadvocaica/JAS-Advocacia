@@ -58,7 +58,7 @@ export interface DocPeca {
   id: string;
   titulo: string;
   categoria: DocCategoria;
-  processo_id: string;
+  processo_id: string | null;
   cliente_id: string;
   modelo_id: string | null;
   conteudo_html: string;
@@ -80,6 +80,7 @@ export interface DocPeca {
   protocolado_em: string | null;
   criado_em: string;
   atualizado_em: string;
+  contexto_producao?: import("./workspace").ContextoProducao;
 }
 
 export interface DocPecaVersao {
@@ -90,6 +91,7 @@ export interface DocPecaVersao {
   conteudo_html: string;
   salvo_por: string | null;
   salvo_em: string;
+  contexto_producao?: import("./workspace").ContextoProducao;
 }
 
 export interface DocComentario {

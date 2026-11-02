@@ -42,6 +42,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { grupo: "Produção jurídica", to: "/documentos", label: "Documentos e petições", icon: FileText, modulo: "documentos" },
   { grupo: "Início", to: "/", label: "Painel inicial", icon: LayoutDashboard },
   { grupo: "Produção jurídica", to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { grupo: "Produção jurídica", to: "/ferramentas/publicacoes-pje", label: "Intimações", icon: Bell, modulo: "processos" },
@@ -406,7 +407,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      <AssistenteFlutuante />
+      {!location.pathname.startsWith("/documentos/pecas/") && <AssistenteFlutuante />}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import Underline from "@tiptap/extension-underline";
 import { FontFamily } from "@tiptap/extension-font-family";
-import { TextStyle } from "@tiptap/extension-text-style";
+import { TextStyle, FontSize } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import Link from "@tiptap/extension-link";
@@ -15,6 +15,7 @@ import { BarraFerramentas } from "./BarraFerramentas";
 import { cn } from "@/lib/utils";
 import { useTimbrado } from "@/hooks/useTimbrado";
 import { calcularMargensEditor, MARGENS_PADRAO_CM } from "./margensEditor";
+import { Button } from "@/components/ui/button";
 
 interface PecaEditorProps {
   value: string;
@@ -25,6 +26,7 @@ interface PecaEditorProps {
   className?: string;
   placeholder?: string;
   readOnly?: boolean;
+  onSelectionChange?: (texto: string) => void;
 }
 
 export function PecaEditor({
@@ -36,10 +38,22 @@ export function PecaEditor({
   className,
   placeholder = "Comece a escrever a peça...",
   readOnly = false,
+  onSelectionChange,
 }: PecaEditorProps) {
   const conteudoInicial = useRef(value);
   const { timbrado } = useTimbrado();
   const [timbradoVisivel, setTimbradoVisivel] = useState(true);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [largura, setLargura] = useState(900);
+  const [zoom, setZoom] = useState<number | null>(null);
+  useEffect(() => {
+    const el = workspaceRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => setLargura(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const escala = zoom ?? Math.min(1, Math.max(0.25, (largura - 32) / 794));
 
   const timbradoDisponivel =
     timbrado.ativo &&
@@ -58,9 +72,10 @@ export function PecaEditor({
   const editor = useEditor({
     editable: !readOnly,
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false, underline: false }),
       Underline,
       TextStyle,
+      FontSize,
       Color.configure({ types: ["textStyle"] }),
       Highlight.configure({ multicolor: true }),
       FontFamily.configure({ types: ["textStyle"] }),
@@ -72,6 +87,10 @@ export function PecaEditor({
     ],
     content: conteudoInicial.current || "<p></p>",
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    onSelectionUpdate: ({ editor }) => {
+      const { from, to } = editor.state.selection;
+      if (from !== to) onSelectionChange?.(editor.state.doc.textBetween(from, to, " ").slice(0, 4000));
+    },
     editorProps: {
       attributes: {
         class: "prose-juridico focus:outline-none min-h-[600px] text-black",
@@ -83,9 +102,9 @@ export function PecaEditor({
   useEffect(() => {
     if (!editor) return;
     const atual = editor.getHTML();
-    if (value && value !== atual) {
+    if (value !== atual) {
       try {
-        editor.commands.setContent(value, { emitUpdate: false, errorOnInvalidContent: false });
+        editor.commands.setContent(value || "<p></p>", { emitUpdate: false, errorOnInvalidContent: false });
       } catch (err) {
         console.error("[PecaEditor] erro ao aplicar conteúdo, tentando fallback", err);
         try {
@@ -117,6 +136,7 @@ export function PecaEditor({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
+      <div className="flex items-center justify-between gap-2 px-2 text-xs text-muted-foreground print:hidden"><span>Folha A4 · {readOnly ? "Leitura" : "Edição"}</span><div className="flex items-center gap-1"><Button size="sm" variant="ghost" onClick={() => setZoom(null)}>Ajustar à largura</Button><select aria-label="Zoom do documento" className="rounded border bg-background p-1" value={zoom ?? "auto"} onChange={(e) => setZoom(e.target.value === "auto" ? null : Number(e.target.value))}><option value="auto">Automático</option>{[0.5, 0.75, 1, 1.25, 1.5].map((z) => <option key={z} value={z}>{Math.round(z * 100)}%</option>)}</select></div></div>
       {!readOnly && (
         <BarraFerramentas
           editor={editor}
@@ -169,12 +189,14 @@ export function PecaEditor({
         }
       `}</style>
       <div
+        ref={workspaceRef}
         className="editor-workspace"
         style={{ fontFamily: `${fonte}, "Bookman Old Style", "Book Antiqua", "EB Garamond", Georgia, serif`, fontSize: `${tamanhoFonte}pt`, lineHeight: espacamento }}
       >
         <div
           className="editor-juridico-page editor-juridico-print"
           style={{
+            zoom: escala,
             paddingTop: padding.top,
             paddingBottom: padding.bottom,
             paddingLeft: padding.left,
