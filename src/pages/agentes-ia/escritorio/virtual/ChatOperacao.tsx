@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, X } from "lucide-react";
-import type { AgenteIA, ExecucaoAgente, MensagemEscritorio } from "../../hooks/useAgentesIA";
+import { ArrowRight, Send, X } from "lucide-react";
+import { chamarEscritorio, type AgenteIA, type ExecucaoAgente, type MensagemEscritorio } from "../../hooks/useAgentesIA";
 
 type Item =
   | { tipo: "mensagem"; id: string; quando: string; de: string; para: string; texto: string; tarefa: string | null; origem: string }
@@ -48,15 +48,45 @@ export default function ChatOperacao({
   execucoes,
   mensagens,
   fechar,
+  recarregar,
 }: {
   agentes: AgenteIA[];
   execucoes: ExecucaoAgente[];
   mensagens: MensagemEscritorio[];
   fechar: () => void;
+  recarregar?: () => Promise<void> | void;
 }) {
   const [filtro, setFiltro] = useState<"tudo" | "mensagem" | "evento">("tudo");
   const itens = useMemo(() => linhaDoTempo(agentes, execucoes, mensagens), [agentes, execucoes, mensagens]);
   const visiveis = filtro === "tudo" ? itens : itens.filter((i) => i.tipo === filtro);
+
+  // Só os agentes contratados no escritório conversam; os de rotina (ex.: Monitor DJEN) apenas registram.
+  const conversaveis = agentes.filter((a) => a.executor === "analista_operacional" && a.ativo);
+  const [destino, setDestino] = useState("");
+  const [texto, setTexto] = useState("");
+  const [enviando, setEnviando] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const agenteId = conversaveis.some((a) => a.id === destino) ? destino : conversaveis[0]?.id ?? "";
+
+  async function enviar(e?: FormEvent | KeyboardEvent) {
+    e?.preventDefault();
+    const pergunta = texto.trim();
+    if (!agenteId || !pergunta || enviando) return;
+    setEnviando(agenteId);
+    setErro(null);
+    try {
+      await chamarEscritorio({ acao: "conversar", agente_id: agenteId, texto: pergunta });
+      setTexto("");
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível enviar a mensagem.");
+    } finally {
+      setEnviando(null);
+      await recarregar?.();
+    }
+  }
+  const teclas = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) void enviar(e);
+  };
 
   return (
     <aside className="ev-chat" aria-label="Conversas e eventos dos agentes">
@@ -94,6 +124,41 @@ export default function ChatOperacao({
           ),
         )}
       </ol>
+      {conversaveis.length === 0 ? (
+        <p className="ev-chat-aviso">
+          Para conversar, crie um agente no botão <b>Criar agente</b>. Os agentes de rotina, como o Monitor DJEN, só registram o trabalho.
+        </p>
+      ) : (
+        <form className="ev-chat-escrever" onSubmit={(e) => void enviar(e)} aria-label="Falar com um agente">
+          <label>
+            <span>Falar com</span>
+            <select value={agenteId} onChange={(e) => setDestino(e.target.value)} disabled={!!enviando}>
+              {conversaveis.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+          </label>
+          <div className="ev-chat-campo">
+            <textarea
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={teclas}
+              maxLength={1500}
+              rows={2}
+              placeholder="Escreva sua mensagem… (Enter envia, Shift+Enter quebra linha)"
+              aria-label="Mensagem"
+              disabled={!!enviando}
+            />
+            <button type="submit" aria-label="Enviar mensagem" disabled={!texto.trim() || !!enviando}>
+              <Send size={15} />
+            </button>
+          </div>
+          {enviando && (
+            <p className="ev-chat-status" role="status">
+              {agentes.find((a) => a.id === enviando)?.nome ?? "Agente"} está respondendo…
+            </p>
+          )}
+          {erro && <p className="ev-chat-erro" role="alert">{erro}</p>}
+        </form>
+      )}
       <footer>
         <Link to="/escritorio/chat">Abrir conversas completas</Link>
       </footer>

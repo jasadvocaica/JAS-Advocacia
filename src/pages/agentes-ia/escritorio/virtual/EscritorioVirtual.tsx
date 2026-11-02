@@ -28,6 +28,7 @@ export default function EscritorioVirtual({
   imersivo,
   setImersivo,
   cena3d,
+  recarregar,
 }: {
   agentes: AgenteIA[];
   execucoes: ExecucaoAgente[];
@@ -39,6 +40,7 @@ export default function EscritorioVirtual({
   imersivo: boolean;
   setImersivo: (v: boolean) => void;
   cena3d: () => ReactNode;
+  recarregar?: () => Promise<void> | void;
 }) {
   const raiz = useRef<HTMLDivElement>(null);
   const [modo, setModoEstado] = useState<Modo>(() => (lerPref("jas-escritorio-modo", "isometrico") === "3d" ? "3d" : "isometrico"));
@@ -114,7 +116,7 @@ export default function EscritorioVirtual({
           </button>
         </div>
       </div>
-      {chat && <ChatOperacao agentes={agentes} execucoes={execucoes} mensagens={mensagens} fechar={() => setChat(false)} />}
+      {chat && <ChatOperacao agentes={agentes} execucoes={execucoes} mensagens={mensagens} fechar={() => setChat(false)} recarregar={recarregar} />}
     </div>
   );
 }

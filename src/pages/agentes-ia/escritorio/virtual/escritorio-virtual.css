@@ -145,6 +145,90 @@
   padding: 20px 0;
   text-align: center;
 }
+.ev-chat-escrever {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid #ffffff14;
+}
+.ev-chat-escrever label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #aab4c8;
+}
+.ev-chat-escrever select {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid #ffffff22;
+  background: #121b47;
+  color: #e9edf6;
+  font-size: 12px;
+}
+.ev-chat-campo {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.ev-chat-campo textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  max-height: 120px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid #ffffff22;
+  background: #121b47;
+  color: #e9edf6;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.ev-chat-campo textarea:focus,
+.ev-chat-escrever select:focus {
+  outline: 2px solid #c9a45c;
+  outline-offset: -1px;
+}
+.ev-chat-campo textarea::placeholder {
+  color: #7d88a3;
+}
+.ev-chat-campo button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 8px;
+  background: #c9a45c;
+  color: #0b1236;
+}
+.ev-chat-campo button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ev-chat-status,
+.ev-chat-erro,
+.ev-chat-aviso {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.ev-chat-status {
+  color: #c9a45c;
+}
+.ev-chat-erro {
+  color: #ff8a8a;
+}
+.ev-chat-aviso {
+  padding: 10px 14px;
+  border-top: 1px solid #ffffff14;
+  color: #aab4c8;
+}
+.ev-chat-aviso b {
+  color: #c9a45c;
+}
 .ev-msg {
   display: grid;
   gap: 4px;

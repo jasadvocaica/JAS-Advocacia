@@ -190,6 +190,7 @@ export default function AgentesIA() {
           revisar={setRevisao}
           imersivo={imersivo}
           setImersivo={setImersivo}
+          recarregar={recarregar}
           cena3d={() => (
             <div className="office-floor-workspace">
               <EscritorioVisual
