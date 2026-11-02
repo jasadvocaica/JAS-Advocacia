@@ -56,6 +56,31 @@ describe("ferramentas do motor", () => {
     expect(ferramentasParaIA(["zernio_publicar_post"])[0].parameters.required).toEqual(["conta", "texto", "midia_url", "agendar_para"]);
   });
 
+  it("ferramentas amplas: consultas com limites e ações só com dados válidos", () => {
+    expect(validarParametros("consultar_processo_completo", { numero_cnj: "5856122-22.2026.8.09.0051" }))
+      .toEqual({ numero_cnj: "58561222220268090051" });
+    expect(validarParametros("consultar_publicacoes_djen", { dias: 500, numero_cnj: null })).toEqual({ dias: 90, numero_cnj: null });
+    expect(validarParametros("consultar_financeiro", { dias: "x" })).toEqual({ dias: 30 });
+    expect(() => validarParametros("buscar_cliente", { termo: "ab" })).toThrow();
+    expect(() => validarParametros("buscar_cliente", { termo: "maria,status.eq.x" })).toThrow();
+    expect(() => validarParametros("historico_cliente", { cliente_id: "nao-e-uuid-nao-e-uuid-nao-e-uuid-1234" })).toThrow();
+    const amanha = new Date(Date.now() + 86400000).toISOString();
+    const ag = validarParametros("criar_compromisso_agenda", {
+      tipo: "audiencia", titulo: "Audiência de instrução", data_hora: amanha, local: null, descricao: "Levar testemunhas", processo_id: null, extra: 1,
+    });
+    expect(Object.keys(ag).sort()).toEqual(["data_hora", "descricao", "local", "processo_id", "tipo", "titulo"]);
+    expect(() => validarParametros("criar_compromisso_agenda", { ...ag, tipo: "festa" })).toThrow();
+    expect(() => validarParametros("criar_compromisso_agenda", { ...ag, data_hora: "2026-11-10T14:00:00" })).toThrow();
+    expect(() => validarParametros("atualizar_item_controladoria", {
+      item_id: "0f8b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d", status: "cancelado", observacao: "x x x",
+    })).toThrow();
+    expect(() => validarParametros("criar_minuta", { processo_id: "0f8b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d", titulo: "Peça", conteudo: "curto" })).toThrow();
+    expect(validarParametros("pesquisar_fontes_oficiais", { pergunta: "  Tema 1102 STF revisão da vida toda  " }))
+      .toEqual({ pergunta: "Tema 1102 STF revisão da vida toda" });
+    for (const s of ["consultar_agenda", "criar_minuta", "pesquisar_fontes_oficiais", "criar_diligencia"])
+      expect(ferramentasParaIA([s])).toHaveLength(1);
+  });
+
   it("recusa ferramenta desconhecida", () => {
     expect(() => validarParametros("executar_sql", {})).toThrow("Ferramenta desconhecida");
   });

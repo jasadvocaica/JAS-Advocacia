@@ -14,6 +14,7 @@ import {
 } from "../_shared/motor.ts";
 import { validarConfigAgente } from "../_shared/agentes-config.ts";
 import { usuarioInterno } from "../_shared/interno.ts";
+import { ACOES_AMPLAS, CONSULTAS_AMPLAS, consultarAmplo, executarAmplo, proporAmplo, type ContextoIA } from "./ferramentas-amplas.ts";
 import { criarCliente, decifrar, semSegredos } from "../_shared/zernio.ts";
 
 const cors = {
@@ -62,9 +63,11 @@ async function chamarComOrcamento(db: SupabaseClient, a: {
 
 /** Ferramentas executadas pelo backend. O banco confere a permissão do agente antes de cada uma. */
 async function executarFerramenta(db: SupabaseClient, tarefa: { tarefa_id: string; missao_id: string },
-  slug: string, p: Record<string, unknown>) {
+  slug: string, p: Record<string, unknown>, ctx: ContextoIA) {
   const classe = await db.rpc("motor_ferramenta_permitida", { _tarefa: tarefa.tarefa_id, _ferramenta: slug });
   if (classe.error || !classe.data) throw new Error("Ferramenta não permitida para este agente.");
+  if (CONSULTAS_AMPLAS.has(slug)) return consultarAmplo(db, slug, p, ctx);
+  if (ACOES_AMPLAS.has(slug)) return proporAmplo(db, tarefa.tarefa_id, slug, p);
   switch (slug) {
     case "consultar_indicadores": {
       const r = await db.rpc("escritorio_contexto_analista");
@@ -91,8 +94,12 @@ async function executarFerramenta(db: SupabaseClient, tarefa: { tarefa_id: strin
       return r.data?.[0] ?? { encontrado: false };
     }
     case "delegar_tarefa": {
-      const ag = await db.from("agentes_ia").select("id").eq("slug", p.agente as string).eq("ativo", true).maybeSingle();
-      if (ag.error || !ag.data) throw new Error(`Agente "${p.agente}" não encontrado ou desligado.`);
+      // Os agentes contratados têm slug técnico (analista-<uuid>): aceita o nome (sem acento/maiúscula) ou o slug.
+      const sem = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+      const lista = await db.from("agentes_ia").select("id,nome,slug").eq("ativo", true);
+      const alvo = sem(p.agente as string);
+      const ag = { data: (lista.data ?? []).find((x) => x.slug === alvo || sem(x.nome) === alvo || sem(x.nome).split(/[\s·]+/)[0] === alvo) };
+      if (lista.error || !ag.data) throw new Error(`Agente "${p.agente}" não encontrado ou desligado.`);
       const r = await db.rpc("motor_delegar", {
         _tarefa: tarefa.tarefa_id, _agente: ag.data.id, _titulo: p.titulo, _instrucoes: p.instrucoes, _depende_de: [], _chave: p.chave,
       });
@@ -211,6 +218,11 @@ async function executarAprovada(db: SupabaseClient, id: string) {
       await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: resultado });
       return { executada: true, ...resultado };
     }
+    if (ACOES_AMPLAS.has(a.ferramenta)) {
+      const resultado = await executarAmplo(db, id, a);
+      await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: resultado });
+      return { executada: true, ...resultado };
+    }
     if (a.ferramenta === "zernio_publicar_post") {
       const resultado = await publicarPost(db, id, a.parametros);
       await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: resultado });
@@ -249,6 +261,11 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
   try { perfil = cfg.data?.revisao > 0 ? validarConfigAgente(cfg.data.config) : null; } catch { perfil = null; }
   const instrucoes = instrucoesDoAgente({ nome: ag.data?.nome ?? "Agente", cargo: perfil?.cargo, prompt_base: perfil?.prompt_base });
   await log(`Tarefa da missão reservada (tentativa ${t.tentativa}). Ferramentas: ${t.ferramentas.join(", ") || "nenhuma"}.`);
+  // Rodadas 0–3 são da conversa com a IA; 4–7 ficam para pesquisas em fontes oficiais.
+  let pesquisas = 4;
+  const ctx: ContextoIA = {
+    key, modelo, execucao_id: t.execucao_id, agente_id: t.agente_id, tarefa_id: t.tarefa_id, proximaRodada: () => pesquisas++,
+  };
   try {
     const r = await executarRodadas({
       entrada: {
@@ -267,7 +284,7 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
             input, tools,
           },
         }),
-      executar: (slug, p) => executarFerramenta(db, t, slug, p),
+      executar: (slug, p) => executarFerramenta(db, t, slug, p, ctx),
       aoUsar: async (slug, ok) => { await log(`${ok ? "Usou" : "Tentou usar"} a ferramenta ${slug}.`); },
     });
     const entrega = lerEntrega(r.texto);

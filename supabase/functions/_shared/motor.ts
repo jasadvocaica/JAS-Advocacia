@@ -46,10 +46,10 @@ export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
   delegar_tarefa: {
     slug: "delegar_tarefa",
     classe: "escrita_interna",
-    descricao: "Cria uma tarefa para outro agente nesta missão. Use o identificador do agente (ex.: rafael).",
+    descricao: "Cria uma tarefa para outro agente nesta missão. Use o nome do agente (ex.: Camila, Helena).",
     parametros: objeto(
       {
-        agente: texto(60, "Identificador do agente que vai executar"),
+        agente: texto(60, "Nome do agente que vai executar (ex.: Camila)"),
         titulo: texto(200, "Título curto da tarefa"),
         instrucoes: texto(4000, "O que fazer, o que entregar e com quais dados"),
         chave: texto(60, "Identificador curto e único desta delegação na missão (evita repetir)"),
@@ -119,7 +119,163 @@ export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
       ["conta", "texto", "midia_url", "agendar_para"],
     ),
   },
+
+  // ---------------------------------------------------------------- consultas amplas (só leitura)
+  consultar_processo_completo: {
+    slug: "consultar_processo_completo",
+    classe: "leitura",
+    descricao:
+      "Ficha completa de um processo pelo número CNJ: dados, partes, últimos andamentos, publicações do DJEN e itens abertos da Controladoria.",
+    parametros: objeto({ numero_cnj: texto(30, "Número CNJ, com ou sem pontuação") }, ["numero_cnj"]),
+  },
+  consultar_publicacoes_djen: {
+    slug: "consultar_publicacoes_djen",
+    classe: "leitura",
+    descricao: "Publicações do DJEN capturadas pelo sistema no período, com texto resumido; pode filtrar por processo.",
+    parametros: objeto(
+      {
+        dias: { type: "integer", minimum: 1, maximum: 90, description: "Período em dias (padrão 7)" },
+        numero_cnj: { type: ["string", "null"], description: "Número CNJ para filtrar, ou null" },
+      },
+      ["dias", "numero_cnj"],
+    ),
+  },
+  buscar_cliente: {
+    slug: "buscar_cliente",
+    classe: "leitura",
+    descricao:
+      "Encontra clientes pelo nome ou CPF/CNPJ (até 5). Traz só o necessário: id, nome, cidade, situação e processos. CPF vem mascarado.",
+    parametros: objeto({ termo: texto(80, "Nome (ou parte) ou CPF/CNPJ do cliente") }, ["termo"]),
+  },
+  historico_cliente: {
+    slug: "historico_cliente",
+    classe: "leitura",
+    descricao: "Histórico de um cliente: atendimentos (resumo, próximos passos), triagens e interações recentes.",
+    parametros: objeto({ cliente_id: texto(40, "UUID do cliente (vem de buscar_cliente)") }, ["cliente_id"]),
+  },
+  consultar_agenda: {
+    slug: "consultar_agenda",
+    classe: "leitura",
+    descricao: "Audiências, reuniões, perícias e conciliações da agenda nos próximos dias, com local e processo.",
+    parametros: objeto(
+      { dias: { type: "integer", minimum: 1, maximum: 60, description: "Quantos dias à frente (padrão 7)" } },
+      ["dias"],
+    ),
+  },
+  listar_diligencias: {
+    slug: "listar_diligencias",
+    classe: "leitura",
+    descricao: "Diligências marcadas no período (data, local, descrição, situação e pagamento).",
+    parametros: objeto(
+      { dias: { type: "integer", minimum: 1, maximum: 60, description: "Quantos dias à frente (padrão 14)" } },
+      ["dias"],
+    ),
+  },
+  consultar_financeiro: {
+    slug: "consultar_financeiro",
+    classe: "leitura",
+    descricao:
+      "Resumo financeiro: honorários recebidos, saídas pagas no período, parcelas em aberto e as 10 mais atrasadas com o nome do cliente.",
+    parametros: objeto(
+      { dias: { type: "integer", minimum: 1, maximum: 365, description: "Período em dias (padrão 30)" } },
+      ["dias"],
+    ),
+  },
+  consultar_comercial: {
+    slug: "consultar_comercial",
+    classe: "leitura",
+    descricao: "Funil comercial: leads por situação e canal, conversões e valor contratado no período, e os leads mais recentes.",
+    parametros: objeto(
+      { dias: { type: "integer", minimum: 1, maximum: 365, description: "Período em dias (padrão 30)" } },
+      ["dias"],
+    ),
+  },
+  pesquisar_fontes_oficiais: {
+    slug: "pesquisar_fontes_oficiais",
+    classe: "leitura",
+    descricao:
+      "Pesquisa na internet SOMENTE em fontes oficiais (Planalto, STF, STJ, TST, TRFs, TJs, CNJ, INSS, gov.br) e devolve a resposta com os links. Use para legislação, jurisprudência e normas do INSS.",
+    parametros: objeto({ pergunta: texto(500, "O que pesquisar, de forma objetiva") }, ["pergunta"]),
+  },
+
+  // ---------------------------------------------------------------- ações (sempre com aprovação humana)
+  atualizar_item_controladoria: {
+    slug: "atualizar_item_controladoria",
+    classe: "sensivel",
+    descricao:
+      "PROPÕE mudar a situação de um item da Controladoria (ex.: marcar a triagem do DJEN como concluída) com uma observação. Só muda após aprovação.",
+    parametros: objeto(
+      {
+        item_id: texto(40, "UUID do item (vem de listar_itens_controladoria)"),
+        status: { type: "string", enum: ["pendente", "em_andamento", "aguardando", "concluido"] },
+        observacao: texto(1000, "O que foi feito ou por que mudar"),
+      },
+      ["item_id", "status", "observacao"],
+    ),
+  },
+  criar_compromisso_agenda: {
+    slug: "criar_compromisso_agenda",
+    classe: "sensivel",
+    descricao: "PROPÕE um compromisso na agenda (audiência, reunião, perícia ou conciliação). Só grava após aprovação.",
+    parametros: objeto(
+      {
+        tipo: { type: "string", enum: ["audiencia", "reuniao", "pericia", "conciliacao"] },
+        titulo: texto(200, "Título do compromisso"),
+        data_hora: texto(40, "Data e hora ISO 8601 com fuso (ex.: 2026-11-10T14:00:00-04:00)"),
+        local: { type: ["string", "null"], description: "Local ou link da sala virtual" },
+        descricao: texto(2000, "Detalhes e o que levar"),
+        processo_id: { type: ["string", "null"], description: "UUID do processo, se houver" },
+      },
+      ["tipo", "titulo", "data_hora", "local", "descricao", "processo_id"],
+    ),
+  },
+  criar_diligencia: {
+    slug: "criar_diligencia",
+    classe: "sensivel",
+    descricao: "PROPÕE uma diligência para a equipe (ida a órgão, protocolo, cópia de autos). Só grava após aprovação.",
+    parametros: objeto(
+      {
+        descricao: texto(1000, "O que fazer na diligência"),
+        data_hora: texto(40, "Data e hora ISO 8601 com fuso"),
+        local: { type: ["string", "null"], description: "Endereço ou órgão" },
+        cliente_id: { type: ["string", "null"], description: "UUID do cliente, se houver" },
+        processo_id: { type: ["string", "null"], description: "UUID do processo, se houver" },
+      },
+      ["descricao", "data_hora", "local", "cliente_id", "processo_id"],
+    ),
+  },
+  criar_minuta: {
+    slug: "criar_minuta",
+    classe: "sensivel",
+    descricao:
+      "PROPÕE salvar uma minuta de peça como RASCUNHO no processo (Documentos › Peças). Só grava após aprovação; nunca protocola.",
+    parametros: objeto(
+      {
+        processo_id: texto(40, "UUID do processo (vem de consultar_processo_completo)"),
+        titulo: texto(200, "Título da peça"),
+        conteudo: texto(30000, "Texto completo da minuta"),
+      },
+      ["processo_id", "titulo", "conteudo"],
+    ),
+  },
 };
+
+const DOMINIOS_OFICIAIS = [
+  "planalto.gov.br", "gov.br", "stf.jus.br", "stj.jus.br", "tst.jus.br", "cnj.jus.br", "jus.br",
+  "in.gov.br", "inss.gov.br", "camara.leg.br", "senado.leg.br",
+];
+export { DOMINIOS_OFICIAIS };
+
+function isoComFuso(v: unknown, campo: string, minMin: number, maxDias: number): string {
+  const s = textoValido(v, 16, 40, campo);
+  const t = Date.parse(s);
+  if (!/(Z|[+-]\d{2}:?\d{2})$/.test(s) || Number.isNaN(t)) throw new Error(`Campo inválido: ${campo} (use ISO 8601 com fuso)`);
+  if (t < Date.now() + minMin * 60000) throw new Error(`${campo} precisa ser no futuro`);
+  if (t > Date.now() + maxDias * 86400000) throw new Error(`${campo} longe demais`);
+  return new Date(t).toISOString();
+}
+const diasEntre = (v: unknown, padrao: number, max: number) =>
+  Number.isInteger(v) ? Math.min(max, Math.max(1, v as number)) : padrao;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -211,6 +367,66 @@ export function validarParametros(slug: string, bruto: unknown): Record<string, 
         agendar_para: quando,
       };
     }
+    case "consultar_processo_completo": {
+      const n = textoValido(a.numero_cnj, 15, 30, "numero_cnj").replace(/\D/g, "");
+      if (n.length !== 20) throw new Error("Número CNJ deve ter 20 dígitos");
+      return { numero_cnj: n };
+    }
+    case "consultar_publicacoes_djen": {
+      let n: string | null = null;
+      if (a.numero_cnj != null && a.numero_cnj !== "") {
+        n = textoValido(a.numero_cnj, 15, 30, "numero_cnj").replace(/\D/g, "");
+        if (n.length !== 20) throw new Error("Número CNJ deve ter 20 dígitos");
+      }
+      return { dias: diasEntre(a.dias, 7, 90), numero_cnj: n };
+    }
+    case "buscar_cliente": {
+      const termo = textoValido(a.termo, 3, 80, "termo");
+      if (/[,()]/.test(termo)) throw new Error("Campo inválido: termo");
+      return { termo };
+    }
+    case "historico_cliente":
+      return { cliente_id: uuidOuNulo(textoValido(a.cliente_id, 36, 36, "cliente_id"), "cliente_id") };
+    case "consultar_agenda":
+      return { dias: diasEntre(a.dias, 7, 60) };
+    case "listar_diligencias":
+      return { dias: diasEntre(a.dias, 14, 60) };
+    case "consultar_financeiro":
+    case "consultar_comercial":
+      return { dias: diasEntre(a.dias, 30, 365) };
+    case "pesquisar_fontes_oficiais":
+      return { pergunta: textoValido(a.pergunta, 5, 500, "pergunta") };
+    case "atualizar_item_controladoria":
+      if (!["pendente", "em_andamento", "aguardando", "concluido"].includes(a.status as string)) throw new Error("Campo inválido: status");
+      return {
+        item_id: uuidOuNulo(textoValido(a.item_id, 36, 36, "item_id"), "item_id"),
+        status: a.status,
+        observacao: textoValido(a.observacao, 3, 1000, "observacao"),
+      };
+    case "criar_compromisso_agenda":
+      if (!["audiencia", "reuniao", "pericia", "conciliacao"].includes(a.tipo as string)) throw new Error("Campo inválido: tipo");
+      return {
+        tipo: a.tipo,
+        titulo: textoValido(a.titulo, 3, 200, "titulo"),
+        data_hora: isoComFuso(a.data_hora, "data_hora", 0, 365),
+        local: a.local == null || a.local === "" ? null : textoValido(a.local, 2, 300, "local"),
+        descricao: textoValido(a.descricao, 3, 2000, "descricao"),
+        processo_id: uuidOuNulo(a.processo_id, "processo_id"),
+      };
+    case "criar_diligencia":
+      return {
+        descricao: textoValido(a.descricao, 3, 1000, "descricao"),
+        data_hora: isoComFuso(a.data_hora, "data_hora", 0, 180),
+        local: a.local == null || a.local === "" ? null : textoValido(a.local, 2, 300, "local"),
+        cliente_id: uuidOuNulo(a.cliente_id, "cliente_id"),
+        processo_id: uuidOuNulo(a.processo_id, "processo_id"),
+      };
+    case "criar_minuta":
+      return {
+        processo_id: uuidOuNulo(textoValido(a.processo_id, 36, 36, "processo_id"), "processo_id"),
+        titulo: textoValido(a.titulo, 3, 200, "titulo"),
+        conteudo: textoValido(a.conteudo, 50, 30000, "conteudo"),
+      };
     default:
       throw new Error("Ferramenta desconhecida");
   }
