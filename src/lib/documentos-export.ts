@@ -29,7 +29,7 @@ function htmlParaParagrafos(
   html: string,
   fonte: string,
   tamanhoFonte: number,
-  espacamento: number
+  espacamento: number,
 ): Paragraph[] {
   const container = document.createElement("div");
   container.innerHTML = html || "<p></p>";
@@ -39,7 +39,20 @@ function htmlParaParagrafos(
 
   const extrairRuns = (node: Element): TextRun[] => {
     const runs: TextRun[] = [];
-    const walk = (n: Node, ctx: { bold?: boolean; italic?: boolean; underline?: boolean }) => {
+    const walk = (
+      n: Node,
+      ctx: {
+        bold?: boolean;
+        italic?: boolean;
+        underline?: boolean;
+        strike?: boolean;
+        font?: string;
+        size?: number;
+        color?: string;
+        superScript?: boolean;
+        subScript?: boolean;
+      },
+    ) => {
       if (n.nodeType === Node.TEXT_NODE) {
         const text = n.textContent ?? "";
         if (text) {
@@ -49,9 +62,13 @@ function htmlParaParagrafos(
               bold: ctx.bold,
               italics: ctx.italic,
               underline: ctx.underline ? {} : undefined,
-              font: fonte,
-              size: halfPoints,
-            })
+              strike: ctx.strike,
+              font: ctx.font ?? fonte,
+              size: ctx.size ?? halfPoints,
+              color: ctx.color,
+              superScript: ctx.superScript,
+              subScript: ctx.subScript,
+            }),
           );
         }
         return;
@@ -63,8 +80,31 @@ function htmlParaParagrafos(
       if (tag === "strong" || tag === "b") novoCtx.bold = true;
       if (tag === "em" || tag === "i") novoCtx.italic = true;
       if (tag === "u") novoCtx.underline = true;
+      if (["s", "strike", "del"].includes(tag)) novoCtx.strike = true;
+      if (tag === "sup") novoCtx.superScript = true;
+      if (tag === "sub") novoCtx.subScript = true;
+      if (el.style.fontFamily)
+        novoCtx.font = el.style.fontFamily
+          .split(",")[0]
+          .replace(/["']/g, "")
+          .trim();
+      const size = parseFloat(el.style.fontSize);
+      if (Number.isFinite(size) && size > 0)
+        novoCtx.size = Math.round(
+          size * (el.style.fontSize.endsWith("px") ? 1.5 : 2),
+        );
+      const rgb = el.style.color.match(
+        /^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/,
+      );
+      if (rgb)
+        novoCtx.color = rgb
+          .slice(1)
+          .map((c) => Number(c).toString(16).padStart(2, "0"))
+          .join("");
       if (tag === "br") {
-        runs.push(new TextRun({ text: "", break: 1, font: fonte, size: halfPoints }));
+        runs.push(
+          new TextRun({ text: "", break: 1, font: fonte, size: halfPoints }),
+        );
         return;
       }
       el.childNodes.forEach((c) => walk(c, novoCtx));
@@ -83,7 +123,9 @@ function htmlParaParagrafos(
       case "justify":
         return AlignmentType.JUSTIFIED;
       default:
-        return AlignmentType.LEFT;
+        return ["P", "DIV"].includes(el.tagName)
+          ? AlignmentType.JUSTIFIED
+          : AlignmentType.LEFT;
     }
   };
 
@@ -93,20 +135,34 @@ function htmlParaParagrafos(
       const runs = extrairRuns(el);
       paragrafos.push(
         new Paragraph({
-          children: runs.length ? runs : [new TextRun({ text: "", font: fonte, size: halfPoints })],
+          children: runs.length
+            ? runs
+            : [new TextRun({ text: "", font: fonte, size: halfPoints })],
           alignment: alinhamentoDe(el as HTMLElement),
+          indent: {
+            firstLine: ["center", "right"].includes(
+              (el as HTMLElement).style.textAlign,
+            )
+              ? 0
+              : 709,
+          },
           spacing: { line: Math.round(espacamento * 240) },
-        })
+        }),
       );
     } else if (tag === "h1" || tag === "h2" || tag === "h3") {
-      const level = tag === "h1" ? HeadingLevel.HEADING_1 : tag === "h2" ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3;
+      const level =
+        tag === "h1"
+          ? HeadingLevel.HEADING_1
+          : tag === "h2"
+            ? HeadingLevel.HEADING_2
+            : HeadingLevel.HEADING_3;
       paragrafos.push(
         new Paragraph({
           heading: level,
           children: extrairRuns(el),
           alignment: alinhamentoDe(el as HTMLElement),
           spacing: { line: Math.round(espacamento * 240) },
-        })
+        }),
       );
     } else if (tag === "ul" || tag === "ol") {
       el.querySelectorAll(":scope > li").forEach((li) => {
@@ -114,10 +170,11 @@ function htmlParaParagrafos(
           new Paragraph({
             children: extrairRuns(li),
             bullet: tag === "ul" ? { level: 0 } : undefined,
-            numbering: tag === "ol" ? { reference: "lista-num", level: 0 } : undefined,
+            numbering:
+              tag === "ol" ? { reference: "lista-num", level: 0 } : undefined,
             alignment: alinhamentoDe(li as HTMLElement),
             spacing: { line: Math.round(espacamento * 240) },
-          })
+          }),
         );
       });
     } else {
@@ -128,7 +185,7 @@ function htmlParaParagrafos(
             children: runs,
             alignment: alinhamentoDe(el as HTMLElement),
             spacing: { line: Math.round(espacamento * 240) },
-          })
+          }),
         );
       }
     }
@@ -136,7 +193,11 @@ function htmlParaParagrafos(
 
   Array.from(container.children).forEach(processar);
   if (!paragrafos.length) {
-    paragrafos.push(new Paragraph({ children: [new TextRun({ text: "", font: fonte, size: halfPoints })] }));
+    paragrafos.push(
+      new Paragraph({
+        children: [new TextRun({ text: "", font: fonte, size: halfPoints })],
+      }),
+    );
   }
   return paragrafos;
 }
@@ -161,7 +222,7 @@ export async function exportarDocx(opcoes: ExportarDocxOpcoes): Promise<void> {
           levels: [
             {
               level: 0,
-              format: "decimal" as any,
+              format: "decimal" as const,
               text: "%1.",
               alignment: AlignmentType.LEFT,
               style: { paragraph: { indent: { left: 720, hanging: 360 } } },
@@ -187,13 +248,23 @@ export async function exportarDocx(opcoes: ExportarDocxOpcoes): Promise<void> {
             },
           },
         },
-        children: htmlParaParagrafos(opcoes.htmlConteudo, fonte, tamanhoFonte, espacamento),
+        children: htmlParaParagrafos(
+          opcoes.htmlConteudo,
+          fonte,
+          tamanhoFonte,
+          espacamento,
+        ),
       },
     ],
   });
 
   const blob = await Packer.toBlob(doc);
-  const nomeArquivo = `${opcoes.titulo.replace(/[^a-z0-9\s_-]/gi, "").trim().replace(/\s+/g, "_") || "documento"}.docx`;
+  const nomeArquivo = `${
+    opcoes.titulo
+      .replace(/[^a-z0-9\s_-]/gi, "")
+      .trim()
+      .replace(/\s+/g, "_") || "documento"
+  }.docx`;
   saveAs(blob, nomeArquivo);
 }
 
@@ -246,14 +317,23 @@ export async function imprimirParaPDF(opcoes: {
   }
 
   const w = window.open("", "_blank", "width=900,height=900");
-  if (!w) return;
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${opcoes.titulo}</title>
+  if (!w)
+    throw new Error(
+      "Permita a abertura da janela de impressão para exportar o PDF.",
+    );
+  const tituloSeguro = opcoes.titulo
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  w.document
+    .write(`<!doctype html><html><head><meta charset="utf-8"><title>${tituloSeguro}</title>
     <style>
       @page { size: A4; margin: ${cm(margemTopoCm)} ${cm(opcoes.margemDireita ?? 1080)} ${cm(margemBaseCm)} ${cm(opcoes.margemEsquerda ?? 1800)}; }
       body { font-family: ${fonte}, serif; font-size: ${tamanhoFonte}pt; line-height: ${espacamento}; color: #000; margin: 0; }
-      h1, h2, h3 { font-family: ${fonte}, serif; }
+      h1, h2, h3 { font-family: inherit; font-size: inherit; font-weight: bold; margin: 1em 0 0.5em; }
       mark[data-variavel] { background:#FFF3CD; color:#856404; padding:0 4px; border-radius:3px; }
-      p { margin: 0 0 0.5em; }
+      p { margin: 0 0 0.6em; text-align: justify; text-indent: 1.25cm; }
+      p[style*="text-align: center"], p[style*="text-align: right"] { text-indent: 0; }
       ul, ol { padding-left: 2em; }
       .timbrado-cabecalho, .timbrado-rodape {
         position: fixed;

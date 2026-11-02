@@ -42,8 +42,9 @@ export function sanitizarHtmlDocumento(html: string): string {
   wrapper.innerHTML = html;
 
   // Remove tags do Word que viram lixo
-  TAGS_REMOVER_COMPLETAMENTE.forEach((tag) => {
-    wrapper.querySelectorAll(tag).forEach((el) => el.remove());
+  wrapper.querySelectorAll("*").forEach((el) => {
+    // Tags como o:p não podem ser usadas diretamente como seletores CSS.
+    if (TAGS_REMOVER_COMPLETAMENTE.has(el.tagName.toLowerCase())) el.remove();
   });
 
   // Remove namespaces XML do Word (<w:*>, <o:*>)

@@ -1,0 +1,27 @@
+name: Atualizar biblioteca jurídica
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/legislacao/**
+      - .github/workflows/sync-legislacao.yml
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: biblioteca-juridica-sync
+  cancel-in-progress: false
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Importar normas e atualizar versões
+        run: node scripts/legislacao/sincronizar.mjs

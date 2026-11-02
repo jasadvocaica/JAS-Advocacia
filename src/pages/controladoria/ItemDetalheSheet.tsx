@@ -424,6 +424,13 @@ export default function ItemDetalheSheet({ itemId, onOpenChange, onEdit, onChang
   const acoes = item && (
     <div className="border-t bg-muted/20 px-4 sm:px-6 py-2 sm:py-3 flex flex-wrap gap-2 justify-between">
       <div className="flex gap-2 flex-wrap">
+        {item.cliente_id && hasPermission("documentos", "criar") && (
+          <Button asChild size="sm" variant="outline">
+            <Link to={`/documentos/pecas/novo?${new URLSearchParams({ cliente_id: item.cliente_id, ...(item.processo_id ? { processo_id: item.processo_id } : {}), tarefa_id: item.id, categoria: "manifestacao" })}`} onClick={() => onOpenChange(false)}>
+              <FileSignature className="h-4 w-4 mr-2" /> Produzir minuta
+            </Link>
+          </Button>
+        )}
         {/* Fluxo de etapas (Iniciar / Avançar / Revisar / Protocolo) está no card "Fluxo da tarefa" na aba Detalhes.
             Aqui ficam apenas ações administrativas. */}
         {isEvento && item.status !== "cancelado" && item.status !== "concluido" && isGestor && (

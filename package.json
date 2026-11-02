@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:documentos:db": "node tests/documentos/workspace-sql.mjs",
+    "test:documentos:edge": "node tests/documentos/assistente-edge.mjs",
+    "test:legislacao": "vitest run src/lib/legislacao.test.ts src/pages/documentos/editor/BibliotecaJuridica.test.tsx && node tests/documentos/biblioteca-sql.mjs && node tests/documentos/biblioteca-edge.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -118,6 +121,7 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@electric-sql/pglite": "0.5.14"
   }
 }

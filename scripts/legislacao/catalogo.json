@@ -1,0 +1,293 @@
+{
+  "repositorio": "ctresb/leis",
+  "commit_inicial": "b14530bdf1d0c0ba4cabafd3dd956beadf087cc9",
+  "escopo": "Núcleo federal de apoio à produção. Não representa todo o acervo brasileiro.",
+  "normas": [
+    {
+      "path": "constituicao.md",
+      "apelidos": [
+        "Constituição Federal",
+        "CF",
+        "CF88",
+        "ADCT"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1990/lei-8036-1990-05-11.md",
+      "apelidos": [
+        "FGTS"
+      ],
+      "areas": [
+        "trabalhista"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1990/lei-8069-1990-07-13.md",
+      "apelidos": [
+        "ECA",
+        "Estatuto da Criança e do Adolescente"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1990/lei-8078-1990-09-11.md",
+      "apelidos": [
+        "CDC",
+        "Código de Defesa do Consumidor",
+        "negativação",
+        "superendividamento"
+      ],
+      "areas": [
+        "consumidor"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1991/lei-8212-1991-07-24.md",
+      "apelidos": [
+        "Custeio da Previdência Social"
+      ],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1991/lei-8213-1991-07-24.md",
+      "apelidos": [
+        "Benefícios previdenciários",
+        "auxílio-doença",
+        "incapacidade",
+        "salário-maternidade",
+        "pensão",
+        "aposentadoria"
+      ],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1993/lei-8742-1993-12-07.md",
+      "apelidos": [
+        "LOAS",
+        "BPC",
+        "benefício de prestação continuada",
+        "assistência social"
+      ],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1994/lei-8906-1994-07-04.md",
+      "apelidos": [
+        "Estatuto da OAB"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1995/lei-9099-1995-09-26.md",
+      "apelidos": [
+        "Juizados Especiais",
+        "JEC"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1997/lei-9507-1997-11-12.md",
+      "apelidos": [
+        "Habeas data"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1998/lei-9656-1998-06-03.md",
+      "apelidos": [
+        "Planos de saúde"
+      ],
+      "areas": [
+        "consumidor"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/1999/lei-9784-1999-01-29.md",
+      "apelidos": [
+        "Processo administrativo federal"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2001/lei-10259-2001-07-12.md",
+      "apelidos": [
+        "Juizados Especiais Federais",
+        "JEF"
+      ],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2002/lei-10406-2002-01-10.md",
+      "apelidos": [
+        "Código Civil",
+        "CC"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2003/lei-10741-2003-10-01.md",
+      "apelidos": [
+        "Estatuto da Pessoa Idosa"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2009/lei-12016-2009-08-07.md",
+      "apelidos": [
+        "Mandado de segurança"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2015/lei-13105-2015-03-16.md",
+      "apelidos": [
+        "Código de Processo Civil",
+        "CPC"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2015/lei-13146-2015-07-06.md",
+      "apelidos": [
+        "LBI",
+        "Estatuto da Pessoa com Deficiência"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2017/lei-13429-2017-03-31.md",
+      "apelidos": [],
+      "areas": [
+        "trabalhista"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2017/lei-13467-2017-07-13.md",
+      "apelidos": [
+        "Reforma trabalhista"
+      ],
+      "areas": [
+        "trabalhista"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2018/lei-13709-2018-08-14.md",
+      "apelidos": [
+        "LGPD",
+        "Proteção de dados"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2020/lei-13982-2020-04-02.md",
+      "apelidos": [],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2021/lei-14176-2021-06-22.md",
+      "apelidos": [],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2021/lei-14181-2021-07-01.md",
+      "apelidos": [
+        "Superendividamento"
+      ],
+      "areas": [
+        "consumidor"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2022/lei-14331-2022-05-04.md",
+      "apelidos": [],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/leis-ordinarias/2024/lei-14905-2024-06-28.md",
+      "apelidos": [
+        "Juros e correção monetária"
+      ],
+      "areas": [
+        "geral"
+      ]
+    },
+    {
+      "path": "federal/decretos-lei/1943/del-5452-1943-05-01.md",
+      "apelidos": [
+        "CLT",
+        "Consolidação das Leis do Trabalho"
+      ],
+      "areas": [
+        "trabalhista"
+      ]
+    },
+    {
+      "path": "federal/leis-complementares/2015/lcp-150-2015-06-01.md",
+      "apelidos": [
+        "Empregado doméstico"
+      ],
+      "areas": [
+        "trabalhista"
+      ]
+    },
+    {
+      "path": "federal/decretos/2007/dec-6214-2007-09-26.md",
+      "apelidos": [
+        "Regulamento BPC"
+      ],
+      "areas": [
+        "previdenciario"
+      ]
+    },
+    {
+      "path": "federal/regulamentos/1999/rps-decreto-3048-1999.md",
+      "apelidos": [
+        "RPS",
+        "Regulamento da Previdência Social"
+      ],
+      "areas": [
+        "previdenciario"
+      ]
+    }
+  ],
+  "parser_versao": 2
+}
