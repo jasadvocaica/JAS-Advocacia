@@ -4,7 +4,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { chaveValida, cifrar, criarCliente, decifrar, ErroZernio, mapConta, mascarar, semSegredos } from "../_shared/zernio.ts";
 import { reconciliarPagina } from "../_shared/marketing-leads.ts";
-import { normalizarFormularios } from "../_shared/marketing-formularios.ts";
+import { normalizarFormularios, consultarMetaSelecionada } from "../_shared/marketing-formularios.ts";
 import { sincronizar, type Armazem, type EstadoJob } from "../_shared/zernio-sync.ts";
 
 const cors = {
@@ -89,6 +89,21 @@ async function processar(db: SupabaseClient) {
     if (r.error) throw r.error;
     if (!r.data) break;
     const j = r.data;
+    if (j.cursores?.consulta_meta === true) {
+      try {
+        const selecionadas = await db.rpc("zernio_contas_selecionadas");
+        if (selecionadas.error) throw new Error("consulta_meta_invalida");
+        const api = await clienteDoBanco(db);
+        const resultado = await consultarMetaSelecionada(selecionadas.data ?? [], async (path, params) => (await api.get(path, params)).dados);
+        const gravado = await db.rpc("mkt_consulta_meta_finalizar", { _job: j.id, _resultado: resultado, _erro: null });
+        if (gravado.error || gravado.data !== true) throw new Error("consulta_meta_invalida");
+        feitos.push({ job: j.id, estado: "concluido", recurso: "consulta_meta" });
+      } catch {
+        await db.rpc("mkt_consulta_meta_finalizar", { _job: j.id, _resultado: null, _erro: "consulta_meta_falhou" });
+        feitos.push({ job: j.id, estado: "falhou", recurso: "consulta_meta" });
+      }
+      break;
+    }
     const job: EstadoJob = { id: j.id, etapa_atual: j.etapa_atual, cursores: j.cursores ?? {}, progresso: j.progresso ?? {} };
     try {
       const api = await clienteDoBanco(db);

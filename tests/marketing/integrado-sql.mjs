@@ -319,6 +319,17 @@ try {
   await assert.rejects(() => db.query("select public.mkt_equipe_disponivel()"), /Sem permissão/); checks++;
   await db.exec("reset role; set role anon");
   await assert.rejects(() => db.query("select public.mkt_equipe_disponivel()"), /permission denied/); checks++;
+  await db.exec("reset role");
+  await db.exec(await readFile("supabase/migrations/20261107234742_marketing_consulta_meta.sql", "utf8"));
+  await db.exec(`update marketing_privado.zernio_conexoes set coleta_ativa=true; set role service_role;`);
+  const consulta = (await db.query("select public.mkt_consulta_meta_criar($1) id", [gestor])).rows[0].id;
+  ok((await db.query("select public.mkt_consulta_meta_criar($1) id", [gestor])).rows[0].id === consulta, "Consulta repetida reutiliza o único job ativo");
+  const antesSync = (await db.query("select ultima_sync_ok_em::text data from marketing_privado.zernio_conexoes")).rows[0].data;
+  await db.exec(`update marketing_privado.zernio_sync_jobs set estado='executando' where id='${consulta}';`);
+  await db.query("select public.mkt_consulta_meta_finalizar($1,$2,null)", [consulta, JSON.stringify({contas:[{id:"a1",nome:"Conta de teste"}]})]);
+  ok((await db.query("select ultima_sync_ok_em::text data from marketing_privado.zernio_conexoes")).rows[0].data === antesSync, "Consulta de metadados não simula uma sincronização completa");
+  await db.exec("reset role; set role authenticated");
+  await assert.rejects(() => db.query("select public.mkt_consulta_meta_criar($1)",[gestor]), /permission denied/); checks++;
   console.log(`${checks} verificações SQL passaram (PostgreSQL isolado).`);
 } finally {
   await db.close();
