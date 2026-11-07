@@ -1,7 +1,7 @@
 # Marketing integrado do JAS
 
 Implementação de 07/11/2026 na branch `codex/marketing-integrado-homologacao`.
-O escopo desta entrega é código e validação local, conforme o plano aprovado. Nenhum anúncio, mensagem, convite ou publicação foi enviado. Nenhuma coleta DJEN, fila de agenda ou job HTTP foi alterado.
+Código validado localmente e backend instalado em produção em 07/11/2026, após autorização explícita de Juliana na conversa. Nenhum anúncio, mensagem, convite ou publicação foi enviado. Nenhuma coleta DJEN, fila de agenda ou job HTTP foi alterado.
 
 ## Entrega
 
@@ -26,7 +26,7 @@ O escopo desta entrega é código e validação local, conforme o plano aprovado
 | Capacidade | Classificação | Evidência / limite |
 |---|---|---|
 | Fonte Zernio existente | Validada com integração real (leitura) | Consulta autorizada identificou conexão ativa, 3 posts, 4 campanhas, 500 conversas e sincronização concluída em 07/11. Nenhuma credencial foi lida. |
-| Novo painel e filtros | Validada com simulação | PostgreSQL isolado + navegador desktop 1440 e celular 390; números, estados e ausência de transbordamento. Nova RPC ainda depende da instalação da migration. |
+| Novo painel e filtros | Validada com integração real (RPC/cache) e simulação (interface) | Nova RPC instalada: 2 contas, 4 campanhas, 6 dias de Ads, BRL 95,85 entre 01 e 07/11. Desktop 1440/celular 390 e filtros verificados com fixtures. |
 | Lead Meta e segurança do receptor | Validada com simulação | Handler real com dependências simuladas: assinatura válida/inválida, desativação, limite, conta negada e falha transitória. SQL testa replay, preservação humana e isolamento de teste. |
 | Lead de teste do provedor | Bloqueada | Falta homologar Página/formulário/escopos, configurar o endpoint assinado no servidor/provedor e entregar um lead sintético real. Não se considera o teste local equivalente a essa entrega. |
 | Direct → CRM | Validada com simulação | Revisão obrigatória, responsável, replay e duas conversas vinculadas ao mesmo lead. Origem não é inventada. |
@@ -50,8 +50,8 @@ O escopo desta entrega é código e validação local, conforme o plano aprovado
 
 ## Instalação e homologação
 
-1. Revisar a migration aditiva `20261107183952_marketing_integrado.sql`. Aplicar somente ela no ambiente autorizado, sem executar indiscriminadamente migrations antigas. A listagem atual do Supabase mostra somente a branch main com estado histórico `MIGRATIONS_FAILED`; não há branch de homologação pronta. Nenhuma branch paga foi criada.
-2. Publicar `zernio`, `motor-missoes` e `marketing-leads` com seus imports relativos. Os handlers validam autorização; o webhook usa assinatura própria. Manter o receptor desativado inicialmente.
+1. **Concluído:** aplicada somente a migration aditiva `20261107192003_marketing_integrado.sql` pelo conector, sem executar migrations antigas. O nome do arquivo foi alinhado à versão real registrada no Supabase para evitar reaplicação pelo CLI. O estado histórico da branch main não foi alterado e nenhuma branch paga foi criada.
+2. **Concluído:** publicados `zernio` v7, `motor-missoes` v9 e `marketing-leads` v1. HTTP sem sessão: 401 nos internos; 503 com confirmação de receptor desligado no webhook. Zernio live foi comparado ao bundle da base e era idêntico byte a byte. No motor foram preservados os arquivos live e incluídos somente os sete comandos/linhas dos dois executores simulados; endpoints de automações presentes no main e ausentes no live não foram publicados como mudança colateral.
 3. Publicar o frontend e comparar conta/período nos dois painéis. Conferir permissões da equipe e métricas reais sem enviar nada.
 4. No servidor, configurar o segredo exclusivo do webhook pelo mecanismo seguro existente; não colocá-lo em chat, frontend ou commit. Registrar endpoint `marketing-leads` no provedor somente para eventos necessários. `MARKETING_LEADS_HABILITADO=true` somente na homologação preparada; `MARKETING_LEADS_SOMENTE_TESTE` permanece true.
 5. Conferir Página, leitura de formulários/leads, termos e privacidade. Usar formulário exclusivo de teste, gerar lead sintético autorizado e comprovar um registro após repetição/reconciliação.
@@ -68,8 +68,10 @@ Desativar receptor/ações novas, voltar frontend e handlers à versão anterior
 - [Zernio Webhooks](https://docs.zernio.com/webhooks), [Lead Forms e reconciliação](https://docs.zernio.com/platforms/meta-ads/lead-forms), [Campanhas](https://docs.zernio.com/platforms/meta-ads/campaigns).
 - [Provimento 205/2021](https://www.oab.org.br/leisnormas/legislacao/provimentos/205-2021), [Comitê Regulador](https://marketingjuridico.oab.org.br/). A revisão humana confere também atos posteriores e as regras aplicáveis no momento de cada veiculação; este software não certifica conformidade jurídica automaticamente.
 
-## Bloqueio de instalação em produção
+## Instalação de produção autorizada e verificada
 
-A tentativa de aplicar esta migration no projeto principal foi rejeitada pela revisão automática de aprovação: o plano limita a entrega a código/homologação e a autorização para alterar produção não foi reconhecida como explícita. Nenhuma alteração desta entrega foi aplicada ao Supabase e nenhum handler foi publicado. A liberação exige autorização explícita da gestora para aplicar a migration e publicar os três handlers no projeto principal.
+O bloqueio inicial de aprovação foi resolvido após autorização explícita da gestora para aplicar a migration e publicar as três funções no projeto principal. A nova RPC foi conferida com dados reais e permissões verificadas: anon sem EXECUTE, ingestão somente pelo backend e cinco tabelas privadas com RLS. Não há formulários habilitados.
 
-Juliana confirmou na conversa que a conferência de termos e privacidade está em ordem. O cache aponta uma Página vinculada aos anúncios, mas o formulário de teste e a entrega técnica assinada ainda precisam ser identificados/homologados.
+O advisor manteve a mesma contagem de avisos anteriores. Acrescentou cinco informações RLS sem política nas tabelas privadas: acesso direto de anon/authenticated revogado, com acesso apenas pelo backend e pelas RPCs que validam a pessoa. Referência: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy.
+
+Juliana confirmou os termos e a privacidade. O formulário de teste e a entrega técnica assinada ainda precisam de homologação; isso não impede usar o painel, a triagem manual e os rascunhos internos. Criação real de anúncios, publicação real e os cinco agentes específicos continuam com as limitações descritas acima.

@@ -50,7 +50,7 @@ try {
   );
   await db.exec(
     await readFile(
-      "supabase/migrations/20261107183952_marketing_integrado.sql",
+      "supabase/migrations/20261107192003_marketing_integrado.sql",
       "utf8",
     ),
   );
