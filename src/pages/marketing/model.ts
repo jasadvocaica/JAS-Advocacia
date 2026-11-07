@@ -111,7 +111,7 @@ export const MENUS: readonly {
     itens: [
       ["ideias", "Banco de Ideias"],
       ["calendario", "Calendário Editorial"],
-      ["campanhas", "Campanhas"],
+
       ["pacotes", "Pacotes de Conteúdo"],
     ],
   },
@@ -136,8 +136,13 @@ export const MENUS: readonly {
     ],
   },
   {
+    nome: "Campanhas",
+    itens: [["campanhas_meta", "Meta Ads e rascunhos"], ["campanhas", "Planejamento de campanhas"], ["triagem_direct", "Entradas do Direct"]],
+  },
+  {
     nome: "Resultados",
     itens: [
+      ["resultados", "Resultados integrados"],
       ["publicacoes", "Publicações"],
       ["relatorios", "Relatórios de Marketing"],
       ["demanda", "Análise de Demanda Jurídica"],

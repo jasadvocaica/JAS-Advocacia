@@ -226,3 +226,7 @@ verify_jwt = false
 [functions.documentos-assistente]
 # Sessão e permissões verificadas no handler; consultas sob RLS do usuário.
 verify_jwt = false
+
+# Assinatura HMAC sobre o corpo bruto validada dentro do receptor; nasce desativado.
+[functions.marketing-leads]
+verify_jwt = false

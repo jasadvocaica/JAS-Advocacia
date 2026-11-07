@@ -134,8 +134,21 @@ const fs = require("fs");
     else if (table === "user_roles")
       result = [{ user_id: uid, role: "gestor" }];
     else if (table === "user_permissions") result = [];
+    else if (table === "mkt_integrado") {
+      const action = req.postDataJSON()._acao;
+      result = action === "resultados" ? {
+        conexao: { estado: "conectado", ultima_sync_ok_em: now, addon_ads: true, intervalo_minutos: 360 },
+        contas: [{externo_id:"a1",nome:"Conta simulada",plataforma:"metaads",precisa_reconectar:false}],
+        diario: [{nivel:"conta",referencia:"a1",data:now.slice(0,10),moeda:"BRL",gasto:100,impressoes:1000,cliques:12,conversoes:4}],
+        campanhas: [],conjuntos:[],anuncios:[],publicacoes:[],job_ativo:null,ultima_rodada:{estado:"concluido"},parcial:false,
+        crm:{leads:2,qualificados:1,contratos:1,sem_atribuicao:2,campanhas:[{campanha_id:null,nome:"Sem atribuição",leads:2,contratos:1}]},apurado_em:now,
+      } : [];
+    }
+    else if (table === "comercial_operar") result = {permissoes:{visualizar:true,gerenciar:true,financeiro_visualizar:false}};
     else if (table === "mkt_contexto") result = ctx;
     else if (table === "mkt_itens") result = items;
+    else if (table === "comercial_responsaveis_autorizados") result=[{user_id:uid,nome:"Usuário de teste",ativo:true,gestor:true}];
+    else if (table === "mkt_leads") result=[{id:"lead-real",nome:"Contato real simulado",canal:"meta_ads",status:"novo",integracao_teste:false,criado_em:now,responsavel_id:uid},{id:"lead-teste",nome:"Contato de homologação",canal:"meta_ads",status:"novo",integracao_teste:true,criado_em:now,responsavel_id:uid}];
     else if (table === "mkt_operar") {
       const body = req.postDataJSON(),
         p = body.payload;
@@ -176,10 +189,10 @@ const fs = require("fs");
   await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/marketing`, {
     waitUntil: "networkidle",
   });
-  await page.getByRole("heading", { name: "Marketing · Visão Geral", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Marketing · Visão Geral", exact: true }).waitFor().catch(async e => { console.log("Diagnóstico da prévia simulada:", await page.locator("body").innerText(), errors); await page.screenshot({path:"/tmp/marketing-diagnostico.png",fullPage:true}); throw e; });
   const group = page.getByRole("button", {name: "Marketing", exact: true});
   await group.waitFor();
-  for (const label of ["Visão Geral", "Planejamento", "Produção", "Aprovações", "Resultados"])
+  for (const label of ["Visão Geral", "Planejamento", "Produção", "Aprovações", "Campanhas", "Resultados"])
     await page.getByRole("link", {name: label, exact: true}).waitFor();
   if (await page.getByLabel("Menu do marketing").count()) throw new Error("Barra lateral interna permanece");
   await page.getByRole("button", { name: "Novo", exact: true }).click();
@@ -211,6 +224,12 @@ const fs = require("fs");
   if (await page.getByRole("link", {name: "Planejamento", exact: true}).count()) throw new Error("Grupo não recolheu");
   await group.click();
   await page.screenshot({ path: "/tmp/marketing-desktop.png", fullPage: true });
+  await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/comercial/crm`, {waitUntil:"networkidle"});
+  await page.getByText("Contato real simulado",{exact:true}).waitFor();
+  if(await page.getByText("Contato de homologação",{exact:true}).count()) throw new Error("Lead de teste misturado com produção");
+  await page.getByLabel("Somente entradas de teste da integração").check();
+  await page.getByText("Contato de homologação",{exact:true}).waitFor();
+  if(await page.getByText("Contato real simulado",{exact:true}).count()) throw new Error("Filtro de teste não isolou ambiente");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/marketing?secao=visao`, {
     waitUntil: "networkidle",
@@ -249,7 +268,7 @@ const fs = require("fs");
     JSON.stringify({
       desktop: "OK",
       mobile: "OK",
-      fiveMenus: "OK",
+      sixMenus: "OK",
       creation: "OK",
       pages: "OK",
       runtimeErrors: errors,

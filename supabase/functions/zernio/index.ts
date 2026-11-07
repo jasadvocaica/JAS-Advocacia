@@ -3,6 +3,7 @@
 // Ações: painel | salvar_chave | testar | configurar | revogar | sincronizar (pessoa logada) · processar (cron ou administração).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { chaveValida, cifrar, criarCliente, decifrar, ErroZernio, mapConta, mascarar, semSegredos } from "../_shared/zernio.ts";
+import { reconciliarPagina } from "../_shared/marketing-leads.ts";
 import { sincronizar, type Armazem, type EstadoJob } from "../_shared/zernio-sync.ts";
 
 const cors = {
@@ -113,6 +114,8 @@ async function processar(db: SupabaseClient) {
       break;
     }
   }
+  await db.rpc("mkt_alertas_integracao");
+  await db.rpc("mkt_purgar_eventos_lead");
   return feitos;
 }
 
@@ -152,6 +155,18 @@ Deno.serve(async (req) => {
 
     if (!admin) return json({ error: "Só a administração configura a integração" }, 403);
     switch (body.acao) {
+      case "reconciliar_leads": {
+        if (Deno.env.get("MARKETING_LEADS_HABILITADO") !== "true") return json({ error: "Receptor de leads desativado; homologação necessária" }, 409);
+        if (typeof body.conta_id !== "string" || typeof body.formulario_id !== "string" || body.conta_id.length > 200 || body.formulario_id.length > 200 || (body.cursor != null && (typeof body.cursor !== "string" || body.cursor.length > 1000))) return json({ error: "Parâmetros inválidos" }, 400);
+        const cfg = await db.rpc("mkt_formulario_reconciliar", { _conta: body.conta_id, _formulario: body.formulario_id });
+        if (cfg.error || !cfg.data) return json({ error: "Formulário não homologado" }, 403);
+        const api = await clienteDoBanco(db);
+        const resultado = await reconciliarPagina(body.conta_id, body.formulario_id, cfg.data.teste, body.cursor ?? undefined,
+          async params => (await api.get(`/v1/ads/lead-forms/${encodeURIComponent(body.formulario_id)}/leads`, params)).dados,
+          async dados => { const r = await db.rpc("mkt_receber_lead", { _dados: dados }); if (r.error) throw new Error("Falha ao gravar lead; retome a mesma página com segurança"); });
+        await db.rpc("mkt_purgar_eventos_lead");
+        return json({ ok: true, ...resultado });
+      }
       case "salvar_chave": {
         const chave = typeof body.chave === "string" ? body.chave.trim() : "";
         if (!chaveValida(chave)) return json({ error: "Formato de chave inválido: a chave do Zernio começa com sk_ e tem 67 caracteres." }, 400);

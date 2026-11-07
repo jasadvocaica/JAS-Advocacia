@@ -45,7 +45,7 @@ function valorCampo(chave: string, v: unknown) {
       : "Assim que aprovado";
   if (v == null || v === "") return "—";
   if (chave === "data_vencimento" && typeof v === "string") return v.split("-").reverse().join("/");
-  return String(v);
+  return typeof v === "object" ? JSON.stringify(v, null, 2) : String(v);
 }
 
 function PedidoAcao({ a, decidir, ocupado }: { a: Aprovacao; decidir: (aprovar: boolean) => void; ocupado: boolean }) {
@@ -57,7 +57,7 @@ function PedidoAcao({ a, decidir, ocupado }: { a: Aprovacao; decidir: (aprovar: 
       </div>
       <dl>
         {Object.entries(a.parametros).filter(([k]) => !OCULTOS.has(k)).map(([k, v]) => (
-          <div key={k}><dt>{CAMPO[k] ?? k}</dt><dd>{valorCampo(k, v)}</dd></div>
+          <div key={k}><dt>{CAMPO[k] ?? k}</dt><dd style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{valorCampo(k, v)}</dd></div>
         ))}
       </dl>
       {a.riscos && <p className="ga-riscos">{a.riscos}</p>}
