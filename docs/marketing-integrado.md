@@ -67,3 +67,9 @@ Desativar receptor/ações novas, voltar frontend e handlers à versão anterior
 - [Supabase changelog e alterações](https://supabase.com/changelog?types=breaking-change), [funções e privilégios](https://supabase.com/docs/guides/database/functions).
 - [Zernio Webhooks](https://docs.zernio.com/webhooks), [Lead Forms e reconciliação](https://docs.zernio.com/platforms/meta-ads/lead-forms), [Campanhas](https://docs.zernio.com/platforms/meta-ads/campaigns).
 - [Provimento 205/2021](https://www.oab.org.br/leisnormas/legislacao/provimentos/205-2021), [Comitê Regulador](https://marketingjuridico.oab.org.br/). A revisão humana confere também atos posteriores e as regras aplicáveis no momento de cada veiculação; este software não certifica conformidade jurídica automaticamente.
+
+## Bloqueio de instalação em produção
+
+A tentativa de aplicar esta migration no projeto principal foi rejeitada pela revisão automática de aprovação: o plano limita a entrega a código/homologação e a autorização para alterar produção não foi reconhecida como explícita. Nenhuma alteração desta entrega foi aplicada ao Supabase e nenhum handler foi publicado. A liberação exige autorização explícita da gestora para aplicar a migration e publicar os três handlers no projeto principal.
+
+Juliana confirmou na conversa que a conferência de termos e privacidade está em ordem. O cache aponta uma Página vinculada aos anúncios, mas o formulário de teste e a entrega técnica assinada ainda precisam ser identificados/homologados.
