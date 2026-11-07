@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -273,7 +273,17 @@ export function DadosResultados({
 }
 export default function ResultadosIntegrados() {
   const { user } = useAuth();
-  const [f, setF] = useState(filtrosIniciais);
+  const [params] = useSearchParams();
+  const [f, setF] = useState(() => {
+    const inicial = filtrosIniciais();
+    return {
+      ...inicial,
+      de: params.get("de") || inicial.de,
+      ate: params.get("ate") || inicial.ate,
+      conta: params.get("conta") || "",
+      campanha: params.get("campanha") || "",
+    };
+  });
   const q = useQuery({
     queryKey: chaveResultados(user?.id, f),
     queryFn: () => lerResultados(f),

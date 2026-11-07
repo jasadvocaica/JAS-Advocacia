@@ -35,6 +35,7 @@ const fs = require("fs");
   };
   const now = new Date().toISOString();
   let items = [];
+  let denyMetrics = false;
   const ctx = {
     permissoes: perms,
     usuarios: [{ id: uid, nome: "Usuário de teste" }],
@@ -75,6 +76,8 @@ const fs = require("fs");
     atualizado_em: now,
   };
   items.push({ ...base, id: "22222222-2222-4222-8222-222222222222" });
+  items.push({...base,id:"44444444-4444-4444-8444-444444444444",tipo:"conteudo",titulo:"Revisar roteiro institucional",status:"aguardando_aprovacao"});
+  items.push({...base,id:"55555555-5555-4555-8555-555555555555",tipo:"conteudo",titulo:"Finalizar carrossel informativo",status:"producao"});
   await context.addInitScript(
     ({ user, uid }) => {
       const enc = (o) => btoa(JSON.stringify(o));
@@ -136,12 +139,17 @@ const fs = require("fs");
     else if (table === "user_permissions") result = [];
     else if (table === "mkt_integrado") {
       const action = req.postDataJSON()._acao;
+      if (action === "resultados" && denyMetrics) return route.fulfill({status:403,contentType:"application/json",body:JSON.stringify({code:"42501",message:"Acesso aos indicadores revogado"})});
       result = action === "resultados" ? {
         conexao: { estado: "conectado", ultima_sync_ok_em: now, addon_ads: true, intervalo_minutos: 360 },
         contas: [{externo_id:"a1",nome:"Conta simulada",plataforma:"metaads",precisa_reconectar:false}],
-        diario: [{nivel:"conta",referencia:"a1",data:now.slice(0,10),moeda:"BRL",gasto:100,impressoes:1000,cliques:12,conversoes:4}],
-        campanhas: [],conjuntos:[],anuncios:[],publicacoes:[],job_ativo:null,ultima_rodada:{estado:"concluido"},parcial:false,
-        crm:{leads:2,qualificados:1,contratos:1,sem_atribuicao:2,campanhas:[{campanha_id:null,nome:"Sem atribuição",leads:2,contratos:1}]},apurado_em:now,
+        diario: [11.2,19.4,12.6,22,16.75,13.9].map((gasto,i)=>({nivel:"conta",referencia:"a1",data:now.slice(0,8)+String(i+1).padStart(2,"0"),moeda:"BRL",gasto,impressoes:4100+i*150,cliques:20+i*4,conversoes:i+1})),
+        campanhas: [
+          {externo_id:"c1",nome:"Conteúdo informativo · Previdenciário",estado:"active",moeda:"BRL",periodo_de:now.slice(0,8)+"01",periodo_ate:now.slice(0,10),metricas:{spend:42.5,clicks:76}},
+          {externo_id:"c2",nome:"Planejamento patrimonial",estado:"paused",moeda:"BRL",periodo_de:now.slice(0,8)+"01",periodo_ate:now.slice(0,10),metricas:{spend:23.25,clicks:42}},
+          {externo_id:"c3",nome:"Direitos do consumidor",estado:"active",moeda:"BRL",periodo_de:now.slice(0,8)+"01",periodo_ate:now.slice(0,10),metricas:{spend:30.1,clicks:62}},
+        ],conjuntos:[],anuncios:[],publicacoes:[],job_ativo:null,ultima_rodada:{estado:"concluido"},parcial:false,
+        crm:{leads:12,qualificados:5,contratos:2,sem_atribuicao:5,campanhas:[{campanha_id:null,nome:"Sem atribuição",leads:5,contratos:1}]},apurado_em:now,
       } : [];
     }
     else if (table === "comercial_operar") result = {permissoes:{visualizar:true,gerenciar:true,financeiro_visualizar:false}};
@@ -223,7 +231,15 @@ const fs = require("fs");
   await group.click();
   if (await page.getByRole("link", {name: "Planejamento", exact: true}).count()) throw new Error("Grupo não recolheu");
   await group.click();
-  await page.screenshot({ path: "/tmp/marketing-desktop.png", fullPage: true });
+  await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/marketing?secao=visao`,{waitUntil:"networkidle"});
+  await page.getByRole("heading",{name:"Resultados e prioridades"}).waitFor();
+  await page.getByLabel("Período do dashboard").selectOption("7");
+  await page.getByRole("button",{name:"Ver resultados",exact:true}).click();
+  if(!new URL(page.url()).searchParams.has("de"))throw new Error("Período do dashboard não chegou aos resultados");
+  await page.getByRole("heading",{name:"Resultados integrados",exact:true}).waitFor();
+  await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/marketing?secao=visao`,{waitUntil:"networkidle"});
+  await page.getByRole("heading",{name:"Resultados e prioridades"}).waitFor();
+  await page.screenshot({ path: "/tmp/marketing-dashboard-desktop.png", fullPage: true });
   await page.goto(`${process.env.MARKETING_TEST_URL || "http://127.0.0.1:4173"}/comercial/crm`, {waitUntil:"networkidle"});
   await page.getByText("Contato real simulado",{exact:true}).waitFor();
   if(await page.getByText("Contato de homologação",{exact:true}).count()) throw new Error("Lead de teste misturado com produção");
@@ -262,7 +278,11 @@ const fs = require("fs");
     throw new Error(
       "Interface transborda no celular: " + JSON.stringify(width),
     );
-  await page.screenshot({ path: "/tmp/marketing-mobile.png", fullPage: true });
+  await page.screenshot({ path: "/tmp/marketing-dashboard-mobile.png", fullPage: true });
+  denyMetrics = true;
+  await page.getByRole("button",{name:"Atualizar indicadores do dashboard",exact:true}).click();
+  await page.getByRole("alert").filter({hasText:"Acesso aos indicadores revogado"}).waitFor();
+  if((await page.locator('.mkt-kpi-featured').innerText()).includes('95,85') || await page.locator('.mkt-spend-chart').count()) throw new Error("Dashboard manteve métricas após perder permissão");
   if (errors.length) throw new Error("Erros de runtime: " + errors.join("\n"));
   console.log(
     JSON.stringify({
