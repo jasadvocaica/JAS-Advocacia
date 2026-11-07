@@ -152,6 +152,8 @@ const fs = require("fs");
         crm:{leads:12,qualificados:5,contratos:2,sem_atribuicao:5,campanhas:[{campanha_id:null,nome:"Sem atribuição",leads:5,contratos:1}]},apurado_em:now,
       } : [];
     }
+    else if (table === "mkt_equipe_disponivel") result = [{id:"agente-ui",nome:"Camila",descricao:"Conteúdo de teste",ativo:true,executor:"analista_operacional",ferramentas:["zernio_indicadores"]}];
+    else if (path.endsWith("/motor-missoes")) result={ok:true,missao_id:"missao-ui"};
     else if (table === "comercial_operar") result = {permissoes:{visualizar:true,gerenciar:true,financeiro_visualizar:false}};
     else if (table === "mkt_contexto") result = ctx;
     else if (table === "mkt_itens") result = items;
@@ -279,6 +281,13 @@ const fs = require("fs");
       "Interface transborda no celular: " + JSON.stringify(width),
     );
   await page.screenshot({ path: "/tmp/marketing-dashboard-mobile.png", fullPage: true });
+  await page.locator("summary").filter({hasText:"Equipe de apoio ao Marketing"}).click();
+  await page.getByRole("heading",{name:"Camila",exact:true}).waitFor();
+  await page.getByRole("button",{name:"Solicitar entrega",exact:true}).click();
+  await page.getByLabel("O que precisa ser feito",{exact:true}).fill("Conferir a conta de teste e o período simulado");
+  await page.getByRole("button",{name:"Registrar missão",exact:true}).click();
+  await page.getByRole("dialog").waitFor({state:"hidden"});
+  await page.locator("summary").filter({hasText:"Equipe de apoio ao Marketing"}).click();
   denyMetrics = true;
   await page.getByRole("button",{name:"Atualizar indicadores do dashboard",exact:true}).click();
   await page.getByRole("alert").filter({hasText:"Acesso aos indicadores revogado"}).waitFor();
