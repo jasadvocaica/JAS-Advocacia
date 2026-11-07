@@ -18,9 +18,11 @@ import {
 type Lead = {
   id: string;
   nome: string;
+  integracao_teste?: boolean;
   whatsapp: string | null;
   email: string | null;
   area_direito: string | null;
+  estado: string | null;
   canal: string;
   campanha_id: string | null;
   status: string;
@@ -69,6 +71,7 @@ export default function ComercialCRM() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [busca, setBusca] = useState("");
+  const [filtros,setFiltros] = useState({de:"",ate:"",area:"",uf:"",canal:"",campanha:searchParams.get("campanha")??"",responsavel:"",etapa:"",pendentes:false,teste:false});
   const [formAberto, setFormAberto] = useState(false);
   const [form, setForm] = useState(formVazio);
   const [leadPerda, setLeadPerda] = useState<Lead | null>(null);
@@ -136,7 +139,7 @@ export default function ComercialCRM() {
     queryKey: ["crm-leads"],
     queryFn: async () => {
       const { data, error: erro } = await (supabase as any).from("mkt_leads")
-        .select("id,nome,whatsapp,email,area_direito,canal,campanha_id,status,valor_contrato,responsavel_id,motivo_perda,observacao_perda,criado_em")
+        .select("id,nome,integracao_teste,whatsapp,email,area_direito,estado,canal,campanha_id,status,valor_contrato,responsavel_id,motivo_perda,observacao_perda,criado_em")
         .order("criado_em", { ascending: false });
       if (erro) throw erro;
       return (data ?? []) as Lead[];
@@ -285,9 +288,16 @@ export default function ComercialCRM() {
   };
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return leads;
-    return leads.filter((lead) => [lead.nome, lead.whatsapp, lead.email, lead.area_direito, lead.canal].some((v) => (v || "").toLowerCase().includes(termo)));
-  }, [busca, leads]);
+    return leads.filter((lead) => {
+      const data=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Cuiaba",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(lead.criado_em));
+      return (!!lead.integracao_teste===filtros.teste) && (!termo || [lead.nome,lead.whatsapp,lead.email,lead.area_direito,lead.canal].some(v=>(v||"").toLowerCase().includes(termo)))
+        && (!filtros.de || data>=filtros.de) && (!filtros.ate || data<=filtros.ate)
+        && (!filtros.area || lead.area_direito===filtros.area) && (!filtros.uf || lead.estado?.toUpperCase()===filtros.uf.toUpperCase())
+        && (!filtros.canal || lead.canal===filtros.canal) && (!filtros.campanha || (filtros.campanha==="sem"?!lead.campanha_id:lead.campanha_id===filtros.campanha))
+        && (!filtros.responsavel || lead.responsavel_id===filtros.responsavel) && (!filtros.etapa || lead.status===filtros.etapa)
+        && (!filtros.pendentes || lead.status==="novo" || atividades.some(a=>a.lead_id===lead.id&&a.status==="pendente"));
+    });
+  }, [busca, leads, filtros, atividades]);
   const proximaAtividade = useMemo(() => {
     const mapa = new Map<string, Atividade>();
     atividades.forEach((atividade) => {
@@ -302,7 +312,7 @@ export default function ComercialCRM() {
     });
     return mapa;
   }, [conversas]);
-  const total = useMemo(() => leads.reduce((s, lead) => s + Number(lead.valor_contrato || 0), 0), [leads]);
+  const total = useMemo(() => filtrados.reduce((s, lead) => s + Number(lead.valor_contrato || 0), 0), [filtrados]);
   const submit = (evento: FormEvent) => { evento.preventDefault(); salvarLead.mutate(); };
 
   return (
@@ -313,11 +323,24 @@ export default function ComercialCRM() {
       </header>
       {error && <Card className="border-destructive/40 p-4 text-sm text-destructive">Não foi possível carregar o CRM.</Card>}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card className="flex items-center gap-3 p-4"><Users className="h-5 w-5 text-primary" /><div><p className="text-2xl font-semibold">{leads.length}</p><p className="text-xs text-muted-foreground">Negociações reais</p></div></Card>
+        <Card className="flex items-center gap-3 p-4"><Users className="h-5 w-5 text-primary" /><div><p className="text-2xl font-semibold">{filtrados.length}</p><p className="text-xs text-muted-foreground">Negociações {filtros.teste?"de teste":"registradas"}</p></div></Card>
         <Card className="flex items-center gap-3 p-4"><CircleDollarSign className="h-5 w-5 text-primary" /><div><p className="text-2xl font-semibold">{moeda(total)}</p><p className="text-xs text-muted-foreground">Valor informado</p></div></Card>
       </div>
       <div className="relative max-w-xl"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Buscar negociações" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone, e-mail, área ou origem" className="pl-9" /></div>
 
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+        <label>Aquisição desde<Input type="date" value={filtros.de} onChange={e=>setFiltros({...filtros,de:e.target.value})}/></label>
+        <label>Aquisição até<Input type="date" value={filtros.ate} onChange={e=>setFiltros({...filtros,ate:e.target.value})}/></label>
+        <label>UF<Input maxLength={2} value={filtros.uf} onChange={e=>setFiltros({...filtros,uf:e.target.value})}/></label>
+        {([
+          ['area','Área',AREAS],['canal','Canal',CANAIS],['etapa','Etapa',COLUNAS],
+          ['campanha','Campanha',[['sem','Sem atribuição'],...campanhas.map(c=>[c.id,c.nome])]],
+          ['responsavel','Responsável',responsaveis.filter(r=>r.ativo).map(r=>[r.user_id,r.nome])]
+        ] as const).map(([key,label,opcoes])=><label key={key}>{label}<select className="w-full rounded border p-2 bg-background" value={filtros[key]} onChange={e=>setFiltros({...filtros,[key]:e.target.value})}><option value="">Todos</option>{opcoes.map(([id,nome])=><option key={id} value={id}>{nome}</option>)}</select></label>)}
+      </div>
+      <label className="block text-sm"><input type="checkbox" checked={filtros.teste} onChange={e=>setFiltros({...filtros,teste:e.target.checked})}/> Somente entradas de teste da integração</label>
+      <label className="block text-sm"><input type="checkbox" checked={filtros.pendentes} onChange={e=>setFiltros({...filtros,pendentes:e.target.checked})}/> Somente novas entradas e retornos pendentes</label>
+      <p className="text-xs text-muted-foreground">Período de aquisição em America/Cuiaba. Origem desconhecida permanece sem atribuição. Confirmar conversão no funil não substitui a formalização com evidência em Contratações.</p>
       <div className="grid gap-4 overflow-x-auto pb-2 xl:grid-cols-5">
         {COLUNAS.map(([status, titulo]) => {
           const itens = filtrados.filter((lead) => lead.status === status);
@@ -334,7 +357,7 @@ export default function ComercialCRM() {
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => editar(lead)} aria-label="Editar atendimento"><Pencil className="h-3.5 w-3.5" /></Button>
                       </div></div>
                       <p className="mt-1 text-sm text-muted-foreground">{lead.area_direito || "Área não informada"}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">Origem: {lead.canal}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Origem: {lead.canal}{lead.integracao_teste?" · TESTE DE INTEGRAÇÃO":""}</p>
                       {lead.whatsapp && (() => {
                         const conversa = conversaPorLead.get(lead.id);
                         return conversa ? (

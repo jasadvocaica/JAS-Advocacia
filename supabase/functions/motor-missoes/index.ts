@@ -213,6 +213,13 @@ async function executarAprovada(db: SupabaseClient, id: string) {
   const a = ini.data?.[0];
   if (!a) return { executada: false };
   try {
+    if (a.ferramenta === "mkt_campanha_simular" || a.ferramenta === "mkt_editorial_simular") {
+      const r = await db.rpc(a.ferramenta === "mkt_campanha_simular" ? "mkt_simular_campanha" : "mkt_simular_editorial", { _aprovacao: id });
+      if (r.error) throw new Error(r.error.message);
+      const fim = await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: r.data });
+      if (fim.error) throw new Error(fim.error.message);
+      return { executada: true, ...r.data };
+    }
     if (a.ferramenta === "zernio_responder_comentario") {
       const resultado = await responderComentario(db, id, a.parametros);
       await db.rpc("aprovacao_finalizar_execucao", { _id: id, _ok: true, _resultado: resultado });

@@ -1,3 +1,4 @@
+import MarketingFormularios from "./MarketingFormularios";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, Lock, Megaphone, RefreshCw, ShieldCheck, Trash2, Wifi } from "lucide-react";
@@ -324,6 +325,7 @@ export default function ZernioIntegracao() {
         </TabsContent>
 
         <TabsContent value="config" className="space-y-4">
+          {admin && <MarketingFormularios />}
           {!admin && <Alert><Lock className="h-4 w-4" /><AlertTitle>Somente leitura</AlertTitle><AlertDescription>Só a administração altera credencial e configurações.</AlertDescription></Alert>}
           <Card>
             <CardHeader>

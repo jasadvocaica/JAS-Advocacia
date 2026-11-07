@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
 const invoke = vi.fn();
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: (...a: unknown[]) => invoke(...a) } } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn().mockResolvedValue({data:[],error:null}), functions: { invoke: (...a: unknown[]) => invoke(...a) } } }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 import ZernioIntegracao from "./ZernioIntegracao";
@@ -18,7 +19,7 @@ const visao = (c = conexao(), admin = true) => ({
   conexao: c, contas: [], totais: { publicacoes: 0, comentarios: 0, conversas: 0, campanhas: 0, gasto_anuncios: null }, job_ativo: null,
   pode_administrar: admin,
 });
-const tela = () => render(<MemoryRouter><ZernioIntegracao /></MemoryRouter>);
+const tela = () => render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter><ZernioIntegracao /></MemoryRouter></QueryClientProvider>);
 
 beforeEach(() => invoke.mockReset());
 

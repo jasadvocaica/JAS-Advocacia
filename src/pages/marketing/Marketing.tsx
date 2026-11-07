@@ -35,6 +35,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import AcessosMarketing from "./AcessosMarketing";
+import ResultadosIntegrados from "./ResultadosIntegrados";
+import AgentesMarketing from "./AgentesMarketing";
+import CampanhasIntegradas from "./CampanhasIntegradas";
+import TriagemDirect from "./TriagemDirect";
 const tiposSecao: Record<string, Tipo[]> = {
   tarefas: ["tarefa", "rotina"],
   equipe: ["tarefa", "rotina"],
@@ -333,7 +337,7 @@ export default function Marketing() {
               }}
             />
           </div>
-          {secao === "visao" ? (
+          {secao === "resultados" ? <ResultadosIntegrados /> : secao === "campanhas_meta" ? <CampanhasIntegradas /> : secao === "triagem_direct" ? <TriagemDirect usuarios={ctx.usuarios} /> : secao === "visao" ? (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {kpis.map(([l, v]) => (
@@ -402,6 +406,8 @@ export default function Marketing() {
                   </p>
                 </Card>
               )}
+              <ResultadosIntegrados />
+              <details className="rounded-lg border p-4"><summary className="font-semibold cursor-pointer">Equipe de apoio ao Marketing</summary><div className="mt-4"><AgentesMarketing /></div></details>
             </>
           ) : secao === "demanda" ? (
             <DemandaMarketing ctx={ctx} />

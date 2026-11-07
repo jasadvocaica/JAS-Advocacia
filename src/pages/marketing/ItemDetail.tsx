@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { operar, tabela } from "./api";
+import { operacaoMarketing } from "./operacao-api";
 import {
   STATUS,
   TIPOS,
@@ -47,6 +48,7 @@ export default function ItemDetail({
   const [justificativa, setJustificativa] = useState("");
   const [link, setLink] = useState("");
   const [publicado, setPublicado] = useState("");
+  const [contaSimulada,setContaSimulada] = useState("");
   const [metricas, setMetricas] = useState(item.dados.metricas ?? {});
   const [orcamento, setOrcamento] = useState("");
   const [gasto, setGasto] = useState("");
@@ -487,6 +489,12 @@ export default function ItemDetail({
               )}
             </div>
           )}
+          {publicar && ctx.permissoes.editar && <div className="border rounded p-4 space-y-3">
+            <h3 className="font-semibold">Homologar publicação autorizada</h3>
+            <p className="text-sm">Simulação sem envio ao Zernio. A autorização na Central é separada da revisão editorial e vale somente para esta versão. Não marca a peça como publicada.</p>
+            <Label htmlFor="conta-simulada">ID da conta de destino</Label><Input id="conta-simulada" value={contaSimulada} onChange={e=>setContaSimulada(e.target.value)} />
+            <Button disabled={busy || !contaSimulada} onClick={async()=>{setBusy(true);try{await operacaoMarketing("editorial_submeter",{id:item.id,versao:item.versao,conta_id:contaSimulada});toast.success("Simulação enviada à Central de Aprovações");}catch(e){toast.error(e instanceof Error?e.message:"Falha ao solicitar");}finally{setBusy(false);}}}>Solicitar autorização da simulação</Button>
+          </div>}
           {publicar && ctx.permissoes.editar && (
             <div className="border rounded-lg p-4 space-y-3">
               <h3 className="font-semibold">Registrar publicação manual</h3>
