@@ -302,6 +302,23 @@ try {
       .rows[0].n === 1,
     "Alerta interno deduplicado sem contato",
   );
+  await db.exec(`reset role;
+    create table public.agentes_ia(id uuid primary key,nome text,slug text,descricao text,ativo boolean,executor text,sala text);
+    create table escritorio_privado.agente_ferramentas(agente_id uuid,ferramenta text);
+    insert into public.agentes_ia values
+    ('00000000-0000-4000-8000-000000000010','Camila','camila','Conteúdo',true,'analista_operacional','marketing'),
+    ('00000000-0000-4000-8000-000000000011','Vinícius','vinicius','Design',false,'analista_operacional','marketing'),
+    ('00000000-0000-4000-8000-000000000012','Helena','helena','Jurídico',true,'analista_operacional','operacional');`);
+  await db.exec(await readFile("supabase/migrations/20261107232918_marketing_equipe_real.sql", "utf8"));
+  await db.exec(`set role authenticated; set request.jwt.claim.sub='${equipe}'`);
+  const equipeReal = (await db.query("select public.mkt_equipe_disponivel() equipe")).rows[0].equipe;
+  ok(equipeReal.length === 2 && equipeReal[0].nome === "Camila", "Consulta agentes reais da sala de Marketing");
+  ok(equipeReal.find(a => a.nome === "Vinícius").ativo === false, "Preserva estado desativado do cadastro");
+  ok(!JSON.stringify(equipeReal).includes("prompt_base"), "Não retorna configuração privada");
+  await db.exec(`set request.jwt.claim.sub='${negado}'`);
+  await assert.rejects(() => db.query("select public.mkt_equipe_disponivel()"), /Sem permissão/); checks++;
+  await db.exec("reset role; set role anon");
+  await assert.rejects(() => db.query("select public.mkt_equipe_disponivel()"), /permission denied/); checks++;
   console.log(`${checks} verificações SQL passaram (PostgreSQL isolado).`);
 } finally {
   await db.close();
