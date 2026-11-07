@@ -34,7 +34,7 @@ Código validado localmente e backend instalado em produção em 07/11/2026, ap�
 | Editorial | Validada com simulação | Revisão existente preservada; autorização de publicação separada; versão alterada recusa execução; simulação não muda status para publicado. |
 | Campanhas e Central | Validada com simulação | Versão, decisão exclusiva da gestora, pedido idempotente, PAUSED, nenhum gasto, edição invalida aprovação. |
 | Criação/ativação real de anúncios | Bloqueada | Não há executor real habilitado nesta entrega. Deve haver homologação do formato completo, estados de campanha/conjunto/anúncio, limites de orçamento e reconciliação de timeout antes de liberar qualquer gasto. |
-| Nina, Bela, Bia, Theo e Alex | Parcial | Consulta ao cadastro real não encontrou agentes com esses nomes. Interface informa ausência de executor e mantém o fluxo manual/missões existente; não apresenta agentes fictícios como operacionais. |
+| Equipe real de Marketing | Configurada; execução por missão | Camila e Vinícius foram reutilizados. Bia, Theo e Alex cadastrados pelo RPC existente, com ferramentas somente de leitura e sem novas rotinas. A gestora solicita entregas pelo Marketing e acompanha a evidência no motor; cadastro não equivale a entrega concluída. |
 | CPL/CPA e atribuição completa | Parcial | Fórmulas testadas; UI recusa cálculo quando não há prova de compatibilidade da série de gasto com a aquisição atribuída. Não mistura moedas ou leads de teste. |
 
 ## Validação executada
@@ -55,7 +55,7 @@ Código validado localmente e backend instalado em produção em 07/11/2026, ap�
 3. Publicar o frontend e comparar conta/período nos dois painéis. Conferir permissões da equipe e métricas reais sem enviar nada.
 4. No servidor, configurar o segredo exclusivo do webhook pelo mecanismo seguro existente; não colocá-lo em chat, frontend ou commit. Registrar endpoint `marketing-leads` no provedor somente para eventos necessários. `MARKETING_LEADS_HABILITADO=true` somente na homologação preparada; `MARKETING_LEADS_SOMENTE_TESTE` permanece true.
 5. Conferir Página, leitura de formulários/leads, termos e privacidade. Usar formulário exclusivo de teste, gerar lead sintético autorizado e comprovar um registro após repetição/reconciliação.
-6. Configurar agentes reais e suas ferramentas individualmente, preservando o orçamento e as aprovações existentes. Não ativar automações de envio por consequência da configuração.
+6. Equipe real configurada em 07/11: Camila e Vinícius preservados; Bia, Theo e Alex com execução manual e leituras mínimas. Antes de considerar homologada a geração, solicitar e revisar uma entrega no motor existente. Nenhum envio ou aumento de orçamento foi habilitado.
 7. Antes de anúncios reais, implementar/homologar o executor específico e limites por conta/moeda. Aprovação simulada não autoriza gasto ou ativação futura.
 
 ### Reversão
@@ -74,4 +74,15 @@ O bloqueio inicial de aprovação foi resolvido após autorização explícita d
 
 O advisor manteve a mesma contagem de avisos anteriores. Acrescentou cinco informações RLS sem política nas tabelas privadas: acesso direto de anon/authenticated revogado, com acesso apenas pelo backend e pelas RPCs que validam a pessoa. Referência: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy.
 
-Juliana confirmou os termos e a privacidade. O formulário de teste e a entrega técnica assinada ainda precisam de homologação; isso não impede usar o painel, a triagem manual e os rascunhos internos. Criação real de anúncios, publicação real e os cinco agentes específicos continuam com as limitações descritas acima.
+Juliana confirmou os termos e a privacidade. O formulário de teste e a entrega técnica assinada ainda precisam de homologação; isso não impede usar o painel, a triagem manual e os rascunhos internos. Criação real de anúncios e a ligação da publicação editorial à execução externa continuam com as limitações descritas acima. Os cinco agentes reais estão cadastrados; a geração de uma entrega não foi simulada como execução bem-sucedida.
+
+## Complemento de 07/11 — equipe real e descoberta de formulários
+
+- Hostinger usa a conexão GitHub/aplicação Node.js, conforme a gestora. O dashboard com investimento, funil e prioridades foi encontrado nos arquivos públicos servidos pelo domínio.
+- Migration `20261107232918_marketing_equipe_real.sql`: consulta autenticada da equipe de Marketing, sem prompts ou configurações privadas. Camila e Vinícius passam a aparecer pelos nomes reais.
+- Script idempotente `scripts/marketing/provisionar-equipe.sql`, validado com rollback antes de persistir: cria Bia, Theo e Alex pela mesma configuração do Escritório, com supervisora existente, sem alterar agentes anteriores, orçamento ou agendamento. Ferramentas novas são somente de leitura.
+- `zernio` versão 8: ação administrativa `descobrir_formularios`, GET paginado oficial por conta ativa/selecionada e sem reconexão pendente. Retorna apenas ID, nome, Página quando fornecida e estado. Não consulta respostas, não cria formulário ou lead e não muda a autorização de homologação.
+- Configurações permite escolher uma conta, consultar os formulários e preencher o cadastro de teste a partir da seleção. Se o provedor omitir a Página, o campo permanece em branco para conferência; não é inferido.
+- Referência técnica: https://docs.zernio.com/platforms/meta-ads/lead-forms e contrato do SDK oficial https://github.com/zernio-dev/zernio-node/blob/main/src/generated/types.gen.ts.
+- Validação: 33 verificações SQL isoladas; 13 testes de normalização/handler/interface (incluindo conta arbitrária, usuário sem gestão, agente desativado e reconexão). Chromium confirmou dashboard, solicitação de missão no celular e ausência de erros de runtime com APIs simuladas. Consulta autenticada real da equipe e estado das ferramentas conferidos em produção.
+- Ainda pendentes: escolha do formulário real, configuração do webhook assinado e entrega de lead de teste do provedor; executor de criação pausada/ativação de anúncios e homologação da publicação vinculada à versão editorial. Receptor e automações externas não foram ativados.

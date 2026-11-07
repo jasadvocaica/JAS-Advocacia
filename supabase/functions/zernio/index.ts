@@ -4,6 +4,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { chaveValida, cifrar, criarCliente, decifrar, ErroZernio, mapConta, mascarar, semSegredos } from "../_shared/zernio.ts";
 import { reconciliarPagina } from "../_shared/marketing-leads.ts";
+import { normalizarFormularios } from "../_shared/marketing-formularios.ts";
 import { sincronizar, type Armazem, type EstadoJob } from "../_shared/zernio-sync.ts";
 
 const cors = {
@@ -155,6 +156,21 @@ Deno.serve(async (req) => {
 
     if (!admin) return json({ error: "Só a administração configura a integração" }, 403);
     switch (body.acao) {
+      case "descobrir_formularios": {
+        if (typeof body.conta_id !== "string" || !body.conta_id || body.conta_id.length > 200 ||
+            (body.cursor != null && (typeof body.cursor !== "string" || body.cursor.length > 1000)))
+          return json({ error: "Conta ou cursor inválido" }, 400);
+        const contas = await db.rpc("zernio_painel", { _aba: "visao", _dias: 30 });
+        if (contas.error) throw contas.error;
+        if (!contas.data?.contas?.some((c: { externo_id: string; plataforma: string; ativa: boolean; selecionada: boolean; precisa_reconectar: boolean }) =>
+          c.externo_id === body.conta_id && c.ativa && c.selecionada && !c.precisa_reconectar && ["facebook", "metaads", "instagram"].includes(c.plataforma)))
+          return json({ error: "Selecione uma conta Meta ativa da integração" }, 403);
+        const api = await clienteDoBanco(db);
+        const pagina = await api.get("/v1/ads/lead-forms", {
+          accountId: body.conta_id, limit: 25, cursor: body.cursor ?? undefined,
+        });
+        return json({ ok: true, conta_id: body.conta_id, ...normalizarFormularios(pagina.dados) });
+      }
       case "reconciliar_leads": {
         if (Deno.env.get("MARKETING_LEADS_HABILITADO") !== "true") return json({ error: "Receptor de leads desativado; homologação necessária" }, 409);
         if (typeof body.conta_id !== "string" || typeof body.formulario_id !== "string" || body.conta_id.length > 200 || body.formulario_id.length > 200 || (body.cursor != null && (typeof body.cursor !== "string" || body.cursor.length > 1000))) return json({ error: "Parâmetros inválidos" }, 400);
