@@ -37,6 +37,7 @@ import {
 import AcessosMarketing from "./AcessosMarketing";
 import ResultadosIntegrados from "./ResultadosIntegrados";
 import AgentesMarketing from "./AgentesMarketing";
+import MarketingDashboard from "./MarketingDashboard";
 import CampanhasIntegradas from "./CampanhasIntegradas";
 import TriagemDirect from "./TriagemDirect";
 const tiposSecao: Record<string, Tipo[]> = {
@@ -97,6 +98,7 @@ export default function Marketing() {
   function recarregar() {
     qc.invalidateQueries({ queryKey: ["mkt-itens"] });
     qc.invalidateQueries({ queryKey: ["mkt-contexto"] });
+    qc.invalidateQueries({ queryKey: ["mkt-resultados"] });
     qc.invalidateQueries({ queryKey: ["mkt-demanda"] });
     qc.invalidateQueries({ queryKey: ["mkt-auditoria"] });
   }
@@ -151,74 +153,6 @@ export default function Marketing() {
     ? "Supervisione aprovações, prazos e resultados."
     : "Organize sua rotina, planeje e produza os materiais do escritório.";
   const nomes = Object.fromEntries(ctx.usuarios.map((u) => [u.id, u.nome]));
-  const kpis = [
-    [
-      "Tarefas pendentes",
-      ativos.filter((i) => i.tipo === "tarefa" && i.status !== "concluido")
-        .length,
-    ],
-    [
-      "Tarefas vencidas",
-      ativos.filter(
-        (i) =>
-          i.tipo === "tarefa" &&
-          i.prazo &&
-          new Date(i.prazo) < new Date() &&
-          i.status !== "concluido",
-      ).length,
-    ],
-    [
-      "Ideias em análise",
-      ativos.filter(
-        (i) =>
-          i.tipo === "ideia" &&
-          ["rascunho", "aguardando_aprovacao"].includes(i.status),
-      ).length,
-    ],
-    [
-      "Pautas aprovadas",
-      ativos.filter((i) => i.tipo === "pauta" && i.status === "aprovado")
-        .length,
-    ],
-    [
-      "Em produção",
-      ativos.filter(
-        (i) =>
-          ["conteudo", "artigo", "roteiro"].includes(i.tipo) &&
-          i.status === "producao",
-      ).length,
-    ],
-    [
-      "Ajustes solicitados",
-      ativos.filter((i) => i.status === "ajustes").length,
-    ],
-    [
-      "Aguardando aprovação",
-      ativos.filter((i) => i.status === "aguardando_aprovacao").length,
-    ],
-    [
-      "Aguardando gravação",
-      ativos.filter((i) => i.status === "aguardando_gravacao").length,
-    ],
-    [
-      "Publicações previstas",
-      ativos.filter(
-        (i) =>
-          ["conteudo", "artigo", "roteiro"].includes(i.tipo) &&
-          i.data_prevista &&
-          !["publicado", "rejeitado", "arquivado"].includes(i.status),
-      ).length,
-    ],
-    [
-      "Publicados no mês",
-      ativos.filter(
-        (i) =>
-          i.status === "publicado" &&
-          String(i.dados.publicado_em ?? "").slice(0, 7) ===
-            new Date().toISOString().slice(0, 7),
-      ).length,
-    ],
-  ];
   const Cartao = ({ i }: { i: Item }) => (
     <button
       className="w-full text-left rounded-lg border bg-card p-4 hover:border-primary transition-colors space-y-2"
@@ -248,7 +182,10 @@ export default function Marketing() {
   );
   return (
     <div className="space-y-5">
-      <PageHeader title={`Marketing · ${MENUS.find((menu) => menu.itens.some(([id]) => id === secao))?.nome ?? "Configurações"}`} description={unidade}>
+      <PageHeader
+        title={`Marketing · ${MENUS.find((menu) => menu.itens.some(([id]) => id === secao))?.nome ?? "Configurações"}`}
+        description={unidade}
+      >
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -310,104 +247,88 @@ export default function Marketing() {
         </div>
       </PageHeader>
       <div className="w-full min-w-0 space-y-5">
-        <nav aria-label="Funcionalidades do marketing" className="flex flex-wrap gap-2">
-          {(MENUS.find((menu) => menu.itens.some(([id]) => id === secao))?.itens ?? [])
-            .filter(([id]) => id !== "equipe" || ctx.permissoes.gerenciar || ctx.permissoes.gestor)
+        <nav
+          aria-label="Funcionalidades do marketing"
+          className="flex flex-wrap gap-2"
+        >
+          {(
+            MENUS.find((menu) => menu.itens.some(([id]) => id === secao))
+              ?.itens ?? []
+          )
+            .filter(
+              ([id]) =>
+                id !== "equipe" ||
+                ctx.permissoes.gerenciar ||
+                ctx.permissoes.gestor,
+            )
             .map(([id, label]) => (
-              <Button key={id} size="sm" variant={secao === id ? "default" : "outline"}
+              <Button
+                key={id}
+                size="sm"
+                variant={secao === id ? "default" : "outline"}
                 aria-current={secao === id ? "page" : undefined}
                 className="h-auto whitespace-normal text-left"
-                onClick={() => { setParams({secao: id}); setStatus(""); setAbaGravacao(false); }}>
+                onClick={() => {
+                  setParams({ secao: id });
+                  setStatus("");
+                  setAbaGravacao(false);
+                }}
+              >
                 {label}
               </Button>
             ))}
         </nav>
         <section className="space-y-5 min-w-0">
-          <div className="flex gap-2">
-            <Input
-              aria-label="Busca global do marketing"
-              placeholder="Buscar em todo o marketing…"
-              value={busca}
-              onChange={(e) => {
-                setBusca(e.target.value);
-                setParams({ secao: "busca" });
-                setStatus("");
-                setArea("");
-                setResponsavel("");
-              }}
-            />
-          </div>
-          {secao === "resultados" ? <ResultadosIntegrados /> : secao === "campanhas_meta" ? <CampanhasIntegradas /> : secao === "triagem_direct" ? <TriagemDirect usuarios={ctx.usuarios} /> : secao === "visao" ? (
+          {secao !== "visao" && (
+            <div className="flex gap-2">
+              <Input
+                aria-label="Busca global do marketing"
+                placeholder="Buscar em todo o marketing…"
+                value={busca}
+                onChange={(e) => {
+                  setBusca(e.target.value);
+                  setParams({ secao: "busca" });
+                  setStatus("");
+                  setArea("");
+                  setResponsavel("");
+                }}
+              />
+            </div>
+          )}
+          {secao === "resultados" ? (
+            <ResultadosIntegrados />
+          ) : secao === "campanhas_meta" ? (
+            <CampanhasIntegradas />
+          ) : secao === "triagem_direct" ? (
+            <TriagemDirect usuarios={ctx.usuarios} />
+          ) : secao === "visao" ? (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {kpis.map(([l, v]) => (
-                  <Card key={l} className="p-4">
-                    <p className="text-xs text-muted-foreground">{l}</p>
-                    <p className="text-3xl font-display mt-2">{v}</p>
-                  </Card>
-                ))}
-              </div>
-              {ctx.permissoes.criar && (
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      "ideia",
-                      "pauta",
-                      "roteiro",
-                      "artigo",
-                      "tarefa",
-                      "campanha",
-                    ] as Tipo[]
-                  ).map((tipo) => (
-                    <Button
-                      key={tipo}
-                      variant="outline"
-                      onClick={() => setNovo(tipo)}
-                    >
-                      <Plus className="w-4 h-4" />
-                      {TIPOS[tipo]}
-                    </Button>
-                  ))}
+              <MarketingDashboard
+                itens={itens}
+                ctx={ctx}
+                onAbrir={abrir}
+                onNavegar={(secao, f) =>
+                  setParams({
+                    secao,
+                    ...(f
+                      ? {
+                          de: f.de,
+                          ate: f.ate,
+                          conta: f.conta,
+                          campanha: f.campanha,
+                        }
+                      : {}),
+                  })
+                }
+              />
+              <details className="rounded-lg border p-4">
+                <summary className="font-semibold cursor-pointer">
+                  Equipe de apoio ao Marketing
+                </summary>
+                <div className="mt-4">
+                  <AgentesMarketing />
                 </div>
-              )}
-              <h2 className="font-display text-xl">
-                {ctx.permissoes.aprovar
-                  ? "Aprovações e atividades prioritárias"
-                  : "Minha rotina"}
-              </h2>
-              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                {ordenarRotina(
-                  ativos.filter(
-                    (i) =>
-                      ![
-                        "publicado",
-                        "concluido",
-                        "rejeitado",
-                        "convertida",
-                        "encerrada",
-                      ].includes(i.status) &&
-                      (ctx.permissoes.aprovar || i.responsavel_id === user?.id),
-                  ),
-                )
-                  .slice(0, 12)
-                  .map((i) => (
-                    <Cartao key={i.id} i={i} />
-                  ))}
-              </div>
-              {ativos.length === 0 && (
-                <Card className="p-6">
-                  <p className="font-semibold">
-                    Seu departamento está pronto para começar
-                  </p>
-                  <p className="text-muted-foreground text-sm mt-1">
-                    Cadastre uma tarefa, uma pesquisa ou uma ideia. Os
-                    indicadores são preenchidos pelas atividades reais da
-                    equipe.
-                  </p>
-                </Card>
-              )}
-              <ResultadosIntegrados />
-              <details className="rounded-lg border p-4"><summary className="font-semibold cursor-pointer">Equipe de apoio ao Marketing</summary><div className="mt-4"><AgentesMarketing /></div></details>
+              </details>
             </>
           ) : secao === "demanda" ? (
             <DemandaMarketing ctx={ctx} />
