@@ -86,3 +86,13 @@ Juliana confirmou os termos e a privacidade. O formulário de teste e a entrega 
 - Referência técnica: https://docs.zernio.com/platforms/meta-ads/lead-forms e contrato do SDK oficial https://github.com/zernio-dev/zernio-node/blob/main/src/generated/types.gen.ts.
 - Validação: 33 verificações SQL isoladas; 13 testes de normalização/handler/interface (incluindo conta arbitrária, usuário sem gestão, agente desativado e reconexão). Chromium confirmou dashboard, solicitação de missão no celular e ausência de erros de runtime com APIs simuladas. Consulta autenticada real da equipe e estado das ferramentas conferidos em produção.
 - Ainda pendentes: escolha do formulário real, configuração do webhook assinado e entrega de lead de teste do provedor; executor de criação pausada/ativação de anúncios e homologação da publicação vinculada à versão editorial. Receptor e automações externas não foram ativados.
+
+## Consulta Meta solicitada pela gestora (somente leitura)
+
+A gestora pediu os nomes exatos da Página selecionada, contas de anúncios no escopo e formulários antes de escolher o teste. Foi instalada a migration `20261107234742_marketing_consulta_meta.sql` e o Zernio v9. A consulta usa o job e o cron Zernio existentes: só GET `/v1/accounts`, `/v1/ads/accounts` com `inScopeOnly=true` e `/v1/ads/lead-forms`. Não lê respostas de leads e reduz imediatamente as respostas a nomes/IDs; logs recebem apenas códigos fixos. Paginação limitada sinaliza consulta parcial, sem fingir completude.
+
+O job real terminou concluído: uma conexão Meta Ads, uma Página selecionada, uma conta de anúncios no escopo e sete formulários; consulta completa. Os nomes e IDs foram apresentados à gestora para escolha. Nada foi criado na Meta. A campanha segue somente em validação, sem criação pausada nem ativação até aprovações específicas de conta/teto e ativação, respectivamente.
+
+A consulta de metadados não atualiza `ultima_sync_ok_em` como se tivesse sincronizado métricas. Reserva e limite de tentativas continuam na fila existente; repetir a solicitação enquanto o job está ativo reutiliza o mesmo ID. Novos RPCs são somente service_role, com gestão ativa validada na criação. Validação isolada: 36 verificações SQL e 12 testes de formulários/handler.
+
+A missão real de homologação de Alex concluiu em uma tentativa e duas rodadas, usando somente `zernio_saude`. Essa evidência comprova execução do motor com a ferramenta concedida; não equivale à homologação de leads, anúncios ou publicação editorial.
