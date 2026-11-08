@@ -119,6 +119,15 @@ async function pesquisarOficial(db: SupabaseClient, ctx: ContextoIA, pergunta: s
     const host = new URL(a.url).hostname;
     if ((publicas?.dominios ?? DOMINIOS_OFICIAIS).some((d) => host === d || host.endsWith(`.${d}`))) fontes.set(a.url, a.title ?? host);
   }
+  // A busca pode devolver fontes em action.sources sem anotações no texto final.
+  // Esses URLs vêm da ferramenta executada, não são links inventados pela resposta.
+  if (publicas) for (const o of (ai.output ?? []) as {type: string; action?: {sources?: {url?: string; title?: string}[]}}[]) {
+    if(o.type!=="web_search_call") continue;
+    for(const fonte of o.action?.sources ?? []) {
+      if(!fonte.url) continue;
+      try { const u=new URL(fonte.url); if(u.protocol==='https:' && publicas.dominios.some(d=>u.hostname===d || u.hostname.endsWith(`.${d}`))) fontes.set(u.toString(),fonte.title ?? u.hostname); } catch { /* URL inválido não é evidência */ }
+    }
+  }
   if (publicas && !fontes.size) {
     const citacoes=partes.reduce((n: number,p: {annotations?: {type:string}[]})=>n+(p.annotations??[]).filter(a=>a.type==='url_citation').length,0);
     await db.from("agente_execucao_logs").insert({execucao_id:ctx.execucao_id,mensagem:`pesquisa_publica_sem_fontes_textos_${partes.length}_citacoes_${citacoes}_status_${ai.status==='completed'?'concluido':'incompleto'}`});
