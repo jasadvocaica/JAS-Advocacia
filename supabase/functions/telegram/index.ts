@@ -4,6 +4,7 @@
 // de uso único; conversa, missão e aprovação passam pelas funções de sempre, com as mesmas regras.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { chamarInterno } from "../_shared/interno.ts";
+import {enviarResumos,FalhaTelegram} from './resumos.ts';
 import {
   ajuda,
   comando,
@@ -27,14 +28,15 @@ const TOKEN = () => (Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "").trim();
 const SEGREDO = () => (Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "").trim();
 
 async function telegram(metodo: string, corpo: Record<string, unknown>) {
-  const r = await fetch(`https://api.telegram.org/bot${TOKEN()}/${metodo}`, {
+  let r:Response;
+  try { r = await fetch(`https://api.telegram.org/bot${TOKEN()}/${metodo}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(corpo),
     signal: AbortSignal.timeout(15000),
-  });
+  }); } catch {throw new FalhaTelegram('telegram_transporte_incerto',true);}
   const d = await r.json().catch(() => ({}));
-  if (!d.ok) throw new Error(`Telegram ${metodo}: ${d.description ?? r.status}`);
+  if (!d.ok){const codigo=Number.isSafeInteger(d.error_code)?d.error_code:r.status;throw new FalhaTelegram(`telegram_http_${codigo}`,codigo>=500||(r.ok&&!Number.isSafeInteger(d.error_code)),codigo===429?Math.min(3600,Math.max(5,Number(d.parameters?.retry_after)||60)):undefined);}
   return d.result;
 }
 const enviar = (chat: number, text: string, extra: Record<string, unknown> = {}) =>
@@ -94,6 +96,12 @@ async function tratarMensagem(db: SupabaseClient, msg: { chat: { id: number; typ
     const lista = await pendentes(usuario);
     if (!lista.length) return enviar(chat, "Nada esperando a sua aprovação.");
     for (const a of lista.slice(0, 10)) await mostrarAprovacao(chat, a);
+    return;
+  }
+  if(c.nome==='resumo'||c.nome==='relatorio'){
+    const r=await db.rpc('operacao24h_pedir_resumo',{_usuario:usuario});
+    if(r.error)return enviar(chat,'Não foi possível preparar o resumo agora. Confira o painel do Telegram no JAS.');
+    await enviarResumos(db,(destino,texto)=>enviar(destino,texto),r.data);
     return;
   }
   const g = await gestora(db, usuario);
@@ -186,6 +194,15 @@ Deno.serve(async (req) => {
     }
 
     // 2. Aviso de aprovação vindo do banco.
+    if(body.acao==='resumos_automaticos'){
+      const ok=await db.rpc('validar_djen_cron_secret',{_secret:req.headers.get('x-djen-cron-secret')??''});
+      if(ok.error||ok.data!==true)return json({error:'Não autorizado'},401);
+      if(!TOKEN())return json({error:'Telegram não configurado'},503);
+      const trabalho=enviarResumos(db,(chat,texto)=>enviar(chat,texto)).catch(()=>{console.error('resumo_automatico_indisponivel');});
+      const rt=(globalThis as {EdgeRuntime?:{waitUntil:(p:Promise<unknown>)=>void}}).EdgeRuntime;
+      if(rt)rt.waitUntil(trabalho);else await trabalho;
+      return json({ok:true});
+    }
     if (body.acao === "avisar_aprovacao") {
       const ok = await db.rpc("validar_djen_cron_secret", { _secret: req.headers.get("x-djen-cron-secret") ?? "" });
       if (ok.error || ok.data !== true) return json({ error: "Não autorizado" }, 401);
@@ -199,6 +216,11 @@ Deno.serve(async (req) => {
     if (auth.error || !auth.data.user) return json({ error: "Sessão inválida" }, 401);
     const usuario = auth.data.user.id;
     switch (body.acao) {
+      case 'resumo_agora': {
+        const r=await db.rpc('operacao24h_pedir_resumo',{_usuario:usuario});
+        if(r.error)return json({error:r.error.message},403);
+        return json(await enviarResumos(db,(chat,texto)=>enviar(chat,texto),r.data));
+      }
       case "estado": {
         const v = await db.rpc("telegram_estado", { _usuario: usuario });
         if (v.error) return json({ error: v.error.message }, 403);
@@ -242,6 +264,7 @@ Deno.serve(async (req) => {
         await telegram("setMyCommands", {
           commands: [
             { command: "aprovacoes", description: "Pedidos esperando a sua aprovação" },
+            { command: "resumo", description: "Resumo atual de leads, aprovações e tarefas" },
             { command: "missao", description: "Criar missão para a Gestora" },
             { command: "ajuda", description: "Como usar" },
             { command: "desvincular", description: "Desligar este Telegram do JAS" },

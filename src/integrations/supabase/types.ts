@@ -9852,6 +9852,10 @@ export type Database = {
       }
     }
     Functions: {
+      operacao24h_painel: {
+        Args: { _dados?: Json }
+        Returns: Json
+      }
       assistente_tokens_dia: {
         Args: Record<PropertyKey, never>
         Returns: Json

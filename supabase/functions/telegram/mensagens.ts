@@ -71,6 +71,7 @@ export function ajuda(vinculado: boolean): string {
     "• Escreva normalmente para falar com a Gestora.\n" +
     "• /missao texto — cria uma missão para a Gestora.\n" +
     "• /aprovacoes — mostra os pedidos esperando você, com botões para aprovar ou recusar.\n" +
+    "• /resumo — consulta leads, aprovações, tarefas e saúde do motor sem usar IA.\n" +
     "• /desvincular — desliga este Telegram do JAS.\n\n" +
     "Pedidos novos de aprovação chegam aqui automaticamente.";
 }
