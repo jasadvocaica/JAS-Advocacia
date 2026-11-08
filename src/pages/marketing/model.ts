@@ -116,6 +116,10 @@ export const MENUS: readonly {
     ],
   },
   {
+    nome: "Concorrentes",
+    itens: [["concorrentes", "Concorrentes cadastrados"]],
+  },
+  {
     nome: "Produção",
     itens: [
       ["producao", "Central de Produção"],

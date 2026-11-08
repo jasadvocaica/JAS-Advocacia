@@ -53,7 +53,7 @@ const NAV: NavItem[] = [
   { grupo: "Clientes", to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
   { grupo: "Comercial", to: "/comercial/contratacoes", label: "Contratações", icon: Handshake },
   { grupo: "Comercial", to: "/comercial/modelos", label: "Modelos e regras", icon: FileText },
-  ...MENUS.map((menu, index): NavItem => ({ grupo: "Marketing", to: `/marketing?secao=${menu.itens[0][0]}`, label: menu.nome, icon: [LayoutDashboard, Calendar, FileText, ClipboardCheck, Megaphone, BarChart3][index], modulo: "marketing" })),
+  ...MENUS.map((menu): NavItem => ({ grupo: "Marketing", to: `/marketing?secao=${menu.itens[0][0]}`, label: menu.nome, icon: ({"Visão Geral":LayoutDashboard,"Planejamento":Calendar,"Concorrentes":Users,"Produção":FileText,"Aprovações":ClipboardCheck,"Campanhas":Megaphone,"Resultados":BarChart3} as Record<string,typeof LayoutDashboard>)[menu.nome]??LayoutDashboard, modulo: "marketing" })),
   { grupo: "Financeiro", to: "/financeiro", label: "Visão financeira", icon: DollarSign, modulo: "financeiro" },
   { grupo: "Gestão de pessoas / RH", to: "/equipe", label: "Equipe e RH", icon: UserCog, modulo: "equipe" },
   { grupo: "Sistema", to: "/ferramentas", label: "Ferramentas", icon: Wrench },
