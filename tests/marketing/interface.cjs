@@ -11,6 +11,7 @@ const fs = require("fs");
   });
   const page = await context.newPage();
   const errors = [];
+  let fontesConcorrentes = ['https://www.instagram.com/referencia_ui/'];
   page.on("pageerror", (e) => errors.push(e.message));
   const uid = "11111111-1111-4111-8111-111111111111";
   const user = {
@@ -152,7 +153,7 @@ const fs = require("fs");
         crm:{leads:12,qualificados:5,contratos:2,sem_atribuicao:5,campanhas:[{campanha_id:null,nome:"Sem atribuição",leads:5,contratos:1}]},apurado_em:now,
       } : [];
     }
-    else if (table === "mkt_rotinas_ia") result={fontes:[],pode_configurar:true,rotinas:[]};
+    else if (table === "mkt_rotinas_ia") { const p=req.postDataJSON();if(Array.isArray(p?._fontes))fontesConcorrentes=p._fontes;result={fontes:fontesConcorrentes,pode_configurar:true,rotinas:[]}; }
     else if (table === "mkt_inteligencia_mercado") result={pesquisas:[],referencias:[],estrategias:[]};
     else if (table === "mkt_equipe_disponivel") result = [{id:"agente-ui",nome:"Camila",descricao:"Conteúdo de teste",ativo:true,executor:"analista_operacional",ferramentas:["zernio_indicadores"]}];
     else if (path.endsWith("/motor-missoes")) result={ok:true,missao_id:"missao-ui"};
@@ -204,7 +205,7 @@ const fs = require("fs");
   await page.getByRole("heading", { name: "Marketing · Visão Geral", exact: true }).waitFor().catch(async e => { console.log("Diagnóstico da prévia simulada:", await page.locator("body").innerText(), errors); await page.screenshot({path:"/tmp/marketing-diagnostico.png",fullPage:true}); throw e; });
   const group = page.getByRole("button", {name: "Marketing", exact: true});
   await group.waitFor();
-  for (const label of ["Visão Geral", "Planejamento", "Produção", "Aprovações", "Campanhas", "Resultados"])
+  for (const label of ["Visão Geral", "Planejamento", "Concorrentes", "Produção", "Aprovações", "Campanhas", "Resultados"])
     await page.getByRole("link", {name: label, exact: true}).waitFor();
   if (await page.getByLabel("Menu do marketing").count()) throw new Error("Barra lateral interna permanece");
   await page.getByRole("button", { name: "Novo", exact: true }).click();
@@ -223,6 +224,13 @@ const fs = require("fs");
     })
     .waitFor();
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+  await page.getByRole('link',{name:'Concorrentes',exact:true}).click();
+  await page.getByRole('heading',{name:'Concorrentes e referências'}).waitFor();
+  await page.getByText('@referencia_ui',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Novo concorrente',exact:true}).click();
+  await page.getByLabel('Perfil ou site público').fill('@novo_ui');
+  await page.getByRole('button',{name:'Cadastrar concorrente',exact:true}).click();
+  await page.getByText('@novo_ui',{exact:true}).waitFor();
   for (const [groupName, label] of [
     ["Planejamento", "Pacotes de Conteúdo"], ["Produção", "Modelos de Conteúdo"],
     ["Aprovações", "Histórico de Aprovações"], ["Resultados", "Análise de Demanda Jurídica"],
@@ -299,7 +307,8 @@ const fs = require("fs");
     JSON.stringify({
       desktop: "OK",
       mobile: "OK",
-      sixMenus: "OK",
+      sevenMenus: "OK",
+      competitors: "OK",
       creation: "OK",
       pages: "OK",
       runtimeErrors: errors,

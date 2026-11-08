@@ -38,6 +38,7 @@ import AcessosMarketing from "./AcessosMarketing";
 import ResultadosIntegrados from "./ResultadosIntegrados";
 import AgentesMarketing from "./AgentesMarketing";
 import InteligenciaMarketing from "./InteligenciaMarketing";
+import ConcorrentesMarketing from "./ConcorrentesMarketing";
 import MarketingDashboard from "./MarketingDashboard";
 import CampanhasIntegradas from "./CampanhasIntegradas";
 import TriagemDirect from "./TriagemDirect";
@@ -296,7 +297,9 @@ export default function Marketing() {
               />
             </div>
           )}
-          {secao === "resultados" ? (
+          {secao === "concorrentes" ? (
+            <ConcorrentesMarketing />
+          ) : secao === "resultados" ? (
             <ResultadosIntegrados />
           ) : secao === "campanhas_meta" ? (
             <CampanhasIntegradas />

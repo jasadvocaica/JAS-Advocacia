@@ -19,10 +19,10 @@ const item = (patch: Partial<Item> = {}) =>
     ...patch,
   }) as Item;
 describe("Marketing: navegação e regras visuais", () => {
-  it("organiza todos os submenus em seis grupos, sem concorrentes", () => {
-    expect(MENUS).toHaveLength(6);
+  it("organiza os submenus e inclui o cadastro de concorrentes", () => {
+    expect(MENUS).toHaveLength(7);
     expect(new Set(SECOES.map((s) => s[0])).size).toBe(SECOES.length);
-    expect(SECOES.some((s) => /concorrente|pesquisa/.test(s[0]))).toBe(false);
+    expect(SECOES.some((s) => s[0]==='concorrentes')).toBe(true);
     expect(SECOES.map((s) => s[0])).toEqual(
       expect.arrayContaining(["pacotes", "modelos", "oportunidades", "resumo", "resultados", "campanhas_meta", "triagem_direct"]),
     );
