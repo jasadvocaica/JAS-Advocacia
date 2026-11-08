@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { OfficeStatus } from "../design/OfficeUI";
+import Operacao24hPainel from './Operacao24hPainel';
 
 interface Estado {
   configurado: boolean;
@@ -105,6 +106,7 @@ export default function TelegramPainel() {
               Envie para <b>@{estado.bot}</b> no Telegram: <code>/vincular {codigo}</code> · vale 10 minutos e uma única vez.
             </p>
           )}
+          <Operacao24hPainel />
         </>
       )}
     </div>

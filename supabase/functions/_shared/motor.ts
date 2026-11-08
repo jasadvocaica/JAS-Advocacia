@@ -19,6 +19,7 @@ const objeto = (props: Record<string, unknown>, obrigatorios: string[]) => ({
 });
 
 export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
+  consultar_operacao_continua: {slug:'consultar_operacao_continua',classe:'leitura',descricao:'Contagens atuais do CRM, aprovações, tarefas e saúde do motor; para triagem interna, sem enviar mensagens ou alterar registros.',parametros:objeto({},[])},
   pesquisar_tendencias_marketing: {
     slug: 'pesquisar_tendencias_marketing', classe: 'leitura',
     descricao: 'Pesquisa pública de temas, notícias e sementes de palavras-chave. Diferencia tendências do Google Trends de notícias e sugestões editoriais. Não consulta CRM, não usa listas de pessoas e não estima volume, CPC ou concorrência ausentes.',
@@ -406,6 +407,7 @@ export function validarParametros(slug: string, bruto: unknown): Record<string, 
       return { dias: diasEntre(a.dias, 30, 365) };
     case "pesquisar_concorrentes_publicos":
     case "pesquisar_tendencias_marketing":
+    case "consultar_operacao_continua":
       return {};
     case "pesquisar_fontes_oficiais":
       return { pergunta: textoValido(a.pergunta, 5, 500, "pergunta") };

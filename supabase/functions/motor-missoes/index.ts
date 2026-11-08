@@ -77,6 +77,11 @@ async function executarFerramenta(db: SupabaseClient, tarefa: { tarefa_id: strin
   if (CONSULTAS_AMPLAS.has(slug)) return consultarAmplo(db, slug, p, ctx);
   if (ACOES_AMPLAS.has(slug)) return proporAmplo(db, tarefa.tarefa_id, slug, p);
   switch (slug) {
+    case 'consultar_operacao_continua': {
+      const r=await db.rpc('operacao24h_contexto',{_tarefa:tarefa.tarefa_id});
+      if(r.error)throw new Error('Contexto operacional indisponível');
+      return r.data;
+    }
     case "consultar_indicadores": {
       const r = await db.rpc("escritorio_contexto_analista");
       if (r.error) throw new Error("Indicadores indisponíveis");
@@ -278,6 +283,12 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
   if (escopo.error) throw new Error("Não foi possível conferir o escopo da rotina");
   if (Array.isArray(escopo.data)) t.ferramentas = t.ferramentas.filter(slug => escopo.data.includes(slug));
   const instrucoes = instrucoesDoAgente({ nome: ag.data?.nome ?? "Agente", cargo: perfil?.cargo, prompt_base: perfil?.prompt_base });
+  let rotina24=false;
+  if(t.ferramentas.includes('consultar_operacao_continua')){
+    const escopo24=await db.rpc('operacao24h_ferramentas',{_tarefa:t.tarefa_id});
+    if(escopo24.error)throw new Error('Escopo operacional indisponível');
+    if(Array.isArray(escopo24.data)){rotina24=true;t.ferramentas=t.ferramentas.filter(slug=>escopo24.data.includes(slug));}
+  }
   await log(`Tarefa da missão reservada (tentativa ${t.tentativa}). Ferramentas: ${t.ferramentas.join(", ") || "nenhuma"}.`);
   // Rodadas 0–3 são da conversa com a IA; 4–7 ficam para pesquisas em fontes oficiais.
   let pesquisas = 4;
@@ -307,6 +318,7 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
     });
     if (Array.isArray(escopo.data) && t.ferramentas.includes("pesquisar_concorrentes_publicos") && !r.ferramentasUsadas.includes("pesquisar_concorrentes_publicos")) throw new Error("Pesquisa pública não executada; etapa de pesquisa não pode ser marcada como concluída");
     const entrega = lerEntrega(r.texto);
+    if(rotina24&&!r.ferramentasUsadas.includes('consultar_operacao_continua'))throw new Error('Consulta operacional não executada');
     if (Array.isArray(escopo.data) && t.ferramentas.includes('pesquisar_tendencias_marketing') && !r.ferramentasUsadas.includes('pesquisar_tendencias_marketing')) throw new Error('Pesquisa de mercado não executada');
     await db.rpc("motor_concluir_tarefa", {
       _tarefa: t.tarefa_id, _ok: true,

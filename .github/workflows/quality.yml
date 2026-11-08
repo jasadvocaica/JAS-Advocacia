@@ -41,6 +41,8 @@ jobs:
           supabase/functions/escritorio-vps/index.ts
           supabase/functions/clara-comando/index.ts
           supabase/functions/clara-acompanhar/index.ts
+          supabase/functions/telegram/index.ts
+          supabase/functions/motor-missoes/index.ts
       - name: Validar transações DJEN em banco descartável
         run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/agentes/bootstrap.sql -f tests/agentes/fluxo.sql
       - name: Validar execuções concorrentes
@@ -106,6 +108,7 @@ jobs:
           node tests/marketing/rotinas-ia-sql.mjs
           node tests/marketing/entregas-ia-sql.mjs
           node tests/marketing/inteligencia-sql.mjs
+          node tests/agentes/operacao24h-sql.mjs
 
       - name: Validar biblioteca e produção jurídica
         run: |
