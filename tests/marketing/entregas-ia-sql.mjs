@@ -21,6 +21,7 @@ await db.exec(await readFile('supabase/migrations/20261108121446_marketing_entre
 await db.exec(await readFile('supabase/migrations/20261108121629_marketing_entrega_json.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261108122201_marketing_relatorios_agentes.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261108122440_marketing_suspender_execucao_obsoleta.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261108122902_marketing_brief_como_roteiro.sql','utf8'));
 const agente=(await db.query("insert into agentes_ia(nome,sala) values('Camila','marketing') returning id")).rows[0].id;
 const missao=(await db.query("insert into escritorio_privado.missoes(chave,solicitada_por) values('auto-mkt:teste:1',gen_random_uuid()) returning id")).rows[0].id;
 const task=async(entrega)=> (await db.query("insert into escritorio_privado.missao_tarefas(missao_id,agente_id,estado,resultado) values($1,$2,'pendente',$3) returning id",[missao,agente,JSON.stringify({entrega})])).rows[0].id;
@@ -59,7 +60,7 @@ const vmap=(await db.query('select * from marketing_privado.ia_entregas where ta
 ok(vmap?.material_id&&vmap.conteudo_id===map.conteudo_id,'Brief real do Vinícius fica ligado ao conteúdo');
 await db.query("update escritorio_privado.missao_tarefas set estado='pendente' where id=$1",[vtask]);
 await db.query("update escritorio_privado.missao_tarefas set estado='concluida' where id=$1",[vtask]);
-ok((await db.query("select count(*)::int n from mkt_itens where tipo='material'")).rows[0].n===1,'Reprocessar conclusão não duplica brief');
+ok((await db.query("select count(*)::int n from mkt_itens where tipo='roteiro'")).rows[0].n===1,'Reprocessar conclusão não duplica brief');
 const theo=(await db.query("insert into agentes_ia(nome,sala) values('Theo','marketing') returning id")).rows[0].id;
 const rtask=await task('Análise com evidências disponíveis e hipóteses que dependem de revisão.');
 await db.query("update escritorio_privado.missao_tarefas set agente_id=$1,estado='concluida' where id=$2",[theo,rtask]);
