@@ -330,6 +330,22 @@ try {
   ok((await db.query("select ultima_sync_ok_em::text data from marketing_privado.zernio_conexoes")).rows[0].data === antesSync, "Consulta de metadados não simula uma sincronização completa");
   await db.exec("reset role; set role authenticated");
   await assert.rejects(() => db.query("select public.mkt_consulta_meta_criar($1)",[gestor]), /permission denied/); checks++;
+  await db.exec("reset role; set role service_role");
+  const campanhaA = (await db.query("insert into public.mkt_campanhas(nome,canal,status,conta_externa_id,campanha_externa_id) values('Campanha A simulada','meta_ads','planejada','a1','cmp-a') returning id")).rows[0].id;
+  const campanhaB = (await db.query("insert into public.mkt_campanhas(nome,canal,status,conta_externa_id,campanha_externa_id) values('Campanha B simulada','meta_ads','planejada','a1','cmp-b') returning id")).rows[0].id;
+  const leadA = await receber({...dados,evento_id:"evt-cmp-a",externo_id:"lead-cmp-a",campanha_externa_id:"cmp-a",anuncio_externo_id:"ad-a"});
+  const leadB = await receber({...dados,evento_id:"evt-cmp-b",externo_id:"lead-cmp-b",campanha_externa_id:"cmp-b",anuncio_externo_id:"ad-b"});
+  const atribuicoes = (await db.query("select o.lead_id,o.formulario_id,o.campanha_externa_id,l.campanha_id,l.integracao_teste from marketing_privado.lead_origens o join public.mkt_leads l on l.id=o.lead_id where o.lead_id in ($1,$2)",[leadA,leadB])).rows;
+  ok(atribuicoes.length===2 && atribuicoes.every(x=>x.formulario_id==="f1"), "Duas campanhas reutilizam o mesmo formulário sem confundir leads");
+  ok(atribuicoes.find(x=>x.lead_id===leadA).campanha_id===campanhaA && atribuicoes.find(x=>x.lead_id===leadB).campanha_id===campanhaB, "Cada lead mantém sua campanha externa e interna de origem");
+  const repetido = await receber({...dados,evento_id:"evt-cmp-a-reentrega",externo_id:"lead-cmp-a",campanha_externa_id:"cmp-a"});
+  ok(repetido===leadA && Number((await db.query("select count(*) n from marketing_privado.lead_origens where externo_id='lead-cmp-a'")).rows[0].n)===1, "Reentrega de lead da campanha não duplica o CRM");
+  await db.exec(`update public.mkt_leads set campanha_id='${campanhaB}',status='em_atendimento' where id='${leadA}'`);
+  await receber({...dados,evento_id:"evt-cmp-a-apos-revisao",externo_id:"lead-cmp-a",campanha_externa_id:"cmp-a"});
+  ok((await db.query("select campanha_id from public.mkt_leads where id=$1",[leadA])).rows[0].campanha_id===campanhaB, "Reentrega não sobrescreve atribuição revisada pela equipe");
+  await assert.rejects(() => receber({...dados,evento_id:"evt-form-nao-autorizado",externo_id:"lead-fora",formulario_id:"form-fora"}), /não homologado/); checks++;
+  await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub='${gestor}'`);
+  ok((await op("resultados",{de:"2026-11-01",ate:"2026-11-07",conta:"a1",teste:false})).crm.leads===0, "Leads dos testes de campanhas continuam fora dos indicadores comerciais");
   console.log(`${checks} verificações SQL passaram (PostgreSQL isolado).`);
 } finally {
   await db.close();
