@@ -10,6 +10,7 @@ try{
  create function public.telegram_usuario(_chat bigint) returns uuid language sql stable as $$select usuario_id from escritorio_privado.telegram_vinculos where chat_id=_chat and revogado_em is null and public.is_gestor(usuario_id)$$;`);
  await db.exec(await readFile('supabase/migrations/20261108153837_operacao_24h_resumos_telegram.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/20261108190537_telegram_conversa_missoes.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/20261108192849_telegram_ordem_por_chat.sql','utf8'));
  await db.query('insert into escritorio_privado.telegram_vinculos(chat_id,usuario_id) values(111,$1),(222,$1)',[dono]);
  const bia=(await db.query("insert into agentes_ia(nome,sala,supervisor_id) values('Bia','marketing',$1) returning id",[dono])).rows[0].id;
  const camila=(await db.query("insert into agentes_ia(nome,sala,supervisor_id) values('Camila','marketing',$1) returning id",[dono])).rows[0].id;
