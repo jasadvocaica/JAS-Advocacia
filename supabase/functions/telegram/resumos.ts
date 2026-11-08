@@ -4,6 +4,8 @@ export class FalhaTelegram extends Error {
 }
 const numero=(v:unknown)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0?v.toLocaleString('pt-BR'):'indisponível';
 export function textoResumoOperacao(d:Record<string,unknown>,tipo='programado'){
+ if(tipo==='missao'&&d.pedido_sem_confirmacao===true)return 'JAS · Pedido sem confirmação\n\nO processamento de uma mensagem não foi confirmado. Consulte /andamento ou o JAS antes de reenviar. O sistema não repetirá automaticamente uma chamada de resultado desconhecido.\nhttps://app.julianaaraujoadvocacia.com/escritorio/missoes';
+ if(tipo==='missao')return [`JAS · Missão ${d.estado==='concluida'?'concluída':d.estado==='falhou'?'com falha':'cancelada'}`,String(d.titulo??'Pedido pelo Telegram').slice(0,200),`Materiais cadastrados: ${numero(d.materiais)}.`,'Consulte as etapas e entregas no JAS. Materiais continuam sujeitos à revisão.','https://app.julianaaraujoadvocacia.com/escritorio/missoes',Number(d.materiais)>0?'https://app.julianaaraujoadvocacia.com/marketing':''].filter(Boolean).join('\n\n');
  const quando=typeof d.apurado_em==='string'&&Number.isFinite(Date.parse(d.apurado_em))?new Date(d.apurado_em).toLocaleString('pt-BR',{timeZone:'America/Cuiaba',dateStyle:'short',timeStyle:'short'}):'horário indisponível';
  return [tipo==='alerta'?'JAS · Alerta operacional':'JAS · Resumo automático',`Atualizado em ${quando} · Cuiabá`,'',
   `CRM: ${numero(d.leads_total)} leads comerciais; ${numero(d.leads_hoje)} cadastros hoje.`,

@@ -5,6 +5,9 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { chamarInterno } from "../_shared/interno.ts";
 import {enviarResumos,FalhaTelegram} from './resumos.ts';
+import {processarPedidos} from './pedidos.ts';
+import {validarAudio} from './audio.ts';
+import {textoAndamento} from './inteligencia.ts';
 import {
   ajuda,
   comando,
@@ -41,20 +44,13 @@ async function telegram(metodo: string, corpo: Record<string, unknown>) {
 }
 const enviar = (chat: number, text: string, extra: Record<string, unknown> = {}) =>
   telegram("sendMessage", { chat_id: chat, text: text.slice(0, 4000), ...extra });
+const dependenciasPedidos={telegram,key:()=>Deno.env.get('OPENAI_API_KEY')??'',token:TOKEN,aprovacoes:pendentes};
 
 function iguais(a: string, b: string) {
   if (!a || a.length !== b.length) return false;
   let d = 0;
   for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
-}
-
-// Gestora que responde no Telegram: a escolhida no motor ou, sem escolha, a Manu / primeira contratada ativa.
-async function gestora(db: SupabaseClient, usuario: string): Promise<{ id: string; nome: string } | null> {
-  const g = await db.rpc("motor_gatilhos", { _usuario: usuario });
-  const { data } = await db.from("agentes_ia").select("id,nome,ativo,executor").eq("ativo", true).eq("executor", "analista_operacional");
-  const lista = (data ?? []) as { id: string; nome: string }[];
-  return lista.find((a) => a.id === g.data?.gestora_id) ?? lista.find((a) => /manu/i.test(a.nome)) ?? lista[0] ?? null;
 }
 
 async function pendentes(usuario: string) {
@@ -73,9 +69,9 @@ async function mostrarAprovacao(chat: number, a: Aprovacao) {
   });
 }
 
-async function tratarMensagem(db: SupabaseClient, msg: { chat: { id: number; type: string }; from?: { first_name?: string }; text?: string }) {
+async function tratarMensagem(db: SupabaseClient, msg: { chat: { id: number; type: string }; from?: { first_name?: string }; text?: string;voice?:Record<string,unknown>;audio?:Record<string,unknown> },updateId:unknown) {
   const chat = msg.chat.id;
-  if (msg.chat.type !== "private") return enviar(chat, "Por segurança, eu só atendo em conversa privada.");
+  if (msg.chat.type !== "private") return;
   const c = comando(msg.text ?? "");
   const vinc = await db.rpc("telegram_usuario", { _chat: chat });
   const usuario = vinc.data as string | null;
@@ -104,29 +100,18 @@ async function tratarMensagem(db: SupabaseClient, msg: { chat: { id: number; typ
     await enviarResumos(db,(destino,texto)=>enviar(destino,texto),r.data);
     return;
   }
-  const g = await gestora(db, usuario);
-  if (!g) return enviar(chat, "Ainda não há agente para atender. Crie a Manu no JAS em Escritório › Criar agente.");
-  if (c.nome === "missao") {
-    if (c.resto.length < 3) return enviar(chat, "Escreva a missão depois do comando. Ex.: /missao Revisar os prazos da semana");
-    await chamarInterno("motor-missoes", usuario, {
-      acao: "criar_missao", agente_id: g.id, titulo: c.resto.slice(0, 120), objetivo: c.resto.slice(0, 4000), prioridade: 3,
-    });
-    return enviar(chat, `Missão criada para ${g.nome}. Acompanhe em Escritório › Missões; o que precisar de aprovação chega aqui.`);
-  }
-  if (c.nome) return enviar(chat, ajuda(true));
-  const texto = (msg.text ?? "").trim();
-  if (!texto) return enviar(chat, "Por enquanto eu entendo só mensagens de texto.");
-  await telegram("sendChatAction", { chat_id: chat, action: "typing" }).catch(() => {});
-  try {
-    const r = await chamarInterno<{ execucao_id: string }>("agentes-escritorio", usuario, {
-      acao: "conversar", agente_id: g.id, texto: texto.slice(0, 1500),
-    });
-    const { data } = await db.from("escritorio_mensagens").select("texto")
-      .eq("execucao_id", r.execucao_id).eq("origem", "agente").order("criado_em", { ascending: false }).limit(1).maybeSingle();
-    return enviar(chat, `${g.nome}: ${data?.texto ?? "(sem resposta registrada)"}`);
-  } catch (e) {
-    return enviar(chat, `${g.nome} não conseguiu responder agora: ${e instanceof Error ? e.message : "falha"}`);
-  }
+  if(c.nome==='andamento'){const r=await db.rpc('telegram_andamento',{_chat:chat});return enviar(chat,r.error?'Não foi possível consultar os pedidos agora.':textoAndamento(r.data));}
+  if(c.nome&&c.nome!=='missao')return enviar(chat,ajuda(true));
+  const texto=c.nome==='missao'?`Quero que a equipe execute este pedido: ${c.resto}`:(msg.text??'').trim();
+  const audio=msg.voice??msg.audio;
+  if(!texto&&!audio)return enviar(chat,'Envie uma mensagem de texto ou um áudio de até 3 minutos e 5 MB. Documentos, vídeos e imagens ainda não entram neste fluxo.');
+  if(!Number.isSafeInteger(updateId)||Number(updateId)<0)return;
+  try{
+    const r=await db.rpc('telegram_receber_pedido',{_chave:`tg:${updateId}`,_chat:chat,_texto:texto,_audio:audio?validarAudio(audio):null});
+    if(r.error)return enviar(chat,'Não consegui registrar o pedido agora. Aguarde um minuto e tente novamente.');
+    await telegram('sendChatAction',{chat_id:chat,action:'typing'}).catch(()=>{});
+    await processarPedidos(db,dependenciasPedidos);
+  }catch{return enviar(chat,'Não consegui processar esta mensagem. Para áudio, use até 3 minutos e 5 MB; você também pode escrever o pedido.');}
 }
 
 async function tratarBotao(db: SupabaseClient, q: { id: string; data?: string; message?: { chat: { id: number }; message_id: number } }) {
@@ -180,10 +165,10 @@ Deno.serve(async (req) => {
       if (!iguais(segredoTg, SEGREDO())) return json({ error: "Não autorizado" }, 401);
       const tarefa = (async () => {
         try {
-          if (body.message) await tratarMensagem(db, body.message);
+          if (body.message) await tratarMensagem(db, body.message,body.update_id);
           else if (body.callback_query) await tratarBotao(db, body.callback_query);
         } catch (e) {
-          console.error("telegram", e instanceof Error ? e.message : e);
+          console.error("telegram_processamento_indisponivel");
         }
       })();
       // Responde logo ao Telegram (evita reenvio) e termina o trabalho em segundo plano.
@@ -194,6 +179,14 @@ Deno.serve(async (req) => {
     }
 
     // 2. Aviso de aprovação vindo do banco.
+    if(body.acao==='processar_pedidos'){
+      const ok=await db.rpc('validar_djen_cron_secret',{_secret:req.headers.get('x-djen-cron-secret')??''});
+      if(ok.error||ok.data!==true)return json({error:'Não autorizado'},401);
+      const trabalho=processarPedidos(db,dependenciasPedidos).catch(()=>console.error('telegram_fila_indisponivel'));
+      const rt=(globalThis as {EdgeRuntime?:{waitUntil:(p:Promise<unknown>)=>void}}).EdgeRuntime;
+      if(rt)rt.waitUntil(trabalho);else await trabalho;
+      return json({ok:true});
+    }
     if(body.acao==='resumos_automaticos'){
       const ok=await db.rpc('validar_djen_cron_secret',{_secret:req.headers.get('x-djen-cron-secret')??''});
       if(ok.error||ok.data!==true)return json({error:'Não autorizado'},401);
@@ -265,6 +258,7 @@ Deno.serve(async (req) => {
           commands: [
             { command: "aprovacoes", description: "Pedidos esperando a sua aprovação" },
             { command: "resumo", description: "Resumo atual de leads, aprovações e tarefas" },
+            { command: "andamento", description: "Etapas dos seus pedidos para a equipe" },
             { command: "missao", description: "Criar missão para a Gestora" },
             { command: "ajuda", description: "Como usar" },
             { command: "desvincular", description: "Desligar este Telegram do JAS" },

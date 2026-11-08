@@ -283,6 +283,9 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
   if (escopo.error) throw new Error("Não foi possível conferir o escopo da rotina");
   if (Array.isArray(escopo.data)) t.ferramentas = t.ferramentas.filter(slug => escopo.data.includes(slug));
   const instrucoes = instrucoesDoAgente({ nome: ag.data?.nome ?? "Agente", cargo: perfil?.cargo, prompt_base: perfil?.prompt_base });
+  const escopoTelegram=await db.rpc('telegram_ferramentas_tarefa',{_tarefa:t.tarefa_id});
+  if(escopoTelegram.error)throw new Error('Escopo do pedido Telegram indisponível');
+  if(Array.isArray(escopoTelegram.data))t.ferramentas=t.ferramentas.filter(slug=>escopoTelegram.data.includes(slug));
   let rotina24=false;
   if(t.ferramentas.includes('consultar_operacao_continua')){
     const escopo24=await db.rpc('operacao24h_ferramentas',{_tarefa:t.tarefa_id});

@@ -83,6 +83,7 @@ export default function TelegramPainel() {
               </Button>
             )}
           </div>
+          <p className="ga-nota">Converse por texto ou áudio de até 3 minutos e 5 MB. Pedidos claros viram missões para a equipe, com confirmação e aviso ao terminar. Use /andamento para acompanhar; publicações continuam exigindo aprovação específica.</p>
           {estado.vinculos.length > 0 ? (
             <ul className="ga-agentes">
               {estado.vinculos.map((v) => (

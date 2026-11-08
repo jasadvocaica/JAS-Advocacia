@@ -1,0 +1,17 @@
+# Conversa com os agentes pelo Telegram
+
+Mensagens comuns e áudios passam por uma fila privada e são interpretados com o contexto das últimas oito interações concluídas nas últimas 24 horas, sempre do mesmo usuário e chat. O bot distingue conversa, pedido de trabalho, esclarecimento e consulta. Uma solicitação clara cria uma missão sem exigir `/missao`; uma confirmação curta só tem sentido quando há proposta concreta no contexto. O classificador não possui ferramentas de execução.
+
+O plano é validado novamente no banco, com até quatro agentes reais, ativos, pertencentes à gestora. As etapas dependem das anteriores. Pedidos de conteúdo incluem Camila e usam o mesmo cadastro de pautas, rascunhos e revisão na Controladoria das rotinas de Marketing. Essas missões só usam ferramentas de leitura; a materialização dos rascunhos ocorre pelos gatilhos existentes. Mensagens comuns não aprovam campanhas, publicações, gastos, envios ou prazos.
+
+O usuário recebe confirmação somente após gravar a missão e as tarefas na mesma transação. `/andamento` e perguntas equivalentes consultam os estados reais. Números operacionais e aprovações são buscados no banco; não são inventados pela IA. Uma notificação privada é enfileirada quando a missão termina ou falha e entregue pelo monitor de cinco minutos.
+
+Cada atualização do Telegram tem chave única. Uma reserva por chat preserva a ordem; o cron de recuperação processa pedidos pendentes a cada minuto. Chamadas de resultado desconhecido não são repetidas automaticamente. A criação de missão e a conclusão do pedido são atômicas. O vínculo é revalidado antes de registrar e responder. Consultas e mensagens ficam no backend privado; não são colocadas em logs.
+
+Áudio: até três minutos e 5 MB; download somente do endereço oficial do Telegram, com caminho validado e limite durante a leitura. O arquivo fica em memória; o identificador de mídia é retirado do pedido após processamento. A transcrição informa o texto entendido. Whisper usa reserva pelo tempo máximo declarado mais margem e confirmação pela duração real. O preço está em unidades de segundos; a classificação usa contagem real de tokens. Ambos respeitam o orçamento existente, sem aumentar limites. Resultado incerto mantém a reserva contabilizada.
+
+Instalação: aplicar `telegram_conversa_missoes`; publicar `telegram` e o trecho de escopo em `motor-missoes`, preservando os demais recursos da versão viva; ativar apenas `telegram-conversa-pulso`. O conector DJEN não é alterado. A homologação usa a função de entrada com chave `teste:` e o vínculo existente resolvido dentro do banco, sem expor identificador de chat. O cron processa o pedido pelo mesmo caminho das mensagens reais.
+
+Verificação: `node tests/agentes/telegram-conversa-sql.mjs`, `node tests/agentes/operacao24h-sql.mjs`, testes Vitest do Telegram, TypeScript e Deno check. Conferir em produção a criação única, etapas, consumo confirmado e resposta do bot. O recebimento de um áudio real do Telegram depende do arquivo enviado pelo usuário; os testes cobrem download limitado, nome OGG e contabilização.
+
+Referências oficiais: [transcrição e formatos](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create), [preço do Whisper](https://developers.openai.com/api/docs/models/whisper-1), [tarefas de fundo no Supabase](https://supabase.com/docs/guides/functions/background-tasks). Whisper está documentado como compatível até fevereiro de 2027; revisar modelo e preços antes dessa data.
