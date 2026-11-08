@@ -98,12 +98,16 @@ export async function reconciliarPagina(
   let processados = 0;
   for (const l of pagina.leads) {
     const lead = obj(l);
+    if (str(lead.formId) && str(lead.formId) !== formulario)
+      throw new Error("Formulário divergente na resposta de leads");
+    // GET /lead-forms/{id}/leads retorna id/createdTime; webhook usa leadgenId/createdAt.
+    const externo = str(lead.leadgenId) || str(lead.id);
     const normal = normalizarLead(
       {
-        id: `reconciliacao:${conta}:${str(lead.leadgenId)}`,
+        id: `reconciliacao:${conta}:${externo}`,
         event: "lead.received",
         account: { accountId: conta },
-        lead: { ...lead, formId: formulario },
+        lead: { ...lead, leadgenId: externo, createdAt: str(lead.createdAt) || str(lead.createdTime), formId: formulario },
       },
       null,
       teste,

@@ -185,6 +185,20 @@ describe("Reconciliação paginada simulada", () => {
     expect(r).toEqual({ processados: 1, cursor: "proxima", hasMore: true });
     expect(gravados).toEqual(["l1"]);
   });
+  it("normaliza o contrato real id/createdTime da leitura de formulário", async () => {
+    const gravados: Record<string, unknown>[] = [];
+    await reconciliarPagina("a1", "f1", true, undefined,
+      async () => ({ leads: [{ id: "lead-meta-real", formId: "f1", createdTime: "2026-11-07T12:00:00Z", fields: { full_name: "Contato fictício", phone_number: "+12025550199", laudo: "não persistir" }, campaignId: "campanha-x", adsetId: "conjunto-x", adId: "anuncio-x" }] }),
+      async dados => { gravados.push(dados); });
+    expect(gravados[0]).toMatchObject({ externo_id: "lead-meta-real", evento_id: "reconciliacao:a1:lead-meta-real", adquirido_em: "2026-11-07T12:00:00.000Z", formulario_id: "f1", teste: true, campanha_externa_id: "campanha-x", conjunto_externo_id: "conjunto-x", anuncio_externo_id: "anuncio-x" });
+    expect(JSON.stringify(gravados)).not.toContain("não persistir");
+  });
+  it("recusa lead de outro formulário sem gravar", async () => {
+    let gravacoes = 0;
+    await expect(reconciliarPagina("a1", "f1", true, undefined,
+      async () => ({ leads: [{ ...evento.lead, formId: "outro" }] }), async () => { gravacoes++; })).rejects.toThrow("Formulário divergente");
+    expect(gravacoes).toBe(0);
+  });
   it("não inventa cursor nem aceita resposta malformada", async () => {
     await expect(
       reconciliarPagina(

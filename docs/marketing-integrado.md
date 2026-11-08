@@ -96,3 +96,13 @@ O job real terminou concluído: uma conexão Meta Ads, uma Página selecionada, 
 A consulta de metadados não atualiza `ultima_sync_ok_em` como se tivesse sincronizado métricas. Reserva e limite de tentativas continuam na fila existente; repetir a solicitação enquanto o job está ativo reutiliza o mesmo ID. Novos RPCs são somente service_role, com gestão ativa validada na criação. Validação isolada: 36 verificações SQL e 12 testes de formulários/handler.
 
 A missão real de homologação de Alex concluiu em uma tentativa e duas rodadas, usando somente `zernio_saude`. Essa evidência comprova execução do motor com a ferramenta concedida; não equivale à homologação de leads, anúncios ou publicação editorial.
+
+## Homologação suspensa e validações do CRM
+
+A gestora informou a URL `https://julianaaraujoadvocacia.com/politica-de-privacidade/`, com texto ainda provisório, e pediu para deixar pendentes a criação do formulário `JAS | Homologação CRM` e o lead sintético. Nenhum deles foi criado; os sete formulários consultados não foram usados no teste. O código de preparo de criação foi separado da entrega e não foi instalado no projeto.
+
+Nas demais validações, foi corrigido o contrato de reconciliação: a resposta oficial de GET `/v1/ads/lead-forms/{formId}/leads` usa `id` e `createdTime`, ao contrário do webhook (`leadgenId` e `createdAt`). Ambos agora convergem para o mesmo identificador externo e data, mantendo compatibilidade. Se a resposta trouxer outro formulário, a entrada é recusada antes de gravar.
+
+Validação isolada: 42 verificações SQL e 17 testes de resultados/receptor. Incluem reentregas sem duplicação, revisão humana preservada, formulário não autorizado recusado, dados de teste separados dos indicadores comerciais e duas campanhas distintas compartilhando o mesmo formulário com origem correta por lead. Não se usa formulário para inferir campanha. O executor do servidor passou em `deno check`.
+
+Para a etapa futura, formulários reais devem aceitar criação personalizada ou reutilização explícita quando finalidade/perguntas forem compatíveis, com nomes descritivos (por exemplo `JAS | Pejotização | v1`). Nenhuma funcionalidade de criação de formulário, anúncio, ativação ou orçamento está sendo considerada homologada por estes testes locais. A aprovação de cada etapa permanece separada.
