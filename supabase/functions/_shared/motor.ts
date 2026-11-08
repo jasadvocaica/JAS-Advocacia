@@ -190,6 +190,11 @@ export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
       ["dias"],
     ),
   },
+  pesquisar_concorrentes_publicos: {
+    slug: "pesquisar_concorrentes_publicos", classe: "leitura",
+    descricao: "Consulta posts públicos somente dos perfis configurados no Marketing, com links, datas quando visíveis e limitações. Uma consulta por tarefa. Não acessa perfis privados nem coleta contatos.",
+    parametros: objeto({}, []),
+  },
   pesquisar_fontes_oficiais: {
     slug: "pesquisar_fontes_oficiais",
     classe: "leitura",
@@ -394,6 +399,8 @@ export function validarParametros(slug: string, bruto: unknown): Record<string, 
     case "consultar_financeiro":
     case "consultar_comercial":
       return { dias: diasEntre(a.dias, 30, 365) };
+    case "pesquisar_concorrentes_publicos":
+      return {};
     case "pesquisar_fontes_oficiais":
       return { pergunta: textoValido(a.pergunta, 5, 500, "pergunta") };
     case "atualizar_item_controladoria":

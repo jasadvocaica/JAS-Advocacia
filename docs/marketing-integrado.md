@@ -34,7 +34,7 @@ Código validado localmente e backend instalado em produção em 07/11/2026, ap�
 | Editorial | Validada com simulação | Revisão existente preservada; autorização de publicação separada; versão alterada recusa execução; simulação não muda status para publicado. |
 | Campanhas e Central | Validada com simulação | Versão, decisão exclusiva da gestora, pedido idempotente, PAUSED, nenhum gasto, edição invalida aprovação. |
 | Criação/ativação real de anúncios | Bloqueada | Não há executor real habilitado nesta entrega. Deve haver homologação do formato completo, estados de campanha/conjunto/anúncio, limites de orçamento e reconciliação de timeout antes de liberar qualquer gasto. |
-| Equipe real de Marketing | Configurada; execução por missão | Camila e Vinícius foram reutilizados. Bia, Theo e Alex cadastrados pelo RPC existente, com ferramentas somente de leitura e sem novas rotinas. A gestora solicita entregas pelo Marketing e acompanha a evidência no motor; cadastro não equivale a entrega concluída. |
+| Equipe real de Marketing | Rotinas programadas | Alex faz diagnóstico diário; Theo analisa resultados em dias úteis; a cadeia Bia → Theo → Camila → Vinícius pesquisa referências e produz rascunhos em dias úteis, com etapas dependentes e apenas ferramentas de leitura. Pesquisa real exige evidência e citação, com limitações de indexação visíveis. |
 | CPL/CPA e atribuição completa | Parcial | Fórmulas testadas; UI recusa cálculo quando não há prova de compatibilidade da série de gasto com a aquisição atribuída. Não mistura moedas ou leads de teste. |
 
 ## Validação executada
@@ -106,3 +106,19 @@ Nas demais validações, foi corrigido o contrato de reconciliação: a resposta
 Validação isolada: 42 verificações SQL e 17 testes de resultados/receptor. Incluem reentregas sem duplicação, revisão humana preservada, formulário não autorizado recusado, dados de teste separados dos indicadores comerciais e duas campanhas distintas compartilhando o mesmo formulário com origem correta por lead. Não se usa formulário para inferir campanha. O executor do servidor passou em `deno check`.
 
 Para a etapa futura, formulários reais devem aceitar criação personalizada ou reutilização explícita quando finalidade/perguntas forem compatíveis, com nomes descritivos (por exemplo `JAS | Pejotização | v1`). Nenhuma funcionalidade de criação de formulário, anúncio, ativação ou orçamento está sendo considerada homologada por estes testes locais. A aprovação de cada etapa permanece separada.
+
+## Rotinas automáticas solicitadas pela gestora
+
+Programação em America/Cuiaba: Alex às 07:50 diariamente; Theo às 08:00 de segunda a sexta; pesquisa e produção às 08:30 de segunda a sexta, na ordem Bia → Theo → Camila → Vinícius. As 24 fontes públicas fornecidas pela gestora foram cadastradas e rodam em grupos de até oito por dia. Estimativas de seguidores/engajamento citadas pela lista não foram importadas como métricas verificadas.
+
+A migration `20261108032750_marketing_rotinas_ia.sql` adiciona tabelas privadas com RLS e RPCs guardadas. O cron existente do motor chama o programador; não há cron novo, coleta DJEN duplicada ou ativação do job HTTP de agenda. Missões têm chave por rotina/horário, não se sobrepõem e cada etapa depende de todas as anteriores, de modo que falha da pesquisa cancela as dependentes. O script `scripts/marketing/automatizar-equipe.sql` reutiliza os cinco agentes e desliga as rotinas antigas de Camila/Vinícius para evitar duplicação.
+
+Bia passa de triagem de Direct a pesquisa pública e perde o acesso às conversas. Theo produz estratégia a partir das evidências; Camila cria texto original; Vinícius prepara roteiro de gravação e brief de design, sem afirmar que gerou imagem ou vídeo. O painel de Marketing mostra as rotinas e permite à gestora atualizar os links. Sem fontes, o fluxo alternativo usa dados do próprio JAS.
+
+As rotinas recebem apenas ferramentas de leitura, mesmo que os agentes tenham ferramentas sensíveis concedidas para missões manuais. Publicações, anúncios, ativação, orçamento, mensagens e a criação do formulário/lead sintético suspensa continuam sujeitos às decisões separadas. O orçamento atual de IA e suas cotas não foram aumentados.
+
+A pesquisa usa somente URLs públicas configuradas como entrada, sem contatos ou dados do CRM. Retorna links e datas quando verificáveis, com cobertura parcial declarada. Não acessa perfis privados nem contorna bloqueios. Cada tarefa tem uma consulta e até três evidências. A resposta só é aceita com consulta web real, consumo confirmado e citações em domínios configurados.
+
+O modelo gpt-4.1-mini em uso recusou o filtro de domínios da ferramenta; as URLs alvo seguem no pedido e a lista de citações é validada no servidor. O contador de tokens usa fallback sem ferramentas se a medição com busca não for aceita. A reserva de pesquisa foi ajustada para 100 mil tokens, cobrindo prompt medido limitado a 50 mil, o bloco de 8 mil de busca e o equivalente da taxa; o consumo real é confirmado sem truncamento. Erros HTTP 400 de requisição encerram a reserva sem consumo. Referência de custo técnico: https://developers.openai.com/api/docs/pricing.
+
+Validações: 19 verificações SQL de rotina/escopo, testes de fontes e cota, TypeScript, deno check, build e Chromium em desktop/celular. Alex e o relatório de resultados de Theo concluíram execuções reais. O primeiro fluxo de pesquisa produziu entrega sem evidência e não é considerado homologado; foi acrescentado bloqueio explícito para impedir esse falso sucesso. A pesquisa está sendo verificada após as correções de compatibilidade e reserva.

@@ -1,0 +1,66 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++};
+const dono='00000000-0000-4000-8000-000000000001', outro='00000000-0000-4000-8000-000000000002';
+try{
+await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+ create schema auth;create schema marketing_privado;create schema escritorio_privado;
+ grant usage on schema auth,marketing_privado to authenticated;
+ grant usage on schema marketing_privado,escritorio_privado to service_role;
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+ create function public.is_gestor(uuid) returns boolean language sql as $$select $1='${dono}'::uuid$$;
+ create function public.is_interno_ativo(uuid) returns boolean language sql as $$select $1 is not null$$;
+ create function marketing_privado.pode(text) returns boolean language sql as $$select auth.uid() in ('${dono}'::uuid,'${outro}'::uuid)$$;
+ create table public.agentes_ia(id uuid primary key,nome text,ativo boolean);
+ create table escritorio_privado.agente_configuracoes(agente_id uuid primary key,revisao integer,dados jsonb);
+ create function public.escritorio_salvar_config(uuid,uuid,integer,jsonb) returns jsonb language sql as $$select '{}'::jsonb$$;
+ create table escritorio_privado.ferramentas(slug text primary key,nome text,descricao text,classe text,modulo text,ativa boolean default true);
+ create table escritorio_privado.agente_ferramentas(agente_id uuid,ferramenta text);
+ create table escritorio_privado.motor_config(ligado boolean);insert into escritorio_privado.motor_config values(true);
+ create table escritorio_privado.missoes(id uuid primary key default gen_random_uuid(),titulo text,objetivo text,origem text,solicitada_por uuid,prioridade integer,chave text unique,estado text default 'aberta');
+ create table escritorio_privado.missao_tarefas(id uuid primary key default gen_random_uuid(),missao_id uuid,pai_id uuid,profundidade integer,agente_id uuid,titulo text,instrucoes text,depende_de uuid[],chave text unique,estado text default 'pendente');
+ create function escritorio_privado.auditar(text,uuid,text,text,jsonb) returns void language sql as $$select$$;
+ create function escritorio_privado.motor_processar_eventos() returns void language sql as $$select$$;
+ create function escritorio_privado.motor_cron() returns void language plpgsql as $$begin
+  perform escritorio_privado.motor_processar_eventos();
+ end;$$;
+ grant all on all tables in schema public,escritorio_privado to service_role;
+`);
+await db.exec(await readFile('supabase/migrations/20261108032750_marketing_rotinas_ia.sql','utf8'));
+const ids=['00000000-0000-4000-8000-000000000010','00000000-0000-4000-8000-000000000011','00000000-0000-4000-8000-000000000012','00000000-0000-4000-8000-000000000013'];
+for(const id of ids)await db.query('insert into public.agentes_ia values($1,$2,true)',[id,id]);
+const etapas=ids.map((id,i)=>({agente_id:id,titulo:'Etapa '+i,instrucoes:'Entrega interna original para revisão'}));
+await db.query(`insert into marketing_privado.ia_rotinas(slug,nome,ativa,hora,etapas,criada_por,proxima_execucao) values('teste','Fluxo de teste',true,'08:30',$1,$2,now()-interval '1 minute')`,[JSON.stringify(etapas),dono]);
+ok((await db.query('select marketing_privado.processar_rotinas_ia() n')).rows[0].n===1,'Cria missão automática completa');
+const tarefas=(await db.query('select * from escritorio_privado.missao_tarefas order by profundidade')).rows;
+ok(tarefas.length===4,'Pesquisa, estratégia, redação e produção têm tarefas próprias');
+ok(tarefas[0].depende_de.length===0 && tarefas[3].depende_de.length===3,'Etapa final depende de todas as anteriores');
+ok(tarefas[3].depende_de.includes(tarefas[0].id),'Falha da pesquisa bloqueia também a última etapa');
+ok((await db.query('select marketing_privado.processar_rotinas_ia() n')).rows[0].n===0,'Pulso repetido não duplica a missão');
+await db.exec("update marketing_privado.ia_rotinas set proxima_execucao=now()-interval '1 minute'");
+ok((await db.query('select marketing_privado.processar_rotinas_ia() n')).rows[0].n===0,'Não sobrepõe missão aberta do mesmo fluxo');
+await db.exec("update escritorio_privado.missoes set estado='concluida'; update marketing_privado.ia_rotinas set exige_fontes=true,proxima_execucao=now()-interval '1 minute'");
+ok((await db.query('select marketing_privado.processar_rotinas_ia() n')).rows[0].n===0,'Sem fontes não inventa pesquisa nem cria cadeia vazia');
+await db.exec(`set role authenticated;set request.jwt.claim.sub='${outro}'`);
+await assert.rejects(()=>db.query('select public.mkt_rotinas_ia($1::jsonb)',[JSON.stringify(['https://example.org/'])]),/gestora/);checks++;
+await db.exec(`set request.jwt.claim.sub='${dono}'`);
+for(const url of ['http://example.org/','https://127.0.0.1/','https://example.org/?token=abc','https://login:senha@example.org/','https://exemplo.local/']){await assert.rejects(()=>db.query('select public.mkt_rotinas_ia($1::jsonb)',[JSON.stringify([url])]),/HTTPS/);checks++;}
+const fontes=Array.from({length:24},(_,i)=>`https://fonte${i}.org/`);
+await db.query('select public.mkt_rotinas_ia($1::jsonb)',[JSON.stringify(fontes)]);
+await assert.rejects(()=>db.query('select * from marketing_privado.ia_fontes'),/permission denied/);checks++;
+await db.exec('reset role;set role service_role');
+await assert.rejects(()=>db.query('select public.mkt_concorrentes_fontes($1)',[ids[0]]),/não concedida/);checks++;
+await db.query("insert into escritorio_privado.agente_ferramentas values($1,'pesquisar_concorrentes_publicos')",[ids[0]]);
+ok((await db.query('select public.mkt_concorrentes_fontes($1) fontes',[ids[0]])).rows[0].fontes.length===8,'Rodízio limita pesquisa a oito das 24 fontes cadastradas');
+await db.exec("insert into escritorio_privado.ferramentas(slug,classe,ativa) values('acao_sensivel','sensivel',true)");
+await db.query("insert into escritorio_privado.agente_ferramentas values($1,'acao_sensivel')",[ids[0]]);
+const permitidas=(await db.query('select public.mkt_rotina_ferramentas($1) ferramentas',[tarefas[0].id])).rows[0].ferramentas;
+ok(permitidas.includes('pesquisar_concorrentes_publicos') && !permitidas.includes('acao_sensivel'),'Rotinas automáticas não recebem ações externas mesmo com concessão manual');
+
+await db.exec('reset role');
+const proxima=(await db.query("select marketing_privado.ia_proxima('08:30',true,'2026-11-07T15:00:00Z')::text data")).rows[0].data;
+ok(proxima.startsWith('2026-11-09 12:30'),'Sábado agenda segunda-feira às 08:30 em Cuiabá');
+await db.exec('set role anon');await assert.rejects(()=>db.query('select public.mkt_rotinas_ia()'),/permission denied/);checks++;
+console.log(`${checks} verificações de rotinas IA passaram.`);
+}finally{await db.close();}

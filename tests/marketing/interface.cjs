@@ -152,6 +152,7 @@ const fs = require("fs");
         crm:{leads:12,qualificados:5,contratos:2,sem_atribuicao:5,campanhas:[{campanha_id:null,nome:"Sem atribuição",leads:5,contratos:1}]},apurado_em:now,
       } : [];
     }
+    else if (table === "mkt_rotinas_ia") result={fontes:[],pode_configurar:true,rotinas:[]};
     else if (table === "mkt_equipe_disponivel") result = [{id:"agente-ui",nome:"Camila",descricao:"Conteúdo de teste",ativo:true,executor:"analista_operacional",ferramentas:["zernio_indicadores"]}];
     else if (path.endsWith("/motor-missoes")) result={ok:true,missao_id:"missao-ui"};
     else if (table === "comercial_operar") result = {permissoes:{visualizar:true,gerenciar:true,financeiro_visualizar:false}};

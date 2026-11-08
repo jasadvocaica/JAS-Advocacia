@@ -1,3 +1,4 @@
+import RotinasMarketing from "./RotinasMarketing";
 import { useState } from "react";
 import { toast } from "sonner";
 import { chamarMotor } from "@/pages/agentes-ia/escritorio/missoes/motor";
@@ -52,6 +53,7 @@ export default function AgentesMarketing() {
         Agentes cadastrados na sala de Marketing. As entregas passam por revisão;
         o motor confere permissões e orçamento antes de cada execução.
       </p>
+      <RotinasMarketing />
       {q.isPending && <p role="status">Conferindo equipe…</p>}
       {q.error && <p role="alert">Não foi possível consultar a equipe. Recarregue ou confira seu acesso.</p>}
       {q.isSuccess && !agentes.length && <p>Nenhum agente cadastrado na sala de Marketing. O planejamento e a produção manual continuam disponíveis.</p>}
