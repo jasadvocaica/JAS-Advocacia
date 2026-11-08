@@ -289,7 +289,7 @@ export default function ItemFormDialog({ open, onOpenChange, item, onSaved, pref
       return toast.error("O prazo interno não pode ser posterior ao prazo judicial");
     }
     if (!responsavelId) return toast.error("Selecione o responsável pelo item");
-    if (!clienteId && !processoId) {
+    if (!clienteId && !processoId && !(isEdit && (item as any)?.marketing_item_id)) {
       return toast.error("Toda tarefa precisa estar vinculada a um cliente ou processo.");
     }
 
