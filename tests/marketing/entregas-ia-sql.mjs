@@ -22,11 +22,17 @@ await db.exec(await readFile('supabase/migrations/20261108121629_marketing_entre
 await db.exec(await readFile('supabase/migrations/20261108122201_marketing_relatorios_agentes.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261108122440_marketing_suspender_execucao_obsoleta.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261108122902_marketing_brief_como_roteiro.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261108123302_marketing_entrega_quebras_linha.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261108123501_marketing_entrega_json_literal.sql','utf8'));
 const agente=(await db.query("insert into agentes_ia(nome,sala) values('Camila','marketing') returning id")).rows[0].id;
 const missao=(await db.query("insert into escritorio_privado.missoes(chave,solicitada_por) values('auto-mkt:teste:1',gen_random_uuid()) returning id")).rows[0].id;
 const task=async(entrega)=> (await db.query("insert into escritorio_privado.missao_tarefas(missao_id,agente_id,estado,resultado) values($1,$2,'pendente',$3) returning id",[missao,agente,JSON.stringify({entrega})])).rows[0].id;
 const draft={titulo:'Pejotização: sinais para analisar',publico:'Trabalhadores PJ',objetivo:'Informar sem prometer resultado',gancho:'Contrato PJ com rotina de empregado?',legenda:'Legenda original para revisão humana.',roteiro:'Cena um: pergunta. Cena dois: documentos. Cena três: análise individual.',brief_visual:'Gravação original, sem reproduzir concorrentes.',revisao_necessaria:'Conferir fatos jurídicos antes de publicar.'};
 ok((await db.query('select marketing_privado.ler_entrega_json($1) j',[JSON.stringify(JSON.stringify(draft)).slice(1,-1)])).rows[0].j.titulo===draft.titulo,'Lê JSON duplamente escapado sem alterar a entrega');
+const comQuebra={...draft,roteiro:'Cena 1: celular.\nCena 2: documentos.\nCena 3: análise.'};
+const misto=JSON.stringify(JSON.stringify(comQuebra)).slice(1,-1).replaceAll('\\\\n','\\n');
+ok((await db.query('select marketing_privado.ler_entrega_json($1) j',[misto])).rows[0].j.roteiro===comQuebra.roteiro,'Preserva quebras de linha com escape misto do modelo');
+ok((await db.query('select marketing_privado.ler_entrega_json($1) j',[JSON.stringify(comQuebra).replaceAll('\\n','\n')])).rows[0].j.roteiro===comQuebra.roteiro,'Lê o caso real com aspas normais e quebra literal');
 const id=await task(JSON.stringify(draft));
 await db.query("update escritorio_privado.missao_tarefas set estado='concluida' where id=$1",[id]);
 const map=(await db.query('select * from marketing_privado.ia_entregas where tarefa_id=$1',[id])).rows[0];
