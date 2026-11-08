@@ -153,6 +153,7 @@ const fs = require("fs");
       } : [];
     }
     else if (table === "mkt_rotinas_ia") result={fontes:[],pode_configurar:true,rotinas:[]};
+    else if (table === "mkt_inteligencia_mercado") result={pesquisas:[],referencias:[],estrategias:[]};
     else if (table === "mkt_equipe_disponivel") result = [{id:"agente-ui",nome:"Camila",descricao:"Conteúdo de teste",ativo:true,executor:"analista_operacional",ferramentas:["zernio_indicadores"]}];
     else if (path.endsWith("/motor-missoes")) result={ok:true,missao_id:"missao-ui"};
     else if (table === "comercial_operar") result = {permissoes:{visualizar:true,gerenciar:true,financeiro_visualizar:false}};

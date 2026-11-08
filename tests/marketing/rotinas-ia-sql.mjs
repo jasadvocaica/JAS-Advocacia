@@ -28,6 +28,7 @@ await db.exec(`create role anon;create role authenticated;create role service_ro
  grant all on all tables in schema public,escritorio_privado to service_role;
 `);
 await db.exec(await readFile('supabase/migrations/20261108032750_marketing_rotinas_ia.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261108132549_marketing_producao_independente.sql','utf8'));
 const ids=['00000000-0000-4000-8000-000000000010','00000000-0000-4000-8000-000000000011','00000000-0000-4000-8000-000000000012','00000000-0000-4000-8000-000000000013'];
 for(const id of ids)await db.query('insert into public.agentes_ia values($1,$2,true)',[id,id]);
 const etapas=ids.map((id,i)=>({agente_id:id,titulo:'Etapa '+i,instrucoes:'Entrega interna original para revisão'}));
@@ -61,6 +62,11 @@ ok(permitidas.includes('pesquisar_concorrentes_publicos') && !permitidas.include
 await db.exec('reset role');
 const proxima=(await db.query("select marketing_privado.ia_proxima('08:30',true,'2026-11-07T15:00:00Z')::text data")).rows[0].data;
 ok(proxima.startsWith('2026-11-09 12:30'),'Sábado agenda segunda-feira às 08:30 em Cuiabá');
+await db.query("insert into marketing_privado.ia_rotinas(slug,nome,ativa,hora,etapas,criada_por,proxima_execucao) values('producao_original','Produção independente',false,'09:00',$1,$2,now()+interval '1 day')",[JSON.stringify([etapas[0]]),dono]);
+await db.exec(`set role authenticated;set request.jwt.claim.sub='${dono}'`);
+await db.query('select public.mkt_rotinas_ia($1::jsonb)',[JSON.stringify(fontes)]);
+await db.exec('reset role');
+ok((await db.query("select ativa from marketing_privado.ia_rotinas where slug='producao_original'")).rows[0].ativa,'Configurar concorrentes mantém a produção editorial independente ativa');
 await db.exec('set role anon');await assert.rejects(()=>db.query('select public.mkt_rotinas_ia()'),/permission denied/);checks++;
 console.log(`${checks} verificações de rotinas IA passaram.`);
 }finally{await db.close();}

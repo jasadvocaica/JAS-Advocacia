@@ -22,7 +22,7 @@ export default function RotinasMarketing() {
   return <div className="border rounded-lg p-4 space-y-3">
     <h3 className="font-semibold">Rotinas automáticas do Marketing</h3>
     {q.error ? <p role="alert">Não foi possível consultar as rotinas. Confira seu acesso.</p> : <>
-      <p className="text-sm text-muted-foreground">Horários de Cuiabá. A execução usa o orçamento de IA existente e pode aguardar saldo. As entregas são rascunhos para revisão no Escritório.</p>
+      <p className="text-sm text-muted-foreground">Horários de Cuiabá. A execução usa o orçamento de IA existente e pode aguardar saldo. As entregas são cadastradas no Marketing para revisão; as pautas também geram tarefas na Controladoria.</p>
       <ul className="space-y-2 text-sm">{q.data?.rotinas.map(r => <li key={r.slug}><strong>{r.nome}</strong> · {r.ativa ? `${r.dias_uteis ? "Segunda a sexta" : "Todos os dias"}, ${r.hora}` : r.exige_fontes && !q.data?.fontes.length ? "Aguardando fontes públicas" : "Pausada"}{r.ultima_missao_estado && ` · Última missão: ${r.ultima_missao_estado}`}</li>)}</ul>
       {isGestor && q.data?.pode_configurar && <div className="space-y-2">
         <label className="block text-sm">Perfis e sites públicos de referência<Textarea rows={5} maxLength={13000} disabled={salvar.isPending} value={texto} onChange={e => { setEditando(true); setTexto(e.target.value); }} placeholder="Um link HTTPS ou @perfil por linha" /></label>

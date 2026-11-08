@@ -307,6 +307,7 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
     });
     if (Array.isArray(escopo.data) && t.ferramentas.includes("pesquisar_concorrentes_publicos") && !r.ferramentasUsadas.includes("pesquisar_concorrentes_publicos")) throw new Error("Pesquisa pública não executada; etapa de pesquisa não pode ser marcada como concluída");
     const entrega = lerEntrega(r.texto);
+    if (Array.isArray(escopo.data) && t.ferramentas.includes('pesquisar_tendencias_marketing') && !r.ferramentasUsadas.includes('pesquisar_tendencias_marketing')) throw new Error('Pesquisa de mercado não executada');
     await db.rpc("motor_concluir_tarefa", {
       _tarefa: t.tarefa_id, _ok: true,
       _resultado: { ...entrega, rodadas: r.rodadas, ferramentas: r.ferramentasUsadas },

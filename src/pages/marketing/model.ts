@@ -158,6 +158,7 @@ export const CANAIS = {
   tiktok: "TikTok",
   youtube: "YouTube",
   linkedin: "LinkedIn",
+  meta_ads: "Meta Ads (planejamento)",
   site_blog: "Site / blog",
 };
 export const FORMATOS = {
