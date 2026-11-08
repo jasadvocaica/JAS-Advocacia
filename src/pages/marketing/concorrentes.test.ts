@@ -36,4 +36,12 @@ describe("pesquisa pública de concorrentes", () => {
   finally { vi.unstubAllGlobals(); }
  });
 
+ it("aceita fontes da ação de busca e exclui domínios não configurados", async () => {
+  const fetcher=vi.fn(async(url: string)=>new Response(JSON.stringify(url.endsWith('/input_tokens')?{input_tokens:10}:{status:'completed',usage:{input_tokens:50,output_tokens:30},output:[{type:'web_search_call',status:'completed',action:{sources:[{url:'https://example.org/post-confirmado/'},{url:'https://outra-fonte.net/'}]}},{content:[{type:'output_text',text:'Resumo original com limitação de cobertura',annotations:[]}]}]}),{status:200}));
+  vi.stubGlobal('fetch',fetcher);vi.stubGlobal('AbortSignal',{timeout:()=>new AbortController().signal});
+  const rpc=vi.fn(async(a: string)=>({data:a==='mkt_concorrentes_fontes'?['https://example.org/']:a==='ia_confirmar'?true:{ok:true},error:null}));
+  try { const r=await consultarAmplo({rpc},'pesquisar_concorrentes_publicos',{}, {key:'fixture',modelo:'gpt-4.1-mini-2025-04-14',execucao_id:'x',agente_id:'a',tarefa_id:'t',proximaRodada:()=>4}) as {fontes:{url:string}[]}; expect(r.fontes.map(f=>f.url)).toEqual(['https://example.org/post-confirmado/']); }
+  finally { vi.unstubAllGlobals(); }
+ });
+
 });
