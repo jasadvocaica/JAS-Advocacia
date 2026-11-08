@@ -100,6 +100,13 @@ jobs:
       - name: Executar testes
         run: npm test
 
+      - name: Validar automações de Marketing
+        run: |
+          node tests/marketing/integrado-sql.mjs
+          node tests/marketing/rotinas-ia-sql.mjs
+          node tests/marketing/entregas-ia-sql.mjs
+          node tests/marketing/inteligencia-sql.mjs
+
       - name: Validar biblioteca e produção jurídica
         run: |
           npm run test:legislacao

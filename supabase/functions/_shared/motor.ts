@@ -19,6 +19,11 @@ const objeto = (props: Record<string, unknown>, obrigatorios: string[]) => ({
 });
 
 export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
+  pesquisar_tendencias_marketing: {
+    slug: 'pesquisar_tendencias_marketing', classe: 'leitura',
+    descricao: 'Pesquisa pública de temas, notícias e sementes de palavras-chave. Diferencia tendências do Google Trends de notícias e sugestões editoriais. Não consulta CRM, não usa listas de pessoas e não estima volume, CPC ou concorrência ausentes.',
+    parametros: objeto({}, []),
+  },
   consultar_indicadores: {
     slug: "consultar_indicadores",
     classe: "leitura",
@@ -189,6 +194,11 @@ export const FERRAMENTAS: Record<string, DefinicaoFerramenta> = {
       { dias: { type: "integer", minimum: 1, maximum: 365, description: "Período em dias (padrão 30)" } },
       ["dias"],
     ),
+  },
+  pesquisar_concorrentes_publicos: {
+    slug: "pesquisar_concorrentes_publicos", classe: "leitura",
+    descricao: "Consulta posts públicos somente dos perfis configurados no Marketing, com links, datas quando visíveis e limitações. Uma consulta por tarefa. Não acessa perfis privados nem coleta contatos.",
+    parametros: objeto({}, []),
   },
   pesquisar_fontes_oficiais: {
     slug: "pesquisar_fontes_oficiais",
@@ -394,6 +404,9 @@ export function validarParametros(slug: string, bruto: unknown): Record<string, 
     case "consultar_financeiro":
     case "consultar_comercial":
       return { dias: diasEntre(a.dias, 30, 365) };
+    case "pesquisar_concorrentes_publicos":
+    case "pesquisar_tendencias_marketing":
+      return {};
     case "pesquisar_fontes_oficiais":
       return { pergunta: textoValido(a.pergunta, 5, 500, "pergunta") };
     case "atualizar_item_controladoria":

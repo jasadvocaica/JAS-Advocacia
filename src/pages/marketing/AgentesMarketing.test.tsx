@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({ gestor: true, rpc: vi.fn(), motor: vi.fn() }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "usuario-teste" }, isGestor: mock.gestor }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mock.rpc } }));
 vi.mock("@/pages/agentes-ia/escritorio/missoes/motor", () => ({ chamarMotor: mock.motor }));
+vi.mock("./RotinasMarketing", () => ({ default: () => null }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const agente = { id: "agente-teste", nome: "Camila", descricao: "Conteúdo", ativo: true, executor: "analista_operacional", ferramentas: ["zernio_indicadores"] };
 function abrir() {

@@ -66,6 +66,14 @@ async function executarFerramenta(db: SupabaseClient, tarefa: { tarefa_id: strin
   slug: string, p: Record<string, unknown>, ctx: ContextoIA) {
   const classe = await db.rpc("motor_ferramenta_permitida", { _tarefa: tarefa.tarefa_id, _ferramenta: slug });
   if (classe.error || !classe.data) throw new Error("Ferramenta não permitida para este agente.");
+  if (slug === "pesquisar_concorrentes_publicos") {
+    try { return await consultarAmplo(db, slug, p, ctx); }
+    catch (e) {
+      const codigo = e instanceof Error && /^pesquisa_publica_[a-z_0-9]+$/i.test(e.message) ? e.message : "pesquisa_publica_indisponivel";
+      await db.from("agente_execucao_logs").insert({ execucao_id: ctx.execucao_id, mensagem: codigo });
+      throw e;
+    }
+  }
   if (CONSULTAS_AMPLAS.has(slug)) return consultarAmplo(db, slug, p, ctx);
   if (ACOES_AMPLAS.has(slug)) return proporAmplo(db, tarefa.tarefa_id, slug, p);
   switch (slug) {
@@ -266,6 +274,9 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
   ]);
   let perfil: ReturnType<typeof validarConfigAgente> | null = null;
   try { perfil = cfg.data?.revisao > 0 ? validarConfigAgente(cfg.data.config) : null; } catch { perfil = null; }
+  const escopo = await db.rpc("mkt_rotina_ferramentas", { _tarefa: t.tarefa_id });
+  if (escopo.error) throw new Error("Não foi possível conferir o escopo da rotina");
+  if (Array.isArray(escopo.data)) t.ferramentas = t.ferramentas.filter(slug => escopo.data.includes(slug));
   const instrucoes = instrucoesDoAgente({ nome: ag.data?.nome ?? "Agente", cargo: perfil?.cargo, prompt_base: perfil?.prompt_base });
   await log(`Tarefa da missão reservada (tentativa ${t.tentativa}). Ferramentas: ${t.ferramentas.join(", ") || "nenhuma"}.`);
   // Rodadas 0–3 são da conversa com a IA; 4–7 ficam para pesquisas em fontes oficiais.
@@ -294,7 +305,9 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
       executar: (slug, p) => executarFerramenta(db, t, slug, p, ctx),
       aoUsar: async (slug, ok) => { await log(`${ok ? "Usou" : "Tentou usar"} a ferramenta ${slug}.`); },
     });
+    if (Array.isArray(escopo.data) && t.ferramentas.includes("pesquisar_concorrentes_publicos") && !r.ferramentasUsadas.includes("pesquisar_concorrentes_publicos")) throw new Error("Pesquisa pública não executada; etapa de pesquisa não pode ser marcada como concluída");
     const entrega = lerEntrega(r.texto);
+    if (Array.isArray(escopo.data) && t.ferramentas.includes('pesquisar_tendencias_marketing') && !r.ferramentasUsadas.includes('pesquisar_tendencias_marketing')) throw new Error('Pesquisa de mercado não executada');
     await db.rpc("motor_concluir_tarefa", {
       _tarefa: t.tarefa_id, _ok: true,
       _resultado: { ...entrega, rodadas: r.rodadas, ferramentas: r.ferramentasUsadas },

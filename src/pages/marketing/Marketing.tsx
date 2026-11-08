@@ -37,6 +37,7 @@ import {
 import AcessosMarketing from "./AcessosMarketing";
 import ResultadosIntegrados from "./ResultadosIntegrados";
 import AgentesMarketing from "./AgentesMarketing";
+import InteligenciaMarketing from "./InteligenciaMarketing";
 import MarketingDashboard from "./MarketingDashboard";
 import CampanhasIntegradas from "./CampanhasIntegradas";
 import TriagemDirect from "./TriagemDirect";
@@ -321,6 +322,7 @@ export default function Marketing() {
                   })
                 }
               />
+              <InteligenciaMarketing />
               <details className="rounded-lg border p-4">
                 <summary className="font-semibold cursor-pointer">
                   Equipe de apoio ao Marketing
