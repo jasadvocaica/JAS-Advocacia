@@ -1,0 +1,55 @@
+import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import assert from 'node:assert/strict';import {prepararTelegram} from './telegram-fixture.mjs';
+const db=new PGlite();const dono='00000000-0000-4000-8000-000000000001';let n=0;const ok=(v,m)=>{assert.ok(v,m);n++};
+try{
+ await prepararTelegram(db,dono);
+ await db.exec(`create table public.profiles(id uuid primary key,nome text);alter table public.mkt_itens add column versao integer default 1,add column versao_aprovada integer;
+ alter table marketing_privado.ia_rotinas add column etapas jsonb default '[]';
+ create function public.mkt_operar(operacao text,payload jsonb) returns jsonb language plpgsql as $$declare i public.mkt_itens;begin
+ if not public.is_gestor(auth.uid()) then raise exception 'Gestor necessário';end if;
+ select * into i from public.mkt_itens where id=(payload->>'id')::uuid for update;
+ if i.versao is distinct from (payload->>'versao')::integer then raise exception 'Versão mudou';end if;
+ if operacao='decidir' then
+  if i.status<>'aguardando_aprovacao' then raise exception 'Sem aprovação pendente';end if;
+  update public.mkt_itens set status=payload->>'resultado',versao_aprovada=case when payload->>'resultado'='aprovado' then versao else null end where id=i.id;
+ else update public.mkt_itens set status='ajustes',versao=versao+1,versao_aprovada=null where id=i.id;end if;return '{}'::jsonb;end;$$;
+ grant select on public.profiles to service_role;grant usage on schema auth to service_role;`);
+ await db.exec(await readFile('supabase/migrations/20261109155047_telegram_padrao_entregas_manu.sql','utf8'));
+ await db.query('insert into escritorio_privado.telegram_vinculos(chat_id,usuario_id) values(111,$1),(222,$1)',[dono]);
+ await db.exec('set role service_role');
+ const doc={tipo:'Roteiro',agente:'Camila',status:'pendente',referencia:new Date().toISOString(),fonte:'JAS',objetivo:'Prepare uma pauta de organização de documentos',secoes:[{titulo:'Texto integral',texto:'Texto para gravação.'}]};
+ const registrar=async(chave,d=doc)=>(await db.query('select public.telegram_manu_registrar(111,$1,$2) id',[chave,JSON.stringify(d)])).rows[0].id;
+ const id=await registrar('pedido:1');ok(id===await registrar('pedido:1'),'Histórico idempotente por entrega');
+ await assert.rejects(()=>db.query('select public.telegram_manu_consultar(222,$1)',[id]),/não autorizada/);n++;
+ const p=(await db.query('select public.telegram_manu_parte($1,0) p',[id])).rows[0].p;
+ ok(p.estado==='reservada','Reserva parte antes do envio');
+ ok((await db.query('select public.telegram_manu_parte($1,0) p',[id])).rows[0].p.estado==='ocupada','Não entrega a mesma parte concorrentemente');
+ await assert.rejects(()=>db.query("select public.telegram_manu_parte($1,0,'enviada',gen_random_uuid(),99)",[id]),/inválida/);n++;
+ await db.query("select public.telegram_manu_parte($1,0,'enviada',$2,99)",[id,p.reserva]);
+ ok((await db.query('select public.telegram_manu_parte($1,0) p',[id])).rows[0].p.mensagem_id===99,'Reexecução reutiliza ID real já confirmado');
+ const p2=(await db.query('select public.telegram_manu_parte($1,1) p',[id])).rows[0].p;
+ await db.query("select public.telegram_manu_parte($1,1,'incerta',$2)",[id,p2.reserva]);
+ await assert.rejects(()=>db.query('select public.telegram_manu_parte($1,1)',[id]),/sem confirmação/);n++;
+ const ajuste=(await db.query("select public.telegram_manu_acao(111,$1,'ajustes') r",[id])).rows[0].r;ok(ajuste.resposta.includes('Quais ajustes'),'Solicita orientação antes de alterar a entrega');
+ const feedback=(await db.query("select public.telegram_manu_feedback(111,'Fale diretamente com o trabalhador, com tom acolhedor') r")).rows[0].r;
+ ok(!!feedback.pedido_id,'Feedback registra novo trabalho real');
+ const antes=(await db.query('select count(*)::int n from escritorio_privado.telegram_entradas')).rows[0].n;
+ await db.query("select public.telegram_manu_acao(111,$1,'nova')",[id]);
+ ok((await db.query('select count(*)::int n from escritorio_privado.telegram_entradas')).rows[0].n===antes,'Duplo clique não duplica revisão em andamento');
+ const item=(await db.query("insert into public.mkt_itens(tipo,status) values('pauta','aguardando_aprovacao') returning id")).rows[0].id;
+ const pauta=await registrar('pauta:1',{...doc,item_id:item,item_tipo:'pauta',item_versao:1});
+ const aprovar=(await db.query("select public.telegram_manu_acao(111,$1,'aprovar') r",[pauta])).rows[0].r;
+ ok(aprovar.resposta.includes('confirmada'),'Só confirma após aprovação real no sistema');
+ ok((await db.query('select status,versao_aprovada from public.mkt_itens where id=$1',[item])).rows[0].status==='aprovado','Aprova apenas a pauta');
+ ok((await db.query("select current_setting('request.jwt.claim.sub',true) uid")).rows[0].uid==='','Restaura contexto de autorização depois da ação');
+ await db.query('update public.mkt_itens set versao=2 where id=$1',[item]);
+ await assert.rejects(()=>db.query("select public.telegram_manu_acao(111,$1,'aprovar')",[pauta]),/versão mudou/);n++;
+ const camila=(await db.query("insert into public.agentes_ia(nome,sala,supervisor_id) values('Camila','marketing',$1) returning id",[dono])).rows[0].id;
+ const m=(await db.query("insert into escritorio_privado.missoes(titulo,objetivo,chave,solicitada_por) values('Roteiro','Roteiro para gravar','auto-mkt:telegram:validacao',$1) returning id",[dono])).rows[0].id;
+ const t=(await db.query("insert into escritorio_privado.missao_tarefas(missao_id,agente_id,titulo,instrucoes) values($1,$2,'Gravar','Prepare roteiro') returning id",[m,camila])).rows[0].id;
+ await assert.rejects(()=>db.query("update escritorio_privado.missao_tarefas set estado='concluida',resultado=$2 where id=$1",[t,JSON.stringify({entrega:JSON.stringify({titulo:'Tema',roteiro:'Somente tópicos'})})]),/Roteiro incompleto/);n++;
+ ok((await db.query('select estado from escritorio_privado.missao_tarefas where id=$1',[t])).rows[0].estado==='pendente','Não conclui roteiro incompleto');
+ await db.query('update escritorio_privado.telegram_vinculos set revogado_em=now() where chat_id=111');
+ await assert.rejects(()=>db.query('select public.telegram_manu_consultar(111,$1)',[id]),/não autorizada/);n++;
+ await db.exec('reset role;set role anon');await assert.rejects(()=>db.query('select public.telegram_manu_consultar(111,$1)',[id]),/permission denied/);n++;
+ console.log(`${n} verificações do padrão Manu passaram.`);
+}catch(e){console.error(e.message,e.where??'');process.exitCode=1;}finally{await db.close();}

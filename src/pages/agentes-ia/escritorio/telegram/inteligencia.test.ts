@@ -11,6 +11,7 @@ afterEach(()=>vi.unstubAllGlobals());
 describe('conversa natural e áudio',()=>{
  it('valida a equipe real e impede tarefas de outro usuário ou sem redação',()=>{
   expect(validarDecisao(plano,agentes).agentes).toEqual(['bia','camila']);
+  expect(validarDecisao({...plano,tipo:'missao'},agentes).tipo).toBe('marketing');
   expect(()=>validarDecisao({...plano,agentes:['desconhecido']},agentes)).toThrow();
   expect(()=>validarDecisao({...plano,agentes:['bia']},agentes)).toThrow('marketing_sem_redacao');
   expect(()=>validarDecisao({...plano,agentes:['camila','camila']},agentes)).toThrow();

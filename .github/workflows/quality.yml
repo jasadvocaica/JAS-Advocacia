@@ -110,6 +110,7 @@ jobs:
           node tests/marketing/inteligencia-sql.mjs
           node tests/agentes/operacao24h-sql.mjs
           node tests/agentes/telegram-conversa-sql.mjs
+          node tests/agentes/manu-entregas-sql.mjs
 
       - name: Validar biblioteca e produção jurídica
         run: |

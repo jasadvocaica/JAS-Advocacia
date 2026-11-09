@@ -22,7 +22,7 @@ export function textoResumoOperacao(d:Record<string,unknown>,tipo='programado'){
   'Use /resumo para consultar novamente. Dados de teste ficam fora dos totais de leads.'
  ].join('\n').slice(0,3900);
 }
-export async function enviarResumos(db:SupabaseClient,enviar:(chat:number,texto:string)=>Promise<{message_id?:number}>,id?:string){
+export async function enviarResumos(db:SupabaseClient,enviar:(chat:number,texto:string,meta?:{envio_id:string;tipo:string;dados:Record<string,unknown>})=>Promise<{message_id?:number}>,id?:string){
  const fila=await db.rpc('operacao24h_reservar_envios',{_id:id??null,_limite:5});
  if(fila.error)throw new FalhaTelegram('resumo_fila_indisponivel');
  let enviados=0,falhas=0,incertos=0;
@@ -31,7 +31,7 @@ export async function enviarResumos(db:SupabaseClient,enviar:(chat:number,texto:
   const confirmar=async(estado:string,extra:Record<string,unknown>={})=>db.rpc('operacao24h_confirmar_envio',{_id:e.id,_reserva:e.reserva,_estado:estado,...extra});
   if(validacao.error||validacao.data!==true){await confirmar('falhou',{_erro:'destino_inativo'});falhas++;continue;}
   let mensagem:{message_id?:number};
-  try{mensagem=await enviar(e.chat_id,textoResumoOperacao(e.dados,e.tipo));}
+  try{mensagem=await enviar(e.chat_id,textoResumoOperacao(e.dados,e.tipo),{envio_id:e.id,tipo:e.tipo,dados:e.dados});}
   catch(erro){
    const f=erro instanceof FalhaTelegram?erro:new FalhaTelegram('telegram_transporte_incerto',true);
    const estado=f.incerto?'incerto':f.retryAfter?'pendente':'falhou';

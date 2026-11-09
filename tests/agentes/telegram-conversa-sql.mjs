@@ -1,16 +1,8 @@
-import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import assert from 'node:assert/strict';import {bootstrapOperacao} from './operacao24h-fixture.mjs';
+import {prepararTelegram} from './telegram-fixture.mjs';
+import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import assert from 'node:assert/strict';
 const db=new PGlite();const dono='00000000-0000-4000-8000-000000000001';let n=0;const ok=(v,m)=>{assert.ok(v,m);n++};
 try{
- await db.exec(bootstrapOperacao(dono));
- await db.exec(`alter table escritorio_privado.missao_tarefas add column depende_de uuid[] default '{}',add column profundidade smallint default 0,add column pai_id uuid;
- create table escritorio_privado.ia_precos(modelo text primary key,entrada_por_milhao numeric,saida_por_milhao numeric,conferido_em date);
- create table escritorio_privado.agente_configuracoes(agente_id uuid primary key,dados jsonb);
- alter table escritorio_privado.ferramentas add column ativa boolean default true;
- grant all on escritorio_privado.agente_configuracoes to service_role;
- create function public.telegram_usuario(_chat bigint) returns uuid language sql stable as $$select usuario_id from escritorio_privado.telegram_vinculos where chat_id=_chat and revogado_em is null and public.is_gestor(usuario_id)$$;`);
- await db.exec(await readFile('supabase/migrations/20261108153837_operacao_24h_resumos_telegram.sql','utf8'));
- await db.exec(await readFile('supabase/migrations/20261108190537_telegram_conversa_missoes.sql','utf8'));
- await db.exec(await readFile('supabase/migrations/20261108192849_telegram_ordem_por_chat.sql','utf8'));
+ await prepararTelegram(db,dono);
  await db.query('insert into escritorio_privado.telegram_vinculos(chat_id,usuario_id) values(111,$1),(222,$1)',[dono]);
  const bia=(await db.query("insert into agentes_ia(nome,sala,supervisor_id) values('Bia','marketing',$1) returning id",[dono])).rows[0].id;
  const camila=(await db.query("insert into agentes_ia(nome,sala,supervisor_id) values('Camila','marketing',$1) returning id",[dono])).rows[0].id;
@@ -27,12 +19,14 @@ try{
  ok((await db.query('select public.telegram_reservar_pedido() e')).rows[0].e===null,'Não processa duas mensagens do mesmo chat simultaneamente');
  const ctx=(await db.query('select public.telegram_contexto_pedido($1,$2) c',[e.id,e.reserva])).rows[0].c;
  ok(ctx.agentes.length===2&&!ctx.agentes.some(a=>a.id===outro),'Catálogo contém apenas agentes da gestora');
- const plano={tipo:'marketing',titulo:'Pauta de pejotização',objetivo:'Pesquisa e rascunho para aprovação',agentes:[bia,camila]};
+ const plano={tipo:'missao',titulo:'Pauta de pejotização',objetivo:'Pesquisa e rascunho para aprovação',agentes:[camila,bia]};
  await assert.rejects(()=>db.query('select public.telegram_concluir_pedido($1,gen_random_uuid(),$2,$3)',[e.id,e.texto,JSON.stringify(plano)]),/Pedido não autorizado/);n++;
  const r=(await db.query('select public.telegram_concluir_pedido($1,$2,$3,$4) r',[e.id,e.reserva,e.texto,JSON.stringify(plano)])).rows[0].r;
  ok(!!r.missao_id&&r.resposta.includes('Bia → Camila'),'Confirma a missão efetivamente criada e a equipe');
+ ok((await db.query('select chave from escritorio_privado.missoes where id=$1',[r.missao_id])).rows[0].chave.startsWith('auto-mkt:telegram:'),'Normaliza pedido editorial mesmo se a IA disser missão genérica');
  ok((await db.query('select count(*)::int n from escritorio_privado.missao_tarefas where missao_id=$1',[r.missao_id])).rows[0].n===2,'Cria etapas reais no motor');
  ok((await db.query('select cardinality(depende_de) n from escritorio_privado.missao_tarefas where missao_id=$1 and agente_id=$2',[r.missao_id,camila])).rows[0].n===1,'Redação depende da pesquisa');
+ await assert.rejects(()=>db.query("update escritorio_privado.missao_tarefas set estado='concluida' where missao_id=$1 and agente_id=$2",[r.missao_id,camila]),/Rascunho não cadastrado/);n++;
  await assert.rejects(()=>db.query('select public.telegram_concluir_pedido($1,$2,$3,$4)',[e.id,e.reserva,e.texto,JSON.stringify(plano)]),/Pedido não autorizado/);n++;
  const escopo=(await db.query('select public.telegram_ferramentas_tarefa(id) f from escritorio_privado.missao_tarefas where missao_id=$1 and agente_id=$2',[r.missao_id,bia])).rows[0].f;
  ok(escopo.includes('consultar_operacao_continua')&&!escopo.includes('publicar_teste'),'Mensagem livre não habilita publicação');

@@ -76,9 +76,9 @@ export async function processarPedidos(db:SupabaseClient,deps:Dependencias){
    if(r.error)throw Error('registro_indisponivel');
    registrado=true;
    const valido=await db.rpc('telegram_usuario',{_chat:e.chat_id});if(valido.data!==e.usuario_id)continue;
-   if(resumoId){await enviarResumos(db,async(chat,texto)=>deps.telegram('sendMessage',{chat_id:chat,text:texto}) as Promise<{message_id?:number}>,resumoId);processados++;continue;}
+   if(resumoId){await enviarResumos(db,async(chat,texto,meta)=>deps.telegram('sendMessage',{chat_id:chat,text:texto,_jas:meta}) as Promise<{message_id?:number}>,resumoId);processados++;continue;}
    const audio=e.tipo==='audio'?`Entendi do áudio: ${e.texto.slice(0,300)}\n\n`:'';
-   const mensagem=await deps.telegram('sendMessage',{chat_id:e.chat_id,text:(audio+r.data.resposta).slice(0,3900)}) as {message_id?:number};
+   const mensagem=await deps.telegram('sendMessage',{chat_id:e.chat_id,text:audio+r.data.resposta,_jas:{chave:`pedido:${e.id}`,tipo:plano?'📋 Missão registrada':'💬 Atendimento',status:plano?'pendente':'nao_verificado'}}) as {message_id?:number};
    if(Number.isSafeInteger(mensagem.message_id))await db.rpc('telegram_confirmar_resposta',{_id:e.id,_reserva:e.reserva,_mensagem:mensagem.message_id});
    for(const a of aprovacoes){
     const ativo=await db.rpc('telegram_usuario',{_chat:e.chat_id});if(ativo.data!==e.usuario_id)break;

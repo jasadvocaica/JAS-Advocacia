@@ -25,7 +25,7 @@ const cors = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_SAIDA = 1200;
+const MAX_SAIDA = 1800;
 
 class SemOrcamento extends Error {}
 
@@ -323,10 +323,11 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
     const entrega = lerEntrega(r.texto);
     if(rotina24&&!r.ferramentasUsadas.includes('consultar_operacao_continua'))throw new Error('Consulta operacional não executada');
     if (Array.isArray(escopo.data) && t.ferramentas.includes('pesquisar_tendencias_marketing') && !r.ferramentasUsadas.includes('pesquisar_tendencias_marketing')) throw new Error('Pesquisa de mercado não executada');
-    await db.rpc("motor_concluir_tarefa", {
+    const conclusao=await db.rpc("motor_concluir_tarefa", {
       _tarefa: t.tarefa_id, _ok: true,
       _resultado: { ...entrega, rodadas: r.rodadas, ferramentas: r.ferramentasUsadas },
     });
+    if(conclusao.error)throw new Error('Não foi possível confirmar a tarefa e cadastrar sua entrega');
     return { tarefa: t.tarefa_id, ok: true };
   } catch (e) {
     if (e instanceof SemOrcamento) {

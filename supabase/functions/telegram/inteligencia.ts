@@ -14,8 +14,12 @@ export function pedidoInterpretacao(texto:string,contexto:{agentes:AgenteTelegra
 }
 export function validarDecisao(bruto:unknown,agentes:AgenteTelegram[]):DecisaoTelegram{
  if(!bruto||typeof bruto!=='object'||Array.isArray(bruto))throw Error('decisao_invalida');
- const d=bruto as DecisaoTelegram;
+ const d={...bruto} as DecisaoTelegram;
  if(!['conversa','missao','marketing','andamento','resumo','aprovacoes','esclarecer'].includes(d.tipo)||typeof d.resposta!=='string'||typeof d.titulo!=='string'||typeof d.objetivo!=='string'||!Array.isArray(d.agentes)||d.agentes.length>4||new Set(d.agentes).size!==d.agentes.length||d.agentes.some(id=>!agentes.some(a=>a.id===id)))throw Error('decisao_invalida');
+ if(d.tipo==='missao'&&d.agentes.some(id=>agentes.some(a=>a.id===id&&a.nome==='Camila'&&a.sala==='marketing')))d.tipo='marketing';
+ if(d.tipo==='marketing')d.agentes=[...d.agentes].sort((x,y)=>{
+  const ordem=(id:string)=>{const nome=agentes.find(a=>a.id===id)?.nome;return ({Bia:1,Theo:2,Camila:3,'Vinícius':4} as Record<string,number>)[nome??'']??0;};return ordem(x)-ordem(y);
+ });
  if(d.tipo==='missao'||d.tipo==='marketing'){
   if(!d.agentes.length||d.titulo.trim().length<3||d.titulo.length>120||d.objetivo.trim().length<3||d.objetivo.length>2500)throw Error('plano_invalido');
   if(d.tipo==='marketing'&&!d.agentes.some(id=>agentes.some(a=>a.id===id&&a.nome==='Camila'&&a.sala==='marketing')))throw Error('marketing_sem_redacao');

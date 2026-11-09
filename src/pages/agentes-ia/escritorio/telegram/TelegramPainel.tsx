@@ -84,6 +84,7 @@ export default function TelegramPainel() {
             )}
           </div>
           <p className="ga-nota">Converse por texto ou áudio de até 3 minutos e 5 MB. Pedidos claros viram missões para a equipe, com confirmação e aviso ao terminar. Use /andamento para acompanhar; publicações continuam exigindo aprovação específica.</p>
+          <p className="ga-nota">Padrão Manu: entregas com agente, referência, fonte e status; roteiros com fala completa e legenda. Detalhes, ajustes e novas versões ficam vinculados ao histórico da entrega.</p>
           {estado.vinculos.length > 0 ? (
             <ul className="ga-agentes">
               {estado.vinculos.map((v) => (

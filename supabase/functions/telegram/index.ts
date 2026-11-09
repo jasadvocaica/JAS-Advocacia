@@ -8,6 +8,8 @@ import {enviarResumos,FalhaTelegram} from './resumos.ts';
 import {processarPedidos} from './pedidos.ts';
 import {validarAudio} from './audio.ts';
 import {textoAndamento} from './inteligencia.ts';
+import {enviarManu,enviarDocumento} from './entregas.ts';
+import {formatarDocumento,modeloTexto,type DocumentoManu} from './modelos.ts';
 import {
   ajuda,
   comando,
@@ -42,9 +44,12 @@ async function telegram(metodo: string, corpo: Record<string, unknown>) {
   if (!d.ok){const codigo=Number.isSafeInteger(d.error_code)?d.error_code:r.status;throw new FalhaTelegram(`telegram_http_${codigo}`,codigo>=500||(r.ok&&!Number.isSafeInteger(d.error_code)),codigo===429?Math.min(3600,Math.max(5,Number(d.parameters?.retry_after)||60)):undefined);}
   return d.result;
 }
-const enviar = (chat: number, text: string, extra: Record<string, unknown> = {}) =>
-  telegram("sendMessage", { chat_id: chat, text: text.slice(0, 4000), ...extra });
-const dependenciasPedidos={telegram,key:()=>Deno.env.get('OPENAI_API_KEY')??'',token:TOKEN,aprovacoes:pendentes};
+async function enviar(db:SupabaseClient,chat:number,text:string,extra:Record<string,unknown>={}){
+ const vinculo=await db.rpc('telegram_usuario',{_chat:chat});
+ if(!vinculo.data){let ultima:{message_id?:number}={};for(const parte of formatarDocumento(modeloTexto(text,{tipo:'ℹ️ Atendimento',status:'pendente'})))ultima=await telegram('sendMessage',{chat_id:chat,text:parte,parse_mode:'HTML'});return ultima;}
+ return enviarManu(db,telegram,'sendMessage',{chat_id:chat,text,...extra});
+}
+const dependenciasPedidos=(db:SupabaseClient)=>({telegram:(metodo:string,corpo:Record<string,unknown>)=>enviarManu(db,telegram,metodo,corpo),key:()=>Deno.env.get('OPENAI_API_KEY')??'',token:TOKEN,aprovacoes:pendentes});
 
 function iguais(a: string, b: string) {
   if (!a || a.length !== b.length) return false;
@@ -58,8 +63,8 @@ async function pendentes(usuario: string) {
   return (r.aprovacoes ?? []).filter((a) => a.tipo === "acao");
 }
 
-async function mostrarAprovacao(chat: number, a: Aprovacao) {
-  return enviar(chat, textoAprovacao(a), {
+async function mostrarAprovacao(db:SupabaseClient,chat: number, a: Aprovacao) {
+  return enviar(db,chat, textoAprovacao(a), {
     reply_markup: {
       inline_keyboard: [[
         { text: "✅ Aprovar e executar", callback_data: dadosBotao(a.id, true) },
@@ -78,44 +83,62 @@ async function tratarMensagem(db: SupabaseClient, msg: { chat: { id: number; typ
 
   if (c.nome === "vincular") {
     const u = await db.rpc("telegram_vincular", { _chat: chat, _codigo: c.resto, _nome: msg.from?.first_name ?? null });
-    return enviar(chat, u.data
+    return enviar(db,chat, u.data
       ? "Pronto! Este Telegram está vinculado ao JAS. Escreva para falar com a Gestora ou envie /ajuda."
       : "Código inválido ou vencido. Gere outro no JAS: Escritório › Aprovações › Telegram.");
   }
-  if (!usuario) return enviar(chat, ajuda(false));
-  if (c.nome === "start" || c.nome === "ajuda") return enviar(chat, ajuda(true));
+  if (!usuario) return enviar(db,chat, ajuda(false));
+  if (c.nome === "start" || c.nome === "ajuda") return enviar(db,chat, ajuda(true));
   if (c.nome === "desvincular") {
     await db.rpc("telegram_desvincular", { _usuario: usuario, _chat: chat });
-    return enviar(chat, "Telegram desvinculado. Para voltar, gere um novo código no JAS.");
+    return enviar(db,chat, "Telegram desvinculado. Para voltar, gere um novo código no JAS.");
   }
   if (c.nome === "aprovacoes") {
     const lista = await pendentes(usuario);
-    if (!lista.length) return enviar(chat, "Nada esperando a sua aprovação.");
-    for (const a of lista.slice(0, 10)) await mostrarAprovacao(chat, a);
+    if (!lista.length) return enviar(db,chat, "Nada esperando a sua aprovação.");
+    for (const a of lista.slice(0, 10)) await mostrarAprovacao(db,chat, a);
     return;
   }
   if(c.nome==='resumo'||c.nome==='relatorio'){
     const r=await db.rpc('operacao24h_pedir_resumo',{_usuario:usuario});
-    if(r.error)return enviar(chat,'Não foi possível preparar o resumo agora. Confira o painel do Telegram no JAS.');
-    await enviarResumos(db,(destino,texto)=>enviar(destino,texto),r.data);
+    if(r.error)return enviar(db,chat,'Não foi possível preparar o resumo agora. Confira o painel do Telegram no JAS.');
+    await enviarResumos(db,(destino,texto,meta)=>enviar(db,destino,texto,{_jas:meta}),r.data);
     return;
   }
-  if(c.nome==='andamento'){const r=await db.rpc('telegram_andamento',{_chat:chat});return enviar(chat,r.error?'Não foi possível consultar os pedidos agora.':textoAndamento(r.data));}
-  if(c.nome&&c.nome!=='missao')return enviar(chat,ajuda(true));
+  if(c.nome==='andamento'){const r=await db.rpc('telegram_andamento',{_chat:chat});return enviar(db,chat,r.error?'Não foi possível consultar os pedidos agora.':textoAndamento(r.data));}
+  if(c.nome&&c.nome!=='missao')return enviar(db,chat,ajuda(true));
   const texto=c.nome==='missao'?`Quero que a equipe execute este pedido: ${c.resto}`:(msg.text??'').trim();
   const audio=msg.voice??msg.audio;
-  if(!texto&&!audio)return enviar(chat,'Envie uma mensagem de texto ou um áudio de até 3 minutos e 5 MB. Documentos, vídeos e imagens ainda não entram neste fluxo.');
+  if(texto&&!c.nome){const f=await db.rpc('telegram_manu_feedback',{_chat:chat,_texto:texto});if(f.error)return enviar(db,chat,'Não consegui registrar os ajustes. Confira se a versão mudou no JAS.');if(f.data){await enviar(db,chat,f.data.resposta,{_jas:{tipo:'✍️ Ajustes',status:'pendente'}});await processarPedidos(db,dependenciasPedidos(db));return;}}
+  if(!texto&&!audio)return enviar(db,chat,'Envie uma mensagem de texto ou um áudio de até 3 minutos e 5 MB. Documentos, vídeos e imagens ainda não entram neste fluxo.');
   if(!Number.isSafeInteger(updateId)||Number(updateId)<0)return;
   try{
     const r=await db.rpc('telegram_receber_pedido',{_chave:`tg:${updateId}`,_chat:chat,_texto:texto,_audio:audio?validarAudio(audio):null});
-    if(r.error)return enviar(chat,'Não consegui registrar o pedido agora. Aguarde um minuto e tente novamente.');
+    if(r.error)return enviar(db,chat,'Não consegui registrar o pedido agora. Aguarde um minuto e tente novamente.');
     await telegram('sendChatAction',{chat_id:chat,action:'typing'}).catch(()=>{});
-    await processarPedidos(db,dependenciasPedidos);
-  }catch{return enviar(chat,'Não consegui processar esta mensagem. Para áudio, use até 3 minutos e 5 MB; você também pode escrever o pedido.');}
+    await processarPedidos(db,dependenciasPedidos(db));
+  }catch{return enviar(db,chat,'Não consegui processar esta mensagem. Para áudio, use até 3 minutos e 5 MB; você também pode escrever o pedido.');}
 }
 
 async function tratarBotao(db: SupabaseClient, q: { id: string; data?: string; message?: { chat: { id: number }; message_id: number } }) {
   const chat = q.message?.chat.id;
+  const entrega=q.data?.match(/^en:([0-9a-f-]{36}):([djnp])$/i);
+  if(entrega&&chat){
+    await telegram('answerCallbackQuery',{callback_query_id:q.id,text:'Consultando o JAS…'});
+    try{
+      if(entrega[2]==='d'){
+        const r=await db.rpc('telegram_manu_consultar',{_chat:chat,_entrega:entrega[1]});if(r.error)throw r.error;
+        return enviarDocumento(db,telegram,chat,r.data as DocumentoManu,`detalhes:${crypto.randomUUID()}`);
+      }
+      const acao=entrega[2]==='j'?'ajustes':entrega[2]==='p'?'aprovar':'nova';
+      const r=await db.rpc('telegram_manu_acao',{_chat:chat,_entrega:entrega[1],_acao:acao});if(r.error)throw r.error;
+      if(acao==='aprovar')await telegram('editMessageReplyMarkup',{chat_id:chat,message_id:q.message!.message_id,reply_markup:{inline_keyboard:[[{text:'Consultar detalhes',callback_data:`en:${entrega[1]}:d`}],[{text:'Solicitar ajustes',callback_data:`en:${entrega[1]}:j`},{text:'Gerar nova versão',callback_data:`en:${entrega[1]}:n`}]]}}).catch(()=>{});
+      await enviar(db,chat,r.data.resposta,{_jas:{tipo:'📋 Decisão no JAS',status:acao==='aprovar'?'concluido':'pendente'}});
+      if(r.data.pedido_id)await processarPedidos(db,dependenciasPedidos(db));
+      return;
+    }catch{return enviar(db,chat,'Não foi possível confirmar a ação. A versão pode ter mudado; consulte o item atual no JAS. Nenhuma aprovação foi presumida.');}
+  }
+
   const botao = lerBotao(q.data ?? "");
   const usuario = chat ? ((await db.rpc("telegram_usuario", { _chat: chat })).data as string | null) : null;
   if (!chat || !botao || !usuario) return telegram("answerCallbackQuery", { callback_query_id: q.id, text: "Não autorizado." });
@@ -134,9 +157,8 @@ async function tratarBotao(db: SupabaseClient, q: { id: string; data?: string; m
     resultado = `Não foi possível decidir: ${e instanceof Error ? e.message : "falha"}`;
   }
   await telegram("answerCallbackQuery", { callback_query_id: q.id, text: resultado.slice(0, 190) });
-  return telegram("editMessageText", {
-    chat_id: chat, message_id: q.message!.message_id, text: `${textoAprovacao(a)}\n\n${resultado}`.slice(0, 4000),
-  });
+  await telegram('editMessageReplyMarkup',{chat_id:chat,message_id:q.message!.message_id,reply_markup:{inline_keyboard:[]}}).catch(()=>{});
+  return enviar(db,chat,resultado,{_jas:{tipo:'📋 Resultado da decisão',status:resultado.includes('executado')?'concluido':'pendente'}});
 }
 
 async function avisarAprovacao(db: SupabaseClient, id: string) {
@@ -144,7 +166,7 @@ async function avisarAprovacao(db: SupabaseClient, id: string) {
   for (const d of (destinos ?? []) as { chat_id: number; usuario_id: string }[]) {
     const a = (await pendentes(d.usuario_id)).find((x) => x.id === id);
     if (!a) continue;
-    const m = await mostrarAprovacao(d.chat_id, a);
+    const m = await mostrarAprovacao(db,d.chat_id, a);
     await db.rpc("telegram_registrar_aviso", { _aprovacao: id, _chat: d.chat_id, _mensagem: m.message_id });
   }
 }
@@ -182,7 +204,7 @@ Deno.serve(async (req) => {
     if(body.acao==='processar_pedidos'){
       const ok=await db.rpc('validar_djen_cron_secret',{_secret:req.headers.get('x-djen-cron-secret')??''});
       if(ok.error||ok.data!==true)return json({error:'Não autorizado'},401);
-      const trabalho=processarPedidos(db,dependenciasPedidos).catch(()=>console.error('telegram_fila_indisponivel'));
+      const trabalho=processarPedidos(db,dependenciasPedidos(db)).catch(()=>console.error('telegram_fila_indisponivel'));
       const rt=(globalThis as {EdgeRuntime?:{waitUntil:(p:Promise<unknown>)=>void}}).EdgeRuntime;
       if(rt)rt.waitUntil(trabalho);else await trabalho;
       return json({ok:true});
@@ -191,7 +213,7 @@ Deno.serve(async (req) => {
       const ok=await db.rpc('validar_djen_cron_secret',{_secret:req.headers.get('x-djen-cron-secret')??''});
       if(ok.error||ok.data!==true)return json({error:'Não autorizado'},401);
       if(!TOKEN())return json({error:'Telegram não configurado'},503);
-      const trabalho=enviarResumos(db,(chat,texto)=>enviar(chat,texto)).catch(()=>{console.error('resumo_automatico_indisponivel');});
+      const trabalho=enviarResumos(db,(chat,texto,meta)=>enviar(db,chat,texto,{_jas:meta})).catch(()=>{console.error('resumo_automatico_indisponivel');});
       const rt=(globalThis as {EdgeRuntime?:{waitUntil:(p:Promise<unknown>)=>void}}).EdgeRuntime;
       if(rt)rt.waitUntil(trabalho);else await trabalho;
       return json({ok:true});
@@ -212,7 +234,7 @@ Deno.serve(async (req) => {
       case 'resumo_agora': {
         const r=await db.rpc('operacao24h_pedir_resumo',{_usuario:usuario});
         if(r.error)return json({error:r.error.message},403);
-        return json(await enviarResumos(db,(chat,texto)=>enviar(chat,texto),r.data));
+        return json(await enviarResumos(db,(chat,texto,meta)=>enviar(db,chat,texto,{_jas:meta}),r.data));
       }
       case "estado": {
         const v = await db.rpc("telegram_estado", { _usuario: usuario });
