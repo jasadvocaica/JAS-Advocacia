@@ -17,6 +17,7 @@ export function prepararAnuncio(d:Record<string,unknown>,conta:string,adConta:st
  const corpo:Record<string,unknown>={accountId:conta,adAccountId:adConta,pageId:pagina,name:str(d.nome),goal:d.objetivo,budgetAmount:verba,budgetType:'lifetime',currency:'BRL',headline:str(d.titulo),body:str(d.texto),description:str(d.descricao),imageUrl:str(d.midia_url),callToAction:'LEARN_MORE',countries:[d.pais],ageMin:min,ageMax:max,startDate:d.inicio,endDate:d.fim,status:'PAUSED',campaignStatus:'PAUSED',adSetStatus:'PAUSED',adStatus:'PAUSED'};
  if(d.objetivo==='lead_generation'){if(!/^\d+$/.test(str(d.formulario_id)))throw Error('Selecione um formulário instantâneo existente.');corpo.leadGenFormId=d.formulario_id;corpo.promotedObject={pageId:pagina};}
  else {if(!https(d.destino))throw Error('Informe o destino HTTPS aprovado.');corpo.linkUrl=str(d.destino);}
+ if(str(d.audiencia_id)){if(!/^\d+$/.test(str(d.audiencia_id)))throw Error('Público inválido.');corpo.targeting={audienceInclude:[str(d.audiencia_id)]};}
  if(validar)corpo.validateOnly=true;
  return corpo;
 }

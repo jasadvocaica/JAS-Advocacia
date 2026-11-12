@@ -29,6 +29,7 @@ export async function anuncios(db:SupabaseClient,api:ClienteZernio,usuario:strin
   if(['validar','criar_pausada'].includes(acao)){
    const corpo=prepararAnuncio(obj(reserva.data.dados),c.id,conta.id,c.pagina.id,acao==='validar');
    if(corpo.leadGenFormId&&!c.formularios.some(f=>f.id===corpo.leadGenFormId))throw Error('Formulário não pertence à Página selecionada.');
+   if(reserva.data.dados?.audiencia_id){const ok=await db.rpc('mkt_ads_audiencia',{_usuario:usuario,_conta:conta.id,_audiencia:reserva.data.dados.audiencia_id});if(ok.error||ok.data!==true)throw Error('Público não confirmado para esta conta.');}
    enviado=true;resultado=await criarPausado(api,corpo,chave);
   }else if(acao==='lista'){
    enviado=true;const r=await api.post<Record<string,unknown>>('/v1/ads/audiences',{accountId:c.id,adAccountId:conta.id,type:'customer_list',name:b.nome,customerFileSource:'USER_PROVIDED_ONLY'},chave);const a=obj(r.dados.audience);
@@ -36,12 +37,13 @@ export async function anuncios(db:SupabaseClient,api:ClienteZernio,usuario:strin
    parcial={audiencia_id:a.id,fonte_id:a.platformAudienceId};
    // Só os IDs e contagens entram no histórico; nenhum contato é persistido ou enviado à IA.
    const envio=await api.post<Record<string,unknown>>('/v1/ads/audiences/'+encodeURIComponent(a.id)+'/users',{users},chave+':users');
-   resultado={audiencia_id:a.id,fonte_id:a.platformAudienceId,recebidos:envio.dados.numReceived,invalidos:envio.dados.numInvalid,tipo:'customer_list'};
+   resultado={audiencia_id:a.id,fonte_id:a.platformAudienceId,recebidos:envio.dados.numReceived,invalidos:envio.dados.numInvalid,tipo:'customer_list',nome:b.nome};
   }else{
+   const elegivel=await db.rpc('mkt_ads_audiencia',{_usuario:usuario,_conta:conta.id,_audiencia:String(b.fonte_id)});if(elegivel.error||elegivel.data!==true)throw Error('Origem não confirmada como não sensível nesta conta.');
    const fonte=await api.get<Record<string,unknown>>('/v1/ads/audiences',{accountId:c.id,adAccountId:conta.id});
    const aa=Array.isArray(fonte.dados.audiences)?fonte.dados.audiences.map(obj):[];
    if(!aa.some(a=>a.platformAudienceId===b.fonte_id&&Number(a.size)>=100))throw Error('A origem deve pertencer à conta e ter pelo menos 100 correspondências confirmadas.');
-   enviado=true;const r=await api.post<Record<string,unknown>>('/v1/ads/audiences',{accountId:c.id,adAccountId:conta.id,type:'lookalike',name:b.nome,sourceAudienceId:b.fonte_id,country:'BR',ratio:Number(b.razao)},chave);const a=obj(r.dados.audience);if(typeof a.id!=='string')throw Error('audiencia_sem_confirmacao');resultado={audiencia_id:a.id,fonte_id:a.platformAudienceId,tipo:'lookalike'};
+   enviado=true;const r=await api.post<Record<string,unknown>>('/v1/ads/audiences',{accountId:c.id,adAccountId:conta.id,type:'lookalike',name:b.nome,sourceAudienceId:b.fonte_id,country:'BR',ratio:Number(b.razao)},chave);const a=obj(r.dados.audience);if(typeof a.id!=='string')throw Error('audiencia_sem_confirmacao');resultado={audiencia_id:a.id,fonte_id:a.platformAudienceId,tipo:'lookalike',nome:b.nome};
   }
   const gravar=await db.rpc('mkt_ads_finalizar',{_id:id,_estado:'confirmada',_resultado:{...resultado,conta_id:conta.id,pagina_id:c.pagina.id}});if(gravar.error||gravar.data!==true)throw Error('gravacao_sem_confirmacao');return {ok:true,...resultado};
  }catch(erro){

@@ -9,6 +9,7 @@ create function marketing_privado.cadastrar_estrategia_ia(uuid) returns uuid lan
 grant usage on schema marketing_privado,auth to authenticated,service_role;grant usage on schema escritorio_privado to service_role;grant select on auth.users to service_role;`);
 await db.exec(await readFile('supabase/migrations/20261112113951_anuncios_workspace.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261112115224_anuncios_geracao_alias.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261112115853_anuncios_audiencia_vinculada.sql','utf8'));
 await db.exec(`insert into public.agentes_ia values ('00000000-0000-4000-8000-000000000010',true,'${u}','Bia');insert into marketing_privado.ia_rotinas values('concorrentes','${u}','[{"agente_id":"00000000-0000-4000-8000-000000000010","titulo":"Pesquisar","instrucoes":"Usar fontes públicas"}]');`);
 await db.exec(`set role authenticated;set request.jwt.claim.sub='${u}';`);
 const geracao={objetivo:'Campanha educativa para revisar',chave:'00000000-0000-4000-8000-000000000020'};

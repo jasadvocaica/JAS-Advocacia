@@ -203,7 +203,7 @@ const fs = require("fs");
     });
   });
   await page.goto('http://127.0.0.1:4175/marketing?secao=anuncios',{waitUntil:'networkidle'});
-  await page.getByRole('heading',{name:'Anúncios',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Anúncios',exact:true}).waitFor().catch(async e=>{console.log((await page.locator('body').innerText()).slice(0,2500),errors);await page.screenshot({path:'/tmp/jas-anuncios-diagnostico.png',fullPage:true});throw e;});
   await page.getByRole('heading',{name:'Documentos do contrato PJ',exact:true}).waitFor();
   await page.screenshot({path:'/tmp/jas-anuncios-desktop.png',fullPage:true});
   await page.getByRole('button',{name:'Montar campanha com esta ideia'}).click();
