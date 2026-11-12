@@ -16,6 +16,7 @@ import { validarConfigAgente } from "../_shared/agentes-config.ts";
 import { usuarioInterno } from "../_shared/interno.ts";
 import { ACOES_AMPLAS, CONSULTAS_AMPLAS, consultarAmplo, executarAmplo, proporAmplo, type ContextoIA } from "./ferramentas-amplas.ts";
 import { criarCliente, decifrar, semSegredos } from "../_shared/zernio.ts";
+import {formatoRoteiro} from '../telegram/modelos.ts';
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +26,7 @@ const cors = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_SAIDA = 1200;
+const MAX_SAIDA = 1800;
 
 class SemOrcamento extends Error {}
 
@@ -283,6 +284,10 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
   if (escopo.error) throw new Error("Não foi possível conferir o escopo da rotina");
   if (Array.isArray(escopo.data)) t.ferramentas = t.ferramentas.filter(slug => escopo.data.includes(slug));
   const instrucoes = instrucoesDoAgente({ nome: ag.data?.nome ?? "Agente", cargo: perfil?.cargo, prompt_base: perfil?.prompt_base });
+  const roteiroEstruturado=ag.data?.nome==='Camila'&&/roteiro|grava|reels|v[ií]deo/i.test(t.objetivo_missao+' '+t.titulo);
+  const escopoTelegram=await db.rpc('telegram_ferramentas_tarefa',{_tarefa:t.tarefa_id});
+  if(escopoTelegram.error)throw new Error('Escopo do pedido Telegram indisponível');
+  if(Array.isArray(escopoTelegram.data))t.ferramentas=t.ferramentas.filter(slug=>escopoTelegram.data.includes(slug));
   let rotina24=false;
   if(t.ferramentas.includes('consultar_operacao_continua')){
     const escopo24=await db.rpc('operacao24h_ferramentas',{_tarefa:t.tarefa_id});
@@ -309,8 +314,9 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
           key, id: t.execucao_id, rodada, agente: t.agente_id, tarefa: t.tarefa_id,
           payload: {
             model: modelo,
-            instructions: instrucoes,
+            instructions: instrucoes+(roteiroEstruturado?' Para esta resposta, siga o contrato JSON estruturado do servidor: entrega é um OBJETO editorial com todos os campos, não uma string. A fala deve ser integral, natural e pronta para gravar.':''),
             input, tools,
+            ...(roteiroEstruturado?{text:{format:formatoRoteiro()}}:{}),
           },
         }),
       executar: (slug, p) => executarFerramenta(db, t, slug, p, ctx),
@@ -320,10 +326,18 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
     const entrega = lerEntrega(r.texto);
     if(rotina24&&!r.ferramentasUsadas.includes('consultar_operacao_continua'))throw new Error('Consulta operacional não executada');
     if (Array.isArray(escopo.data) && t.ferramentas.includes('pesquisar_tendencias_marketing') && !r.ferramentasUsadas.includes('pesquisar_tendencias_marketing')) throw new Error('Pesquisa de mercado não executada');
-    await db.rpc("motor_concluir_tarefa", {
+    const conclusao=await db.rpc("motor_concluir_tarefa", {
       _tarefa: t.tarefa_id, _ok: true,
       _resultado: { ...entrega, rodadas: r.rodadas, ferramentas: r.ferramentasUsadas },
     });
+    if(conclusao.error){
+      const motivo=String(conclusao.error.message??'');
+      if(motivo.includes('Roteiro incompleto'))throw new Error('Roteiro incompleto: faltam campos obrigatórios do padrão Manu');
+      if(motivo.includes('Roteiro deve usar'))throw new Error('Roteiro fora do formato editorial esperado');
+      if(motivo.includes('Rascunho não cadastrado'))throw new Error('Rascunho não cadastrado no Marketing');
+      if(motivo.includes('Brief não cadastrado'))throw new Error('Brief não cadastrado no Marketing');
+      throw new Error('Não foi possível confirmar a tarefa e cadastrar sua entrega');
+    }
     return { tarefa: t.tarefa_id, ok: true };
   } catch (e) {
     if (e instanceof SemOrcamento) {

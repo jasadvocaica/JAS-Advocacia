@@ -4,6 +4,8 @@ export class FalhaTelegram extends Error {
 }
 const numero=(v:unknown)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0?v.toLocaleString('pt-BR'):'indisponível';
 export function textoResumoOperacao(d:Record<string,unknown>,tipo='programado'){
+ if(tipo==='missao'&&d.pedido_sem_confirmacao===true)return 'JAS · Pedido sem confirmação\n\nO processamento de uma mensagem não foi confirmado. Consulte /andamento ou o JAS antes de reenviar. O sistema não repetirá automaticamente uma chamada de resultado desconhecido.\nhttps://app.julianaaraujoadvocacia.com/escritorio/missoes';
+ if(tipo==='missao')return [`JAS · Missão ${d.estado==='concluida'?'concluída':d.estado==='falhou'?'com falha':'cancelada'}`,String(d.titulo??'Pedido pelo Telegram').slice(0,200),`Materiais cadastrados: ${numero(d.materiais)}.`,'Consulte as etapas e entregas no JAS. Materiais continuam sujeitos à revisão.','https://app.julianaaraujoadvocacia.com/escritorio/missoes',Number(d.materiais)>0?'https://app.julianaaraujoadvocacia.com/marketing':''].filter(Boolean).join('\n\n');
  const quando=typeof d.apurado_em==='string'&&Number.isFinite(Date.parse(d.apurado_em))?new Date(d.apurado_em).toLocaleString('pt-BR',{timeZone:'America/Cuiaba',dateStyle:'short',timeStyle:'short'}):'horário indisponível';
  return [tipo==='alerta'?'JAS · Alerta operacional':'JAS · Resumo automático',`Atualizado em ${quando} · Cuiabá`,'',
   `CRM: ${numero(d.leads_total)} leads comerciais; ${numero(d.leads_hoje)} cadastros hoje.`,
@@ -20,7 +22,7 @@ export function textoResumoOperacao(d:Record<string,unknown>,tipo='programado'){
   'Use /resumo para consultar novamente. Dados de teste ficam fora dos totais de leads.'
  ].join('\n').slice(0,3900);
 }
-export async function enviarResumos(db:SupabaseClient,enviar:(chat:number,texto:string)=>Promise<{message_id?:number}>,id?:string){
+export async function enviarResumos(db:SupabaseClient,enviar:(chat:number,texto:string,meta?:{envio_id:string;tipo:string;dados:Record<string,unknown>})=>Promise<{message_id?:number}>,id?:string){
  const fila=await db.rpc('operacao24h_reservar_envios',{_id:id??null,_limite:5});
  if(fila.error)throw new FalhaTelegram('resumo_fila_indisponivel');
  let enviados=0,falhas=0,incertos=0;
@@ -29,7 +31,7 @@ export async function enviarResumos(db:SupabaseClient,enviar:(chat:number,texto:
   const confirmar=async(estado:string,extra:Record<string,unknown>={})=>db.rpc('operacao24h_confirmar_envio',{_id:e.id,_reserva:e.reserva,_estado:estado,...extra});
   if(validacao.error||validacao.data!==true){await confirmar('falhou',{_erro:'destino_inativo'});falhas++;continue;}
   let mensagem:{message_id?:number};
-  try{mensagem=await enviar(e.chat_id,textoResumoOperacao(e.dados,e.tipo));}
+  try{mensagem=await enviar(e.chat_id,textoResumoOperacao(e.dados,e.tipo),{envio_id:e.id,tipo:e.tipo,dados:e.dados});}
   catch(erro){
    const f=erro instanceof FalhaTelegram?erro:new FalhaTelegram('telegram_transporte_incerto',true);
    const estado=f.incerto?'incerto':f.retryAfter?'pendente':'falhou';

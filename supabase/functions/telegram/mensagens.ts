@@ -68,10 +68,12 @@ export function ajuda(vinculado: boolean): string {
     return "Olá! Sou o canal do escritório Juliana Araújo Advocacia.\n\n" +
       "Para usar, gere o código no JAS (Escritório › Aprovações › Telegram) e envie aqui:\n/vincular SEU-CÓDIGO";
   return "Como usar:\n" +
-    "• Escreva normalmente para falar com a Gestora.\n" +
-    "• /missao texto — cria uma missão para a Gestora.\n" +
+    "• Escreva ou mande um áudio de até 3 minutos e 5 MB. Pedidos claros viram missões para a equipe; conversas continuam como conversa.\n" +
+    "• Diga, por exemplo: pesquise pejotização e prepare uma pauta para minha aprovação.\n" +
+    "• /missao texto — também permite pedir uma missão.\n" +
+    "• /andamento — consulta seus pedidos e a etapa de cada agente.\n" +
     "• /aprovacoes — mostra os pedidos esperando você, com botões para aprovar ou recusar.\n" +
     "• /resumo — consulta leads, aprovações, tarefas e saúde do motor sem usar IA.\n" +
     "• /desvincular — desliga este Telegram do JAS.\n\n" +
-    "Pedidos novos de aprovação chegam aqui automaticamente.";
+    "Você recebe confirmação do encaminhamento e aviso ao encerrar a missão. Publicações e ações externas continuam exigindo aprovação específica.";
 }

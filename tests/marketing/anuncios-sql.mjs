@@ -1,0 +1,34 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();let n=0;const ok=(b)=>{assert.ok(b);n++};const u='00000000-0000-4000-8000-000000000001',outro='00000000-0000-4000-8000-000000000002';
+try{
+await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create schema marketing_privado;create schema escritorio_privado;create table auth.users(id uuid primary key);insert into auth.users values('${u}'),('${outro}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;create function public.is_gestor(uuid) returns boolean language sql as $$select $1 is not null$$;create function public.is_interno_ativo(uuid) returns boolean language sql as $$select $1 is not null$$;
+create table marketing_privado.ia_rotinas(slug text,criada_por uuid,etapas jsonb);create table public.agentes_ia(id uuid,ativo boolean,supervisor_id uuid,nome text);create table escritorio_privado.missoes(id uuid default gen_random_uuid(),titulo text,objetivo text,origem text,solicitada_por uuid,prioridade integer,chave text,estado text default 'aberta',criada_em timestamptz default now());create table escritorio_privado.missao_tarefas(id uuid default gen_random_uuid(),missao_id uuid,pai_id uuid,profundidade integer,agente_id uuid,titulo text,instrucoes text,depende_de uuid[],chave text);
+create function marketing_privado.cadastrar_estrategia_ia(uuid) returns uuid language plpgsql as $$declare j jsonb;publico text;begin perform jsonb_build_object('publico_proposto',publico,'outro',1);return null;end;$$;
+grant usage on schema marketing_privado,auth to authenticated,service_role;grant usage on schema escritorio_privado to service_role;grant select on auth.users to service_role;`);
+await db.exec(await readFile('supabase/migrations/20261112113951_anuncios_workspace.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261112115224_anuncios_geracao_alias.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261112115853_anuncios_audiencia_vinculada.sql','utf8'));
+await db.exec(`insert into public.agentes_ia values ('00000000-0000-4000-8000-000000000010',true,'${u}','Bia');insert into marketing_privado.ia_rotinas values('concorrentes','${u}','[{"agente_id":"00000000-0000-4000-8000-000000000010","titulo":"Pesquisar","instrucoes":"Usar fontes públicas"}]');`);
+await db.exec(`set role authenticated;set request.jwt.claim.sub='${u}';`);
+const geracao={objetivo:'Campanha educativa para revisar',chave:'00000000-0000-4000-8000-000000000020'};
+const missao=(await db.query("select public.mkt_ads('gerar',$1::jsonb) r",[JSON.stringify(geracao)])).rows[0].r;ok(!!missao.missao_id);ok((await db.query("select public.mkt_ads('gerar',$1::jsonb) r",[JSON.stringify(geracao)])).rows[0].r.missao_id===missao.missao_id);await assert.rejects(db.query("select public.mkt_ads('gerar',$1::jsonb)",[JSON.stringify({...geracao,chave:'00000000-0000-4000-8000-000000000021'})]));n++;
+const p=(await db.query(`select public.mkt_ads('salvar',$1::jsonb) r`,[JSON.stringify({dados:{nome:'Plano de teste',orcamento:'100'}})])).rows[0].r;ok(p.versao===1);
+const q=(await db.query(`select public.mkt_ads('painel') r`)).rows[0].r;ok(q.planos.length===1);
+await db.exec(`set request.jwt.claim.sub='${outro}'`);ok((await db.query(`select public.mkt_ads('painel') r`)).rows[0].r.planos.length===0);
+await assert.rejects(db.query(`select public.mkt_ads('salvar',$1::jsonb)`,[JSON.stringify({id:p.id,versao:1,dados:{nome:'Outro'}})]));n++;
+await db.exec(`set request.jwt.claim.sub='${u}'`);await assert.rejects(db.query(`select public.mkt_ads('salvar',$1::jsonb)`,[JSON.stringify({dados:{nome:'X',users:[]}})]));n++;
+await assert.rejects(db.query(`select public.mkt_ads_reservar($1,$2,1,'validar','ads:teste:validar')`,[u,p.id]));n++;
+await db.exec('reset role;set role service_role');
+await assert.rejects(db.query(`select public.mkt_ads_reservar($1,$2,1,'criar_pausada','ads:teste:criar_pausada')`,[u,p.id]));n++;
+const r=(await db.query(`select public.mkt_ads_reservar($1,$2,1,'validar','ads:teste:validar') r`,[u,p.id])).rows[0].r;ok(!!r.id);
+await assert.rejects(db.query(`select public.mkt_ads_reservar($1,$2,1,'validar','ads:teste:validar')`,[u,p.id]));n++;
+await db.query(`select public.mkt_ads_finalizar($1,'confirmada','{"validacao_parcial":true}')`,[r.id]);
+await assert.rejects(db.query(`select public.mkt_ads_reservar($1,$2,1,'criar_pausada','ads:outra-conta:criar_pausada')`,[u,p.id]));n++;
+const c=(await db.query(`select public.mkt_ads_reservar($1,$2,1,'criar_pausada','ads:teste:criar_pausada') r`,[u,p.id])).rows[0].r;ok(!!c.id);
+await db.exec(`reset role;set role authenticated;set request.jwt.claim.sub='${u}'`);
+await assert.rejects(db.query(`select public.mkt_ads('salvar',$1::jsonb)`,[JSON.stringify({id:p.id,versao:1,dados:{nome:'Mudou'}})]));n++;
+await db.exec('reset role;set role service_role');await db.query(`select public.mkt_ads_finalizar($1,'incerta','{"codigo":"sem_confirmacao"}')`,[c.id]);await assert.rejects(db.query(`select public.mkt_ads_reservar($1,$2,1,'criar_pausada','ads:teste:criar_pausada')`,[u,p.id]));n++;
+console.log(`${n} verificações de anúncios OK`);
+}finally{await db.close()}

@@ -40,6 +40,7 @@ import AgentesMarketing from "./AgentesMarketing";
 import InteligenciaMarketing from "./InteligenciaMarketing";
 import ConcorrentesMarketing from "./ConcorrentesMarketing";
 import MarketingDashboard from "./MarketingDashboard";
+import AnunciosMarketing from "./AnunciosMarketing";
 import CampanhasIntegradas from "./CampanhasIntegradas";
 import TriagemDirect from "./TriagemDirect";
 const tiposSecao: Record<string, Tipo[]> = {
@@ -301,6 +302,8 @@ export default function Marketing() {
             <ConcorrentesMarketing />
           ) : secao === "resultados" ? (
             <ResultadosIntegrados />
+          ) : secao === "anuncios" ? (
+            <AnunciosMarketing itens={itens} />
           ) : secao === "campanhas_meta" ? (
             <CampanhasIntegradas />
           ) : secao === "triagem_direct" ? (

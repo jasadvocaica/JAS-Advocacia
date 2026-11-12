@@ -33,7 +33,7 @@ export default function InteligenciaMarketing(){
       <p className="text-sm font-medium">{e.titulo??'Proposta com pendência de geração'}</p>
       {e.erro?<p className="text-sm">A entrega exige correção antes de gerar propostas.</p>:<div className="flex flex-wrap gap-3 text-sm">
        {e.planejamento_id&&<Link className="underline" to={`/marketing?item=${e.planejamento_id}`}>Estratégia e público proposto</Link>}
-       {e.anuncio_id&&<Link className="underline" to={`/marketing?item=${e.anuncio_id}`}>Rascunho do anúncio</Link>}
+       {e.anuncio_id&&<Link className="underline" to="/marketing?secao=anuncios">Rascunho do anúncio</Link>}
        {e.artigo_id&&<Link className="underline" to={`/marketing?item=${e.artigo_id}`}>Pauta de artigo</Link>}
        {e.tiktok_id&&<Link className="underline" to={`/marketing?item=${e.tiktok_id}`}>Roteiro de vídeo curto</Link>}
       </div>}
