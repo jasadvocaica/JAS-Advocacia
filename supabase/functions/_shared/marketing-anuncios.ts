@@ -6,6 +6,8 @@ const https=(v:unknown)=>{try{const u=new URL(str(v));return u.protocol==='https
 export function prepararAnuncio(d:Record<string,unknown>,conta:string,adConta:string,pagina:string,validar:boolean){
  const ausentes=['nome','titulo','texto','criativo','publico','inicio','fim'].filter(k=>!str(d[k]));
  if(ausentes.length)throw Error('Complete nome, título, texto, criativo, público e período.');
+ const diario=d.tipo_orcamento==='diario';
+ if(d.tipo_orcamento!=null&&!['total','diario'].includes(str(d.tipo_orcamento)))throw Error('Tipo de orçamento inválido.');
  const verba=Number(d.orcamento),min=Number(d.idade_min),max=Number(d.idade_max);
  if(!Number.isFinite(verba)||verba<=0||verba>100000||!Number.isInteger(min)||min<18||!Number.isInteger(max)||max<min||max>65)throw Error('Confira o orçamento total e a faixa etária (18 a 65).');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(str(d.inicio))||!/^\d{4}-\d{2}-\d{2}$/.test(str(d.fim))||!Number.isFinite(Date.parse(str(d.inicio)))||str(d.fim)<str(d.inicio))throw Error('Período inválido.');
@@ -14,7 +16,8 @@ export function prepararAnuncio(d:Record<string,unknown>,conta:string,adConta:st
  if(!['traffic','lead_generation','engagement'].includes(str(d.objetivo)))throw Error('Objetivo não suportado nesta etapa.');
  if(!/^[A-Z]{2}$/.test(str(d.pais)))throw Error('Selecione o país do público.');
  if(/(voc[eê]|seu filho|sua filha).{0,60}(autista|defici[eê]ncia|doen[cç]a|recebe bpc)/i.test(`${d.titulo} ${d.texto} ${d.descricao??''}`))throw Error('O texto presume atributo pessoal sensível. Revise a redação.');
- const corpo:Record<string,unknown>={accountId:conta,adAccountId:adConta,pageId:pagina,name:str(d.nome),goal:d.objetivo,budgetAmount:verba,budgetType:'lifetime',currency:'BRL',headline:str(d.titulo),body:str(d.texto),description:str(d.descricao),imageUrl:str(d.midia_url),callToAction:'LEARN_MORE',countries:[d.pais],ageMin:min,ageMax:max,startDate:d.inicio,endDate:d.fim,status:'PAUSED',campaignStatus:'PAUSED',adSetStatus:'PAUSED',adStatus:'PAUSED'};
+ if(diario&&verba>20&&(d.excecao_orcamento_aprovada!==true||str(d.justificativa_orcamento).length<10))throw Error('Acima de R$ 20/dia, registre a justificativa e aprove a exceção desta versão.');
+ const corpo:Record<string,unknown>={accountId:conta,adAccountId:adConta,pageId:pagina,name:str(d.nome),goal:d.objetivo,budgetAmount:verba,budgetType:diario?'daily':'lifetime',currency:'BRL',headline:str(d.titulo),body:str(d.texto),description:str(d.descricao),imageUrl:str(d.midia_url),callToAction:'LEARN_MORE',countries:[d.pais],ageMin:min,ageMax:max,startDate:d.inicio,endDate:d.fim,status:'PAUSED',campaignStatus:'PAUSED',adSetStatus:'PAUSED',adStatus:'PAUSED'};
  if(d.objetivo==='lead_generation'){if(!/^\d+$/.test(str(d.formulario_id)))throw Error('Selecione um formulário instantâneo existente.');corpo.leadGenFormId=d.formulario_id;corpo.promotedObject={pageId:pagina};}
  else {if(!https(d.destino))throw Error('Informe o destino HTTPS aprovado.');corpo.linkUrl=str(d.destino);}
  if(str(d.audiencia_id)){if(!/^\d+$/.test(str(d.audiencia_id)))throw Error('Público inválido.');corpo.targeting={audienceInclude:[str(d.audiencia_id)]};}

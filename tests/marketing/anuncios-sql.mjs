@@ -10,12 +10,14 @@ grant usage on schema marketing_privado,auth to authenticated,service_role;grant
 await db.exec(await readFile('supabase/migrations/20261112113951_anuncios_workspace.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261112115224_anuncios_geracao_alias.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261112115853_anuncios_audiencia_vinculada.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261112134758_anuncios_orcamento_diario.sql','utf8'));
 await db.exec(`insert into public.agentes_ia values ('00000000-0000-4000-8000-000000000010',true,'${u}','Bia');insert into marketing_privado.ia_rotinas values('concorrentes','${u}','[{"agente_id":"00000000-0000-4000-8000-000000000010","titulo":"Pesquisar","instrucoes":"Usar fontes públicas"}]');`);
 await db.exec(`set role authenticated;set request.jwt.claim.sub='${u}';`);
 const geracao={objetivo:'Campanha educativa para revisar',chave:'00000000-0000-4000-8000-000000000020'};
 const missao=(await db.query("select public.mkt_ads('gerar',$1::jsonb) r",[JSON.stringify(geracao)])).rows[0].r;ok(!!missao.missao_id);ok((await db.query("select public.mkt_ads('gerar',$1::jsonb) r",[JSON.stringify(geracao)])).rows[0].r.missao_id===missao.missao_id);await assert.rejects(db.query("select public.mkt_ads('gerar',$1::jsonb)",[JSON.stringify({...geracao,chave:'00000000-0000-4000-8000-000000000021'})]));n++;
+const diario=(await db.query("select public.mkt_ads('salvar',$1::jsonb) r",[JSON.stringify({dados:{nome:'Referência diária',orcamento:'20',tipo_orcamento:'diario',justificativa_orcamento:'',excecao_orcamento_aprovada:false}})])).rows[0].r;ok(diario.dados.tipo_orcamento==='diario');
 const p=(await db.query(`select public.mkt_ads('salvar',$1::jsonb) r`,[JSON.stringify({dados:{nome:'Plano de teste',orcamento:'100'}})])).rows[0].r;ok(p.versao===1);
-const q=(await db.query(`select public.mkt_ads('painel') r`)).rows[0].r;ok(q.planos.length===1);
+const q=(await db.query(`select public.mkt_ads('painel') r`)).rows[0].r;ok(q.planos.length===2);
 await db.exec(`set request.jwt.claim.sub='${outro}'`);ok((await db.query(`select public.mkt_ads('painel') r`)).rows[0].r.planos.length===0);
 await assert.rejects(db.query(`select public.mkt_ads('salvar',$1::jsonb)`,[JSON.stringify({id:p.id,versao:1,dados:{nome:'Outro'}})]));n++;
 await db.exec(`set request.jwt.claim.sub='${u}'`);await assert.rejects(db.query(`select public.mkt_ads('salvar',$1::jsonb)`,[JSON.stringify({dados:{nome:'X',users:[]}})]));n++;
