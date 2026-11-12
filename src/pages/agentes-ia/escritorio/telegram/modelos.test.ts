@@ -1,13 +1,17 @@
 import {describe,expect,it,vi} from 'vitest';
-import {formatarDocumento,modeloRoteiro,modeloTexto,modeloCategoria,modeloOperacional,STATUS_MANU} from '../../../../../supabase/functions/telegram/modelos';
+import {formatarDocumento,modeloRoteiro,modeloTexto,modeloCategoria,modeloOperacional,STATUS_MANU,formatoRoteiro} from '../../../../../supabase/functions/telegram/modelos';
 import {enviarDocumento} from '../../../../../supabase/functions/telegram/entregas';
 import type {SupabaseClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import {lerEntrega} from '../../../../../supabase/functions/_shared/motor';
 describe('padrão oficial Manu',()=>{
+ it('preserva entrega estruturada sem transformá-la em object Object',()=>{const r=lerEntrega(JSON.stringify({resumo:'Roteiro',entrega:{titulo:'Documentos',texto_falado:'Texto completo',legenda:'Legenda pronta'},pendencias:[]}));expect(JSON.parse(r.entrega)).toEqual({titulo:'Documentos',texto_falado:'Texto completo',legenda:'Legenda pronta'});});
+ it('preserva também o conteúdo editorial retornado diretamente pelo modelo',()=>{const original={titulo:'Tema',roteiro:'Fala integral',legenda:'Legenda pronta'};expect(JSON.parse(lerEntrega(JSON.stringify(original)).entrega)).toEqual(original);});
  it('mantém os seis blocos do roteiro, com fala integral e legenda pronta',()=>{
   const fala='Você está organizando seus documentos? Comece pelo contrato e pelos registros que já possui.';
   const d=modeloRoteiro({titulo:'Documentos',objetivo:'Orientar organização',publico:'Trabalhadores',duracao:'30 segundos — estimativa',gancho:'Guarde estes documentos.',texto_falado:fala,cta:'Salve para consultar depois.',orientacoes_gravacao:'Grave em ambiente silencioso.',legenda:'Organização ajuda na análise individual.',revisao_necessaria:'Conferência jurídica pendente.'});
   const texto=formatarDocumento(d).join('\n');expect(texto).toContain(fala);expect(texto).toContain('6. Legenda pronta');expect(texto).toContain('🟡 Pendente');expect(texto).toContain('<b>');
  });
+ it('exige e mostra tela, estratégia e verificação sem presumir pesquisa',()=>{const schema=formatoRoteiro().schema.properties.entrega;for(const campo of ['texto_na_tela','estrategia_comunicacao','verificacao_juridica'])expect(schema.required).toContain(campo);const t=formatarDocumento(modeloRoteiro({texto_na_tela:'Confira seus documentos',estrategia_comunicacao:'Situação concreta para identificação.',verificacao_juridica:'Fonte ainda não consultada; revisão humana pendente.'})).join('');expect(t).toContain('Confira seus documentos');expect(t).toContain('Situação concreta');expect(t).toContain('Fonte ainda não consultada');});
  it('não inventa dado ausente nem confirma prazo informado só pela IA',()=>{
   const d=modeloCategoria('juridico',{prazos_conferidos:'Prazo X',confirmacao_sistema:false});
   expect(formatarDocumento(d).join('')).toContain('Conferência não confirmada');expect(formatarDocumento(modeloRoteiro({})).join('')).toContain('Não informado');

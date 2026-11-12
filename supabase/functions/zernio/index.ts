@@ -7,6 +7,8 @@ import { reconciliarPagina } from "../_shared/marketing-leads.ts";
 import { normalizarFormularios, consultarMetaSelecionada } from "../_shared/marketing-formularios.ts";
 import { sincronizar, type Armazem, type EstadoJob } from "../_shared/zernio-sync.ts";
 
+import {anuncios} from './anuncios.ts';
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-djen-cron-secret",
@@ -23,11 +25,11 @@ function segredoServidor() {
   return s;
 }
 
-async function clienteDoBanco(db: SupabaseClient) {
+async function clienteDoBanco(db: SupabaseClient, tentativas = 3) {
   const c = await db.rpc("zernio_conexao", { _com_cifra: true });
   if (c.error) throw c.error;
   if (!c.data?.chave_cifrada) throw new ErroZernio("Aguardando configuração da API.", "autenticacao", 0);
-  return criarCliente({ chave: await decifrar(c.data.chave_cifrada, segredoServidor()) });
+  return criarCliente({ chave: await decifrar(c.data.chave_cifrada, segredoServidor()), tentativas });
 }
 
 /** Testa a chave com GET /v1/accounts, registra as contas e descobre quais recursos o plano libera. */
@@ -141,7 +143,7 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   try {
     const raw = await req.text();
-    if (raw.length > 10000) return json({ error: "Requisição muito grande" }, 413);
+    if (raw.length > 200000) return json({ error: "Requisição muito grande" }, 413);
     const body = JSON.parse(raw || "{}");
 
     if (body.acao === "processar" && req.headers.get("x-djen-cron-secret")) {
@@ -170,6 +172,7 @@ Deno.serve(async (req) => {
     }
 
     if (!admin) return json({ error: "Só a administração configura a integração" }, 403);
+    if(body.acao==='ads_contexto'||body.acao==='ads_executar')return json(await anuncios(db,await clienteDoBanco(db,1),usuario,body));
     switch (body.acao) {
       case "descobrir_formularios": {
         if (typeof body.conta_id !== "string" || !body.conta_id || body.conta_id.length > 200 ||

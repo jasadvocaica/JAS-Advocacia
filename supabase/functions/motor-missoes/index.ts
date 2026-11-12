@@ -16,6 +16,7 @@ import { validarConfigAgente } from "../_shared/agentes-config.ts";
 import { usuarioInterno } from "../_shared/interno.ts";
 import { ACOES_AMPLAS, CONSULTAS_AMPLAS, consultarAmplo, executarAmplo, proporAmplo, type ContextoIA } from "./ferramentas-amplas.ts";
 import { criarCliente, decifrar, semSegredos } from "../_shared/zernio.ts";
+import {formatoRoteiro} from '../telegram/modelos.ts';
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -283,6 +284,7 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
   if (escopo.error) throw new Error("Não foi possível conferir o escopo da rotina");
   if (Array.isArray(escopo.data)) t.ferramentas = t.ferramentas.filter(slug => escopo.data.includes(slug));
   const instrucoes = instrucoesDoAgente({ nome: ag.data?.nome ?? "Agente", cargo: perfil?.cargo, prompt_base: perfil?.prompt_base });
+  const roteiroEstruturado=ag.data?.nome==='Camila'&&/roteiro|grava|reels|v[ií]deo/i.test(t.objetivo_missao+' '+t.titulo);
   const escopoTelegram=await db.rpc('telegram_ferramentas_tarefa',{_tarefa:t.tarefa_id});
   if(escopoTelegram.error)throw new Error('Escopo do pedido Telegram indisponível');
   if(Array.isArray(escopoTelegram.data))t.ferramentas=t.ferramentas.filter(slug=>escopoTelegram.data.includes(slug));
@@ -312,8 +314,9 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
           key, id: t.execucao_id, rodada, agente: t.agente_id, tarefa: t.tarefa_id,
           payload: {
             model: modelo,
-            instructions: instrucoes,
+            instructions: instrucoes+(roteiroEstruturado?' Para esta resposta, siga o contrato JSON estruturado do servidor: entrega é um OBJETO editorial com todos os campos, não uma string. A fala deve ser integral, natural e pronta para gravar.':''),
             input, tools,
+            ...(roteiroEstruturado?{text:{format:formatoRoteiro()}}:{}),
           },
         }),
       executar: (slug, p) => executarFerramenta(db, t, slug, p, ctx),
@@ -327,7 +330,14 @@ async function processarTarefa(db: SupabaseClient, key: string, modelo: string, 
       _tarefa: t.tarefa_id, _ok: true,
       _resultado: { ...entrega, rodadas: r.rodadas, ferramentas: r.ferramentasUsadas },
     });
-    if(conclusao.error)throw new Error('Não foi possível confirmar a tarefa e cadastrar sua entrega');
+    if(conclusao.error){
+      const motivo=String(conclusao.error.message??'');
+      if(motivo.includes('Roteiro incompleto'))throw new Error('Roteiro incompleto: faltam campos obrigatórios do padrão Manu');
+      if(motivo.includes('Roteiro deve usar'))throw new Error('Roteiro fora do formato editorial esperado');
+      if(motivo.includes('Rascunho não cadastrado'))throw new Error('Rascunho não cadastrado no Marketing');
+      if(motivo.includes('Brief não cadastrado'))throw new Error('Brief não cadastrado no Marketing');
+      throw new Error('Não foi possível confirmar a tarefa e cadastrar sua entrega');
+    }
     return { tarefa: t.tarefa_id, ok: true };
   } catch (e) {
     if (e instanceof SemOrcamento) {

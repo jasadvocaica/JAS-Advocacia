@@ -141,7 +141,7 @@ export const MENUS: readonly {
   },
   {
     nome: "Campanhas",
-    itens: [["campanhas_meta", "Meta Ads e rascunhos"], ["campanhas", "Planejamento de campanhas"], ["triagem_direct", "Entradas do Direct"]],
+    itens: [["anuncios", "Anúncios · ideias e campanhas"], ["campanhas_meta", "Cadastros e simulações anteriores"], ["campanhas", "Planejamento de campanhas"], ["triagem_direct", "Entradas do Direct"]],
   },
   {
     nome: "Resultados",

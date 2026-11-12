@@ -1,6 +1,10 @@
 export type StatusManu='concluido'|'pendente'|'urgente'|'em_andamento'|'nao_verificado';
 export interface DocumentoManu {tipo:string;agente:string;referencia:string;status:StatusManu;fonte:string;periodo?:string;secoes:{titulo:string;texto:string}[];objetivo?:string;missao_id?:string;item_id?:string;item_tipo?:string;item_versao?:number;item_status?:string}
 export const STATUS_MANU={concluido:'🟢 Concluído',pendente:'🟡 Pendente',urgente:'🔴 Urgente',em_andamento:'🔵 Em andamento',nao_verificado:'⚪ Não verificado'};
+export function formatoRoteiro(){
+ const campos=['titulo','publico','objetivo','gancho','legenda','roteiro','brief_visual','revisao_necessaria','texto_falado','duracao','cta','orientacoes_gravacao','texto_na_tela','estrategia_comunicacao','verificacao_juridica'];
+ return {type:'json_schema',name:'entrega_roteiro_manu',strict:true,schema:{type:'object',additionalProperties:false,required:['resumo','entrega','pendencias'],properties:{resumo:{type:'string'},entrega:{type:'object',additionalProperties:false,required:campos,properties:Object.fromEntries(campos.map(c=>[c,{type:'string'}]))},pendencias:{type:'array',items:{type:'string'}}}}};
+}
 export const PADRAO_ENTREGAS_MANU='PADRÃO MANU: linguagem profissional, acolhedora e direta. Entregue material utilizável, não apenas promessa. Identifique período e fonte; separe fatos confirmados, estimativas e informações não verificadas. Relatórios operacionais: resumo executivo, detalhamento, pendências, prioridades, responsáveis e providências recomendadas. Financeiro: separar recebidos, previstos, vencidos e despesas, sem somar categorias sobrepostas. Jurídico: separar prazo identificado de prazo efetivamente conferido no sistema, indicar fonte e revisão humana; não calcular prazos. Se pedir roteiro para gravar, incluir tema, objetivo, público, duração, gancho com frase pronta, TEXTO INTEGRAL FALADO diante da câmera, CTA, orientações de gravação e legenda pronta. Nunca só tópicos, salvo pedido expresso. Sem promessas de resultado, sensacionalismo ou captação indevida. Não afirmar aprovação ou execução sem confirmação do sistema.';
 export const esc=(s:unknown)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const informado=(s:unknown)=>typeof s==='string'&&s.trim()?s.trim():'⚪ Não informado; conferir antes de usar.';
@@ -16,6 +20,9 @@ export function modeloRoteiro(j:Record<string,unknown>,meta:Partial<DocumentoMan
   {titulo:'4. Encerramento e CTA',texto:informado(j.cta)},
   {titulo:'5. Orientações de gravação',texto:informado(j.orientacoes_gravacao??j.brief_visual)},
   {titulo:'6. Legenda pronta',texto:informado(j.legenda)},
+  {titulo:'📱 TEXTO NA TELA',texto:informado(j.texto_na_tela)},
+  {titulo:'🧠 ESTRATÉGIA DE COMUNICAÇÃO',texto:informado(j.estrategia_comunicacao)},
+  {titulo:'⚖️ VERIFICAÇÃO JURÍDICA',texto:informado(j.verificacao_juridica??j.revisao_necessaria)},
   {titulo:'Conferência e aprovação',texto:informado(j.revisao_necessaria)+'\nA aprovação da pauta não autoriza a publicação do material final.'}
  ]});
 }

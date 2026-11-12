@@ -482,9 +482,10 @@ export function lerEntrega(textoFinal: string): { resumo: string; entrega: strin
   try {
     const j = JSON.parse(bruto);
     if (j && typeof j === "object") {
+      const conteudo=Object.prototype.hasOwnProperty.call(j,'entrega')?j.entrega:j;
       return {
         resumo: String(j.resumo ?? "").slice(0, 500) || "Tarefa concluída.",
-        entrega: String(j.entrega ?? "").slice(0, 20000),
+        entrega: (conteudo&&typeof conteudo==='object'?JSON.stringify(conteudo):String(conteudo??'')).slice(0,20000),
         pendencias: Array.isArray(j.pendencias) ? j.pendencias.map(String).slice(0, 20) : [],
       };
     }
